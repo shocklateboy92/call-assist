@@ -1,0 +1,81 @@
+syntax = "proto3";
+
+package callassist.broker;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Service for communication between Home Assistant Integration and Broker
+service BrokerIntegration {
+  // Configuration management
+  rpc UpdateConfiguration(ConfigurationRequest) returns (ConfigurationResponse);
+  rpc UpdateCredentials(CredentialsRequest) returns (CredentialsResponse);
+  
+  // Call management
+  rpc InitiateCall(CallRequest) returns (CallResponse);
+  rpc TerminateCall(CallTerminateRequest) returns (CallTerminateResponse);
+  
+  // Status streaming
+  rpc StreamCallStatus(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
+  rpc StreamSystemHealth(google.protobuf.Empty) returns (stream callassist.common.HealthStatus);
+  
+  // Capability queries
+  rpc GetSystemCapabilities(google.protobuf.Empty) returns (SystemCapabilities);
+}
+
+message ConfigurationRequest {
+  map<string, string> camera_entities = 1;     // entity_id -> friendly_name
+  map<string, string> media_player_entities = 2; // entity_id -> friendly_name
+  repeated string enabled_protocols = 3;        // ["matrix", "xmpp"]
+}
+
+message ConfigurationResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CredentialsRequest {
+  string protocol = 1; // "matrix" or "xmpp"
+  map<string, string> credentials = 2; // username, password, server, etc.
+}
+
+message CredentialsResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message CallRequest {
+  string camera_entity_id = 1;
+  string media_player_entity_id = 2;
+  string target_address = 3;  // Matrix room ID or XMPP JID
+  string protocol = 4;         // "matrix" or "xmpp"
+  callassist.common.MediaCapabilities preferred_capabilities = 5;
+}
+
+message CallResponse {
+  bool success = 1;
+  string call_id = 2;
+  string message = 3;
+  callassist.common.CallState initial_state = 4;
+}
+
+message CallTerminateRequest {
+  string call_id = 1;
+}
+
+message CallTerminateResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message SystemCapabilities {
+  callassist.common.MediaCapabilities broker_capabilities = 1;
+  repeated PluginCapabilities available_plugins = 2;
+}
+
+message PluginCapabilities {
+  string protocol = 1;
+  bool available = 2;
+  callassist.common.MediaCapabilities capabilities = 3;
+}

@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package callassist.plugin;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "common.proto";
+
+// Service for communication between Broker and Call Plugins (Matrix/XMPP)
+service CallPlugin {
+  // Plugin lifecycle
+  rpc Initialize(PluginConfig) returns (PluginStatus);
+  rpc Shutdown(google.protobuf.Empty) returns (google.protobuf.Empty);
+  
+  // Call operations
+  rpc StartCall(CallStartRequest) returns (CallStartResponse);
+  rpc AcceptCall(CallAcceptRequest) returns (CallAcceptResponse);
+  rpc EndCall(CallEndRequest) returns (CallEndResponse);
+  
+  // Media negotiation
+  rpc NegotiateMedia(MediaNegotiationRequest) returns (callassist.common.MediaNegotiation);
+  
+  // Real-time events
+  rpc StreamCallEvents(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
+  
+  // Health check
+  rpc GetHealth(google.protobuf.Empty) returns (callassist.common.HealthStatus);
+}
+
+message PluginConfig {
+  string protocol = 1; // "matrix" or "xmpp"
+  map<string, string> credentials = 2;
+  map<string, string> settings = 3; // Additional protocol-specific settings
+}
+
+message PluginStatus {
+  bool initialized = 1;
+  bool authenticated = 2;
+  string message = 3;
+  callassist.common.MediaCapabilities capabilities = 4;
+}
+
+message CallStartRequest {
+  string call_id = 1;
+  string target_address = 2;
+  string camera_stream_url = 3;
+  callassist.common.MediaCapabilities camera_capabilities = 4;
+  callassist.common.MediaCapabilities player_capabilities = 5;
+}
+
+message CallStartResponse {
+  bool success = 1;
+  string message = 2;
+  callassist.common.CallState state = 3;
+  string remote_stream_url = 4; // URL for incoming video stream
+}
+
+message CallAcceptRequest {
+  string call_id = 1;
+  string camera_stream_url = 2;
+  callassist.common.MediaCapabilities capabilities = 3;
+}
+
+message CallAcceptResponse {
+  bool success = 1;
+  string message = 2;
+  string remote_stream_url = 3;
+}
+
+message CallEndRequest {
+  string call_id = 1;
+  string reason = 2;
+}
+
+message CallEndResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message MediaNegotiationRequest {
+  string call_id = 1;
+  callassist.common.MediaCapabilities local_capabilities = 2;
+  callassist.common.MediaCapabilities remote_capabilities = 3;
+}

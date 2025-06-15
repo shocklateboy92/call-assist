@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package callassist.common;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Common types used across services
+
+message Resolution {
+  uint32 width = 1;
+  uint32 height = 2;
+  uint32 framerate = 3;
+}
+
+message MediaCapabilities {
+  repeated string video_codecs = 1;
+  repeated string audio_codecs = 2;
+  repeated Resolution supported_resolutions = 3;
+  bool hardware_acceleration = 4;
+  bool webrtc_support = 5;
+  uint32 max_bandwidth_kbps = 6;
+}
+
+message MediaNegotiation {
+  string selected_video_codec = 1;
+  string selected_audio_codec = 2;
+  Resolution selected_resolution = 3;
+  bool direct_streaming = 4;
+  bool transcoding_required = 5;
+  string stream_url = 6;
+}
+
+enum CallState {
+  CALL_STATE_UNKNOWN = 0;
+  CALL_STATE_INITIATING = 1;
+  CALL_STATE_RINGING = 2;
+  CALL_STATE_CONNECTING = 3;
+  CALL_STATE_ACTIVE = 4;
+  CALL_STATE_ENDING = 5;
+  CALL_STATE_ENDED = 6;
+  CALL_STATE_FAILED = 7;
+}
+
+enum CallEventType {
+  CALL_EVENT_UNKNOWN = 0;
+  CALL_EVENT_INITIATED = 1;
+  CALL_EVENT_RINGING = 2;
+  CALL_EVENT_ANSWERED = 3;
+  CALL_EVENT_MEDIA_READY = 4;
+  CALL_EVENT_ENDED = 5;
+  CALL_EVENT_ERROR = 6;
+}
+
+message CallEvent {
+  CallEventType type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string call_id = 3;
+  CallState state = 4;
+  map<string, string> metadata = 5;
+}
+
+message HealthStatus {
+  bool healthy = 1;
+  string component = 2;
+  string message = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}

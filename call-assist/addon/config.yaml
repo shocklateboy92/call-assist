@@ -1,0 +1,22 @@
+name: Call Assist
+version: "0.1.0"
+slug: call_assist
+description: Video calling integration for Home Assistant
+url: https://github.com/shocklateboy92/call-assist
+arch:
+  - aarch64
+  - amd64
+  - armv7
+startup: services
+boot: auto
+init: false
+options:
+  broker_port: 50051
+  log_level: info
+schema:
+  broker_port: port
+  log_level: list(debug|info|warning|error)
+ports:
+  50051/tcp: 50051
+host_network: false
+privileged: false

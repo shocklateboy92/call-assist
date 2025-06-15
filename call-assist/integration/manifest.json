@@ -1,0 +1,15 @@
+{
+  "domain": "call_assist",
+  "name": "Call Assist",
+  "version": "0.1.0",
+  "documentation": "https://github.com/shocklateboy92/call-assist",
+  "issue_tracker": "https://github.com/shocklateboy92/call-assist/issues",
+  "dependencies": [],
+  "codeowners": ["@shocklateboy92"],
+  "requirements": [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0"
+  ],
+  "config_flow": true,
+  "iot_class": "local_push"
+}
