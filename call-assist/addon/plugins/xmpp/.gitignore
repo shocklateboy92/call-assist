@@ -1,0 +1,24 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+*.exe
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# IDE
+.idea/
+
+# Qt Creator
+*.user
+*.user.*
+
+# Conan
+conandata.yml
+conaninfo.txt
+conanbuildinfo.*
