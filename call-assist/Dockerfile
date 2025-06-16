@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -19,6 +19,10 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 
 WORKDIR /app
 
+# Copy broker
+COPY addon/broker/ ./broker/
+RUN pip install -r broker/requirements.txt
+
 # Copy proto files and generate Python bindings
 COPY proto/ ./proto/
 RUN python -m grpc_tools.protoc \
@@ -26,10 +30,6 @@ RUN python -m grpc_tools.protoc \
     --python_out=. \
     --grpc_python_out=. \
     proto/*.proto
-
-# Copy broker
-COPY addon/broker/ ./broker/
-RUN pip install -r broker/requirements.txt
 
 # Copy and build Matrix plugin
 COPY addon/plugins/matrix/ ./plugins/matrix/
