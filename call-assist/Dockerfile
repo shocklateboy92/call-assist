@@ -23,13 +23,11 @@ WORKDIR /app
 COPY addon/broker/ ./broker/
 RUN pip install -r broker/requirements.txt
 
-# Copy proto files and generate Python bindings
+# Copy proto files and build scripts
 COPY proto/ ./proto/
-RUN python -m grpc_tools.protoc \
-    --proto_path=proto \
-    --python_out=. \
-    --grpc_python_out=. \
-    proto/*.proto
+COPY scripts/ ./scripts/
+RUN chmod +x scripts/build-proto.sh && \
+    scripts/build-proto.sh
 
 # Copy and build Matrix plugin
 COPY addon/plugins/matrix/ ./plugins/matrix/

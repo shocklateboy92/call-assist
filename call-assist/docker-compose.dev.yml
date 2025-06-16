@@ -22,13 +22,3 @@ services:
       - TZ=UTC
     restart: unless-stopped
 
-  call-assist-addon:
-    build: .
-    container_name: call-assist-addon
-    # No port exposure needed - HA will connect via service name
-    environment:
-      - BROKER_PORT=50051
-      - LOG_LEVEL=debug
-    restart: unless-stopped
-    depends_on:
-      - homeassistant

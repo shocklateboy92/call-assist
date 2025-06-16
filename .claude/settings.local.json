@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(docker-compose:*)",
+      "Bash(sudo docker exec call-assist-addon ls:*)",
+      "Bash(sudo docker logs:*)",
+      "Bash(sudo docker-compose:*)",
+      "Bash(/workspaces/universal/call-assist/addon/broker/dev.sh:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }
