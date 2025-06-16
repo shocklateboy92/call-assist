@@ -1,0 +1,33 @@
+services:
+  devcontainer:
+    image: mcr.microsoft.com/devcontainers/universal:2-linux
+    container_name: call-assist-dev
+    volumes:
+      - ..:/workspaces/universal:cached
+      - /var/run/docker.sock:/var/run/docker-host.sock
+    command: sleep infinity
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker-host.sock
+
+  homeassistant:
+    image: homeassistant/home-assistant:stable
+    container_name: call-assist-ha
+    volumes:
+      - ./integration:/config/custom_components/call_assist
+      - ../runtime/ha_config:/config
+    ports:
+      - "8123:8123"
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+
+  call-assist-addon:
+    build: ./addon
+    container_name: call-assist-addon
+    # No port exposure needed - HA will connect via service name
+    environment:
+      - BROKER_PORT=50051
+      - LOG_LEVEL=debug
+    restart: unless-stopped
+    depends_on:
+      - homeassistant

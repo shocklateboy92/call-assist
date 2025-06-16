@@ -90,8 +90,15 @@ call-assist/
 - Protocol-agnostic design for future extensibility
 - Comprehensive call lifecycle management
 
+### Development Environment
+**Docker Compose Setup**: VS Code dev container automatically starts all services:
+- **devcontainer** - Development environment with Python/TypeScript support
+- **homeassistant** - Available at `localhost:8123` with integration mounted
+- **call-assist-addon** - Broker and plugins running, accessible via service name
+- **Runtime state** stored in `runtime/` directory (gitignored) for easy debugging
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
-2. Create project scaffolding
+2. ✅ Create project scaffolding
 3. Implement broker capability detection logic
 4. Build Matrix plugin with WebRTC support
