@@ -28,17 +28,17 @@ RUN python -m grpc_tools.protoc \
     proto/*.proto
 
 # Copy broker
-COPY broker/ ./broker/
+COPY addon/broker/ ./broker/
 RUN pip install -r broker/requirements.txt
 
 # Copy and build Matrix plugin
-COPY plugins/matrix/ ./plugins/matrix/
+COPY addon/plugins/matrix/ ./plugins/matrix/
 WORKDIR /app/plugins/matrix
 RUN npm install && npm run build
 
 # Copy XMPP plugin (will be built separately)
 WORKDIR /app
-COPY plugins/xmpp/ ./plugins/xmpp/
+COPY addon/plugins/xmpp/ ./plugins/xmpp/
 
 # Expose gRPC port
 EXPOSE 50051

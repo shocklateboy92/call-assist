@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   call-assist-addon:
-    build: ./addon
+    build: .
     container_name: call-assist-addon
     # No port exposure needed - HA will connect via service name
     environment:
