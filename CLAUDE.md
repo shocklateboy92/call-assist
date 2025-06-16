@@ -52,8 +52,9 @@ call-assist/
 │   ├── plugins/
 │   │   ├── matrix/       # TypeScript
 │   │   └── xmpp/         # C++
-│   └── Dockerfile
 ├── proto/                # Shared gRPC schemas
+├── Dockerfile            # Container build (moved to root for easy proto access)
+├── docker-compose.dev.yml # Development environment
 ├── scripts/              # Build/development scripts
 └── .github/workflows/    # CI/CD for multi-language builds
 ```
