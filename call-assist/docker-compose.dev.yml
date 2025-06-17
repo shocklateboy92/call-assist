@@ -22,3 +22,35 @@ services:
       - TZ=UTC
     restart: unless-stopped
 
+  synapse:
+    image: matrixdotorg/synapse:latest
+    container_name: call-assist-synapse
+    volumes:
+      - ../runtime/synapse_data:/data
+      - ./config/synapse/homeserver.yaml:/data/homeserver.yaml
+    ports:
+      - "8008:8008"
+      - "8448:8448"
+    environment:
+      - SYNAPSE_SERVER_NAME=localhost
+      - SYNAPSE_REPORT_STATS=no
+      - UID=0
+      - GID=0
+    depends_on:
+      - coturn
+    restart: unless-stopped
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: call-assist-coturn
+    volumes:
+      - ./config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "5349:5349/udp"
+      - "5349:5349/tcp"
+      - "49152-49252:49152-49252/udp"
+    command: ["-c", "/etc/coturn/turnserver.conf"]
+    restart: unless-stopped
+
