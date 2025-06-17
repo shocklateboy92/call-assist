@@ -7,9 +7,12 @@ import grpc.aio
 import subprocess
 import os
 import yaml
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Union, Literal
 from dataclasses import dataclass
 from enum import Enum
+from dataclasses_jsonschema import JsonSchemaMixin
+from dacite import from_dict
+from datetime import datetime
 from google.protobuf import empty_pb2
 
 import call_plugin_pb2 as cp_pb2
@@ -25,16 +28,56 @@ class PluginState(Enum):
     ERROR = "error"
 
 @dataclass
-class PluginMetadata:
+class ExecutableConfig(JsonSchemaMixin):
+    """Configuration for plugin executable"""
+    type: Literal["node", "python", "binary"]
+    command: List[str]
+    working_directory: str = "."
+
+@dataclass
+class GrpcConfig(JsonSchemaMixin):
+    """Configuration for plugin gRPC service"""
+    port: int
+    health_check_timeout: int = 5
+    startup_timeout: int = 30
+
+@dataclass
+class CapabilitiesConfig(JsonSchemaMixin):
+    """Configuration for plugin capabilities"""
+    video_codecs: List[str]
+    audio_codecs: List[str]
+    max_resolution: str
+    supports_webrtc: bool
+    features: Optional[List[str]] = None
+
+@dataclass
+class PluginMetadata(JsonSchemaMixin):
+    """Strongly typed plugin metadata structure"""
     name: str
     protocol: str
-    version: str
-    description: str
-    executable: Dict[str, Any]
-    grpc: Dict[str, Any]
-    capabilities: Dict[str, Any]
-    required_credentials: List[str]
-    optional_settings: List[str]
+    executable: ExecutableConfig
+    grpc: GrpcConfig
+    capabilities: CapabilitiesConfig
+    version: str = "1.0.0"
+    description: str = ""
+    required_credentials: Optional[List[str]] = None
+    optional_settings: Optional[List[str]] = None
+    
+    def __post_init__(self):
+        # Handle None values for lists
+        if self.required_credentials is None:
+            self.required_credentials = []
+        if self.optional_settings is None:
+            self.optional_settings = []
+
+@dataclass
+class PluginConfiguration:
+    """Configuration state for an initialized plugin"""
+    protocol: str
+    credentials: Dict[str, str]
+    settings: Dict[str, str]
+    initialized_at: Optional[str] = None  # ISO timestamp
+    is_initialized: bool = True
 
 @dataclass
 class PluginInstance:
@@ -45,6 +88,7 @@ class PluginInstance:
     stub: Optional[cp_grpc.CallPluginStub] = None
     state: PluginState = PluginState.STOPPED
     last_error: Optional[str] = None
+    configuration: Optional[PluginConfiguration] = None
 
 class PluginManager:
     """Generic plugin manager that loads plugins based on metadata files"""
@@ -56,7 +100,6 @@ class PluginManager:
             plugins_root = os.path.join(os.path.dirname(current_dir), "plugins")
         self.plugins_root = plugins_root
         self.plugins: Dict[str, PluginInstance] = {}
-        self.plugin_configs: Dict[str, Dict[str, Any]] = {}
         self._discover_plugins()
     
     def _discover_plugins(self):
@@ -92,23 +135,11 @@ class PluginManager:
         with open(metadata_file, 'r') as f:
             data = yaml.safe_load(f)
         
-        # Validate required fields
-        required_fields = ['name', 'protocol', 'executable', 'grpc']
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Missing required field: {field}")
-        
-        return PluginMetadata(
-            name=data['name'],
-            protocol=data['protocol'],
-            version=data.get('version', '1.0.0'),
-            description=data.get('description', ''),
-            executable=data['executable'],
-            grpc=data['grpc'],
-            capabilities=data.get('capabilities', {}),
-            required_credentials=data.get('required_credentials', []),
-            optional_settings=data.get('optional_settings', [])
-        )
+        # Use dacite to automatically deserialize into strongly typed dataclasses
+        try:
+            return from_dict(data_class=PluginMetadata, data=data)
+        except Exception as e:
+            raise ValueError(f"Invalid plugin metadata structure: {e}") from e
     
     async def ensure_plugin_running(self, protocol: str) -> bool:
         """Ensure a plugin is running, starting it if necessary"""
@@ -131,7 +162,7 @@ class PluginManager:
         
         if plugin.state == PluginState.STARTING:
             # Wait for it to finish starting
-            timeout = plugin.metadata.grpc.get('startup_timeout', 30)
+            timeout = plugin.metadata.grpc.startup_timeout
             for _ in range(timeout):
                 await asyncio.sleep(1)
                 if plugin.state == PluginState.RUNNING:
@@ -152,8 +183,8 @@ class PluginManager:
         try:
             # Build command from metadata
             exec_config = plugin.metadata.executable
-            command = exec_config['command']
-            working_dir = os.path.join(plugin.plugin_dir, exec_config.get('working_directory', '.'))
+            command = exec_config.command
+            working_dir = os.path.join(plugin.plugin_dir, exec_config.working_directory)
             
             # Start the plugin process
             plugin.process = subprocess.Popen(
@@ -172,12 +203,12 @@ class PluginManager:
                 raise RuntimeError(f"Plugin process exited: {stderr.decode()}")
             
             # Establish gRPC connection
-            port = plugin.metadata.grpc['port']
+            port = plugin.metadata.grpc.port
             plugin.channel = grpc.aio.insecure_channel(f'localhost:{port}')
             plugin.stub = cp_grpc.CallPluginStub(plugin.channel)
             
             # Wait for gRPC server to be ready
-            health_timeout = plugin.metadata.grpc.get('health_check_timeout', 5)
+            health_timeout = plugin.metadata.grpc.health_check_timeout
             for attempt in range(health_timeout * 2):  # 0.5s intervals
                 try:
                     await asyncio.wait_for(
@@ -274,7 +305,7 @@ class PluginManager:
         
         # Validate required credentials
         missing_creds = []
-        for required_cred in plugin.metadata.required_credentials:
+        for required_cred in (plugin.metadata.required_credentials or []):
             if required_cred not in credentials:
                 missing_creds.append(required_cred)
         
@@ -292,10 +323,12 @@ class PluginManager:
             response = await plugin.stub.Initialize(config)
             
             if response.initialized:
-                self.plugin_configs[protocol] = {
-                    'credentials': credentials,
-                    'settings': settings or {}
-                }
+                plugin.configuration = PluginConfiguration(
+                    protocol=protocol,
+                    credentials=credentials,
+                    settings=settings or {},
+                    initialized_at=datetime.now().isoformat()
+                )
                 logger.info(f"Plugin {protocol} initialized successfully")
                 return True
             else:
@@ -338,7 +371,7 @@ class PluginManager:
             logger.error(f"Failed to end call on {protocol}: {e}")
             return None
     
-    def get_plugin_capabilities(self, protocol: str) -> Optional[Dict[str, Any]]:
+    def get_plugin_capabilities(self, protocol: str) -> Optional[CapabilitiesConfig]:
         """Get capabilities from plugin metadata"""
         if protocol not in self.plugins:
             return None

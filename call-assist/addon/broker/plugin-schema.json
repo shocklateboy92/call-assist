@@ -1,0 +1,135 @@
+{
+  "type": "object",
+  "required": [
+    "name",
+    "protocol",
+    "executable",
+    "grpc",
+    "capabilities"
+  ],
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "protocol": {
+      "type": "string"
+    },
+    "executable": {
+      "$ref": "#/definitions/ExecutableConfig"
+    },
+    "grpc": {
+      "$ref": "#/definitions/GrpcConfig"
+    },
+    "capabilities": {
+      "$ref": "#/definitions/CapabilitiesConfig"
+    },
+    "version": {
+      "type": "string",
+      "default": "1.0.0"
+    },
+    "description": {
+      "type": "string",
+      "default": ""
+    },
+    "required_credentials": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "optional_settings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "description": "Configuration schema for Call Assist plugins",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ExecutableConfig": {
+      "type": "object",
+      "required": [
+        "type",
+        "command"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "node",
+            "python",
+            "binary"
+          ]
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "working_directory": {
+          "type": "string",
+          "default": "."
+        }
+      },
+      "description": "Configuration for plugin executable"
+    },
+    "GrpcConfig": {
+      "type": "object",
+      "required": [
+        "port"
+      ],
+      "properties": {
+        "port": {
+          "type": "integer"
+        },
+        "health_check_timeout": {
+          "type": "integer",
+          "default": 5
+        },
+        "startup_timeout": {
+          "type": "integer",
+          "default": 30
+        }
+      },
+      "description": "Configuration for plugin gRPC service"
+    },
+    "CapabilitiesConfig": {
+      "type": "object",
+      "required": [
+        "video_codecs",
+        "audio_codecs",
+        "max_resolution",
+        "supports_webrtc"
+      ],
+      "properties": {
+        "video_codecs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "audio_codecs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_resolution": {
+          "type": "string"
+        },
+        "supports_webrtc": {
+          "type": "boolean"
+        },
+        "features": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Configuration for plugin capabilities"
+    }
+  },
+  "title": "Call Assist Plugin Configuration"
+}

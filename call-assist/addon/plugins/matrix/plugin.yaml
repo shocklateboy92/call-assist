@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../broker/plugin-schema.json
 name: matrix
 protocol: matrix
 version: "1.0.0"
