@@ -96,6 +96,8 @@ call-assist/
 - **devcontainer** - Development environment with Python/TypeScript support
 - **homeassistant** - Available at `localhost:8123` with integration mounted
 - **call-assist-addon** - Broker and plugins running, accessible via service name
+- **synapse** - Matrix homeserver at `localhost:8008` for testing Matrix plugin
+- **coturn** - TURN server on port 3478 for WebRTC relay support
 - **Runtime state** stored in `runtime/` directory (gitignored) for easy debugging
 
 ## Next Steps
