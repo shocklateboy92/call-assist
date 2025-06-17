@@ -50,6 +50,13 @@ Thumbs.db
 *.log
 logs/
 
-# Generated protobuf files
+# Generated protobuf files (Python implementation)
 *_pb2.py
 *_pb2_grpc.py
+proto_gen/
+
+# Generated protobuf files (TypeScript)
+*/proto_gen/
+
+# Keep protobuf type stub files for better IDE support
+# *_pb2.pyi files are tracked for type checking

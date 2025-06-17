@@ -8,7 +8,11 @@
       "Bash(sudo docker logs:*)",
       "Bash(sudo docker-compose:*)",
       "Bash(/workspaces/universal/call-assist/addon/broker/dev.sh:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(timeout:*)",
+      "Bash(true)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

@@ -3,16 +3,17 @@
 import asyncio
 import logging
 import grpc
+import grpc.aio
 import subprocess
 import os
 import yaml
 from typing import Dict, Optional, List, Any
 from dataclasses import dataclass
 from enum import Enum
+from google.protobuf import empty_pb2
 
 import call_plugin_pb2 as cp_pb2
 import call_plugin_pb2_grpc as cp_grpc
-import common_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class PluginInstance:
 class PluginManager:
     """Generic plugin manager that loads plugins based on metadata files"""
     
-    def __init__(self, plugins_root: str = None):
+    def __init__(self, plugins_root: Optional[str] = None):
         if plugins_root is None:
             # Default to relative path in dev environment, absolute in production
             current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -167,7 +168,7 @@ class PluginManager:
             
             # Check if process is still running
             if plugin.process.poll() is not None:
-                stdout, stderr = plugin.process.communicate()
+                _, stderr = plugin.process.communicate()
                 raise RuntimeError(f"Plugin process exited: {stderr.decode()}")
             
             # Establish gRPC connection
@@ -180,7 +181,7 @@ class PluginManager:
             for attempt in range(health_timeout * 2):  # 0.5s intervals
                 try:
                     await asyncio.wait_for(
-                        plugin.stub.GetHealth(common_pb2.Empty()),
+                        plugin.stub.GetHealth(empty_pb2.Empty()),
                         timeout=1.0
                     )
                     break
@@ -213,7 +214,7 @@ class PluginManager:
             if plugin.stub:
                 try:
                     await asyncio.wait_for(
-                        plugin.stub.Shutdown(common_pb2.Empty()),
+                        plugin.stub.Shutdown(empty_pb2.Empty()),
                         timeout=5.0
                     )
                 except (grpc.aio.AioRpcError, asyncio.TimeoutError):
@@ -255,14 +256,14 @@ class PluginManager:
         
         try:
             health = await asyncio.wait_for(
-                plugin.stub.GetHealth(common_pb2.Empty()),
+                plugin.stub.GetHealth(empty_pb2.Empty()),
                 timeout=2.0
             )
-            return health.status == common_pb2.HealthStatus.Status.HEALTHY
+            return health.healthy
         except Exception:
             return False
     
-    async def initialize_plugin(self, protocol: str, credentials: Dict[str, str], settings: Dict[str, str] = None) -> bool:
+    async def initialize_plugin(self, protocol: str, credentials: Dict[str, str], settings: Optional[Dict[str, str]] = None) -> bool:
         """Initialize a plugin with credentials"""
         if not await self.ensure_plugin_running(protocol):
             return False

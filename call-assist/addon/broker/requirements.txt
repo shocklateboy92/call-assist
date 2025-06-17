@@ -3,3 +3,5 @@ grpcio-tools>=1.50.0
 asyncio
 logging
 pyyaml>=6.0
+mypy-protobuf>=3.6.0
+types-protobuf>=6.30.0

@@ -100,6 +100,11 @@ call-assist/
 - **coturn** - TURN server on port 3478 for WebRTC relay support
 - **Runtime state** stored in `runtime/` directory (gitignored) for easy debugging
 
+**Type Safety**: Protobuf files use mypy-protobuf for full type checking support:
+- `.pyi` stub files are tracked in git for immediate IDE support
+- Run `scripts/build-proto.sh` to regenerate protobuf files and type stubs
+- Python protobuf files (`*_pb2.py`, `*_pb2_grpc.py`) are gitignored as generated files
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding

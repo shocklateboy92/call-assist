@@ -27,6 +27,7 @@ python -m grpc_tools.protoc \
     --proto_path=proto \
     --python_out=addon/broker \
     --grpc_python_out=addon/broker \
+    --mypy_out=addon/broker \
     proto/*.proto
 
 echo "✓ Python protobuf files generated successfully"
