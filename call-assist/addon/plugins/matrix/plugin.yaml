@@ -1,0 +1,36 @@
+name: matrix
+protocol: matrix
+version: "1.0.0"
+description: "Matrix video calling plugin using matrix-js-sdk"
+
+# Plugin executable configuration  
+executable:
+  type: node
+  command: ["node", "dist/index.js"]
+  working_directory: "."
+  
+# gRPC service configuration
+grpc:
+  port: 50052
+  health_check_timeout: 5
+  startup_timeout: 30
+
+# Plugin capabilities
+capabilities:
+  video_codecs: ["VP8", "VP9", "H264"]
+  audio_codecs: ["OPUS", "G722"]
+  max_resolution: "1080p"
+  supports_webrtc: true
+  features: ["video_call", "audio_call", "screen_share"]
+
+# Required credentials
+required_credentials:
+  - homeserver
+  - access_token
+  - user_id
+
+# Optional settings
+optional_settings:
+  - turn_servers
+  - ice_servers
+  - call_timeout

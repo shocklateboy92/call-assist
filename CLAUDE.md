@@ -103,5 +103,5 @@ call-assist/
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
-3. Implement broker capability detection logic
-4. Build Matrix plugin with WebRTC support
+3. ✅ Build Matrix plugin with WebRTC support
+4. Implement broker capability detection logic

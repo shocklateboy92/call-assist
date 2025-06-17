@@ -11,6 +11,7 @@ from call_plugin_pb2_grpc import CallPluginServicer, add_CallPluginServicer_to_s
 import broker_integration_pb2 as bi_pb2
 import call_plugin_pb2 as cp_pb2  
 import common_pb2
+from plugin_manager import PluginManager
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -26,8 +27,8 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         self.configuration: Dict = {}
         self.credentials: Dict[str, Dict] = {}  # protocol -> credentials
         self.active_calls: Dict[str, Dict] = {}  # call_id -> call_info
-        self.plugin_connections: Dict[str, grpc.Channel] = {}  # protocol -> channel
         self.call_counter = 0
+        self.plugin_manager = PluginManager()
         
     async def UpdateConfiguration(self, request: bi_pb2.ConfigurationRequest, context) -> bi_pb2.ConfigurationResponse:
         """Update system configuration from Home Assistant"""
@@ -163,7 +164,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
     async def GetSystemCapabilities(self, request, context) -> bi_pb2.SystemCapabilities:
         """Get current system capabilities"""
         try:
-            # TODO: Query actual capabilities from plugins and system
+            # Basic broker capabilities
             broker_caps = common_pb2.MediaCapabilities(
                 video_codecs=["H264", "VP8"],
                 audio_codecs=["OPUS", "G711"],
@@ -171,12 +172,27 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 supports_webrtc=True
             )
             
+            # Query plugin capabilities
             plugin_caps = []
-            for protocol in self.configuration.get('enabled_protocols', []):
+            available_protocols = self.plugin_manager.get_available_protocols()
+            
+            for protocol in available_protocols:
+                plugin_metadata = self.plugin_manager.get_plugin_info(protocol)
+                plugin_state = self.plugin_manager.get_plugin_state(protocol)
+                
+                # Convert plugin metadata capabilities to protobuf
+                caps = plugin_metadata.capabilities if plugin_metadata else {}
+                plugin_media_caps = common_pb2.MediaCapabilities(
+                    video_codecs=caps.get('video_codecs', []),
+                    audio_codecs=caps.get('audio_codecs', []),
+                    max_resolution=caps.get('max_resolution', '720p'),
+                    supports_webrtc=caps.get('supports_webrtc', False)
+                )
+                
                 plugin_caps.append(bi_pb2.PluginCapabilities(
                     protocol=protocol,
-                    available=protocol in self.credentials,
-                    capabilities=broker_caps  # Placeholder
+                    available=(protocol in self.credentials and plugin_state.value != 'error'),
+                    capabilities=plugin_media_caps
                 ))
             
             return bi_pb2.SystemCapabilities(
@@ -191,20 +207,48 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
     # Helper methods for plugin communication
     async def _notify_plugin_credentials(self, protocol: str, credentials: Dict):
         """Send credentials to the appropriate plugin"""
-        # TODO: Implement plugin communication
-        logger.info(f"TODO: Send credentials to {protocol} plugin")
+        success = await self.plugin_manager.initialize_plugin(protocol, credentials)
+        if success:
+            logger.info(f"Plugin {protocol} initialized with credentials")
+        else:
+            logger.error(f"Failed to initialize plugin {protocol}")
     
     async def _forward_call_to_plugin(self, call_info: Dict):
         """Forward call request to the appropriate plugin"""
-        # TODO: Implement plugin communication
         protocol = call_info['protocol']
-        logger.info(f"TODO: Forward call to {protocol} plugin")
+        
+        # Create call start request
+        call_request = cp_pb2.CallStartRequest(
+            call_id=call_info['call_id'],
+            target_address=call_info['target_address'],
+            camera_stream_url="",  # TODO: Get actual camera stream URL
+            camera_capabilities=call_info.get('preferred_capabilities', common_pb2.MediaCapabilities()),
+            player_capabilities=common_pb2.MediaCapabilities()  # TODO: Get actual player capabilities
+        )
+        
+        response = await self.plugin_manager.start_call(protocol, call_request)
+        if response and response.success:
+            # Update call state
+            call_info['state'] = response.state
+            logger.info(f"Call {call_info['call_id']} forwarded to {protocol} plugin")
+        else:
+            call_info['state'] = common_pb2.CallState.CALL_STATE_FAILED
+            logger.error(f"Failed to forward call {call_info['call_id']} to {protocol} plugin")
     
     async def _terminate_call_on_plugin(self, call_info: Dict):
         """Request call termination from plugin"""
-        # TODO: Implement plugin communication
         protocol = call_info['protocol']
-        logger.info(f"TODO: Terminate call on {protocol} plugin")
+        
+        call_request = cp_pb2.CallEndRequest(
+            call_id=call_info['call_id'],
+            reason="User requested termination"
+        )
+        
+        response = await self.plugin_manager.end_call(protocol, call_request)
+        if response and response.success:
+            logger.info(f"Call {call_info['call_id']} terminated on {protocol} plugin")
+        else:
+            logger.error(f"Failed to terminate call {call_info['call_id']} on {protocol} plugin")
 
 async def serve():
     """Start the broker gRPC server"""
@@ -218,12 +262,14 @@ async def serve():
     server.add_insecure_port(listen_addr)
     
     logger.info(f"Starting Call Assist Broker on {listen_addr}")
+    logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
     await server.start()
     
     try:
         await server.wait_for_termination()
     except KeyboardInterrupt:
         logger.info("Shutting down broker...")
+        await broker.plugin_manager.shutdown_all()
         await server.stop(5)
 
 if __name__ == '__main__':
