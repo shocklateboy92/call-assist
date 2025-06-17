@@ -1,0 +1,5 @@
+# Ignore all generated TypeScript protobuf files
+*.ts
+
+# Keep this gitignore file
+!.gitignore

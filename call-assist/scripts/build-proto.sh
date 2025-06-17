@@ -31,18 +31,16 @@ python -m grpc_tools.protoc \
 
 echo "✓ Python protobuf files generated successfully"
 
-# Generate TypeScript protobuf files for Matrix plugin (if protoc-gen-ts is available)
-if command -v protoc &> /dev/null && command -v protoc-gen-ts &> /dev/null; then
+# Generate TypeScript protobuf files for Matrix plugin using ts-proto
+if [ -d "addon/plugins/matrix/node_modules" ] && [ -f "addon/plugins/matrix/node_modules/.bin/protoc-gen-ts_proto" ]; then
     echo "Generating TypeScript protobuf files for Matrix plugin..."
     mkdir -p addon/plugins/matrix/src/proto_gen
-    protoc \
-        --proto_path=proto \
-        --ts_out=addon/plugins/matrix/src/proto_gen \
-        --grpc-web_out=import_style=typescript,mode=grpcweb:addon/plugins/matrix/src/proto_gen \
-        proto/*.proto
+    cd addon/plugins/matrix
+    npm run proto
+    cd ../../..
     echo "✓ TypeScript protobuf files generated successfully"
 else
-    echo "⚠ Skipping TypeScript protobuf generation (protoc or protoc-gen-ts not available)"
+    echo "⚠ Skipping TypeScript protobuf generation (dependencies not installed in Matrix plugin)"
 fi
 
 # Generate C++ protobuf files for XMPP plugin (if protoc is available)
