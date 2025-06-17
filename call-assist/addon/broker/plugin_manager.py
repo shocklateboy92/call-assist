@@ -17,6 +17,7 @@ from google.protobuf import empty_pb2
 
 import call_plugin_pb2 as cp_pb2
 import call_plugin_pb2_grpc as cp_grpc
+import common_pb2
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +43,18 @@ class GrpcConfig(JsonSchemaMixin):
     startup_timeout: int = 30
 
 @dataclass
+class ResolutionConfig(JsonSchemaMixin):
+    """Resolution configuration that maps to protobuf Resolution"""
+    width: int
+    height: int
+    framerate: int
+
+@dataclass
 class CapabilitiesConfig(JsonSchemaMixin):
     """Configuration for plugin capabilities"""
     video_codecs: List[str]
     audio_codecs: List[str]
-    max_resolution: str
+    supported_resolutions: List[ResolutionConfig]
     supports_webrtc: bool
     features: Optional[List[str]] = None
 

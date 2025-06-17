@@ -217,14 +217,15 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 # Convert plugin metadata capabilities to protobuf
                 caps = plugin_metadata.capabilities if plugin_metadata else None
                 if caps:
-                    # Convert max_resolution string to Resolution objects
-                    resolutions = []
-                    if caps.max_resolution == "1080p":
-                        resolutions.append(common_pb2.Resolution(width=1920, height=1080, framerate=30))
-                    elif caps.max_resolution == "720p":
-                        resolutions.append(common_pb2.Resolution(width=1280, height=720, framerate=30))
-                    else:
-                        resolutions.append(common_pb2.Resolution(width=1280, height=720, framerate=30))
+                    # Plugin capabilities already have ResolutionConfig objects, convert to protobuf
+                    resolutions = [
+                        common_pb2.Resolution(
+                            width=res.width, 
+                            height=res.height, 
+                            framerate=res.framerate
+                        ) 
+                        for res in caps.supported_resolutions
+                    ]
                     
                     plugin_media_caps = common_pb2.MediaCapabilities(
                         video_codecs=caps.video_codecs,
@@ -233,6 +234,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         webrtc_support=caps.supports_webrtc
                     )
                 else:
+                    # Default fallback resolution
                     plugin_media_caps = common_pb2.MediaCapabilities(
                         video_codecs=[],
                         audio_codecs=[],

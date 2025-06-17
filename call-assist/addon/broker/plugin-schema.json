@@ -99,7 +99,7 @@
       "required": [
         "video_codecs",
         "audio_codecs",
-        "max_resolution",
+        "supported_resolutions",
         "supports_webrtc"
       ],
       "properties": {
@@ -115,8 +115,11 @@
             "type": "string"
           }
         },
-        "max_resolution": {
-          "type": "string"
+        "supported_resolutions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ResolutionConfig"
+          }
         },
         "supports_webrtc": {
           "type": "boolean"
@@ -129,6 +132,26 @@
         }
       },
       "description": "Configuration for plugin capabilities"
+    },
+    "ResolutionConfig": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "framerate"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "framerate": {
+          "type": "integer"
+        }
+      },
+      "description": "Resolution configuration that maps to protobuf Resolution"
     }
   },
   "title": "Call Assist Plugin Configuration"

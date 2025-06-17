@@ -20,7 +20,16 @@ grpc:
 capabilities:
   video_codecs: ["VP8", "VP9", "H264"]
   audio_codecs: ["OPUS", "G722"]
-  max_resolution: "1080p"
+  supported_resolutions:
+    - width: 1920
+      height: 1080
+      framerate: 30
+    - width: 1280
+      height: 720
+      framerate: 30
+    - width: 640
+      height: 480
+      framerate: 30
   supports_webrtc: true
   features: ["video_call", "audio_call", "screen_share"]
 
