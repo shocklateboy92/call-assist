@@ -18,8 +18,10 @@ from unittest.mock import AsyncMock, Mock, patch
 
 # Import broker and proto files
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+# Import from broker directory
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'addon', 'broker'))
 from main import CallAssistBroker
 from plugin_manager import PluginManager, PluginInstance, PluginMetadata, PluginState
 import proto_gen.broker_integration_pb2 as bi_pb2
@@ -43,7 +45,7 @@ class MockMatrixPlugin:
         self.server = grpc.aio.server()
         
         # Add the call plugin service
-        from call_plugin_pb2_grpc import add_CallPluginServicer_to_server
+        from proto_gen.call_plugin_pb2_grpc import add_CallPluginServicer_to_server
         add_CallPluginServicer_to_server(self, self.server)
         
         listen_addr = f'[::]:{self.port}'

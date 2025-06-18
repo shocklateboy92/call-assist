@@ -28,7 +28,8 @@
       "Bash(chmod:*)",
       "Bash(./call-assist/scripts/run-integration-tests.sh:*)",
       "Bash(curl:*)",
-      "Bash(./scripts/build-proto.sh:*)"
+      "Bash(./scripts/build-proto.sh:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }
