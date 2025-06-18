@@ -130,12 +130,75 @@ def is_port_available(port: int) -> bool:
 
 # Global variable to track broker subprocess
 _broker_process = None
+_broker_log_thread = None
+
+
+def _stream_broker_logs(process, logger):
+    """Stream broker subprocess logs to the test logger"""
+    try:
+        for line in iter(process.stdout.readline, ''):
+            if not line:
+                break
+            
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Try to parse structured log line: "2025-06-18 05:23:57 [    INFO] main: Starting..."
+            # Extract log level and message for proper forwarding
+            if '[' in line and ']' in line:
+                try:
+                    # Find the last occurrence of [ ] pattern (in case there are multiple)
+                    bracket_pairs = []
+                    start = 0
+                    while True:
+                        start_bracket = line.find('[', start)
+                        if start_bracket == -1:
+                            break
+                        end_bracket = line.find(']', start_bracket)
+                        if end_bracket == -1:
+                            break
+                        bracket_pairs.append((start_bracket, end_bracket))
+                        start = end_bracket + 1
+                    
+                    if bracket_pairs:
+                        # Use the last bracket pair (should be the log level)
+                        start_bracket, end_bracket = bracket_pairs[-1]
+                        level_part = line[start_bracket+1:end_bracket].strip()
+                        
+                        # Map broker log levels to our logger
+                        level_map = {
+                            'DEBUG': logging.DEBUG,
+                            'INFO': logging.INFO,
+                            'WARNING': logging.WARNING,
+                            'WARN': logging.WARNING,
+                            'ERROR': logging.ERROR,
+                            'CRITICAL': logging.CRITICAL
+                        }
+                        
+                        # Check if this looks like a log level
+                        if level_part in level_map:
+                            message_part = line[end_bracket+1:].strip()
+                            log_level = level_map[level_part]
+                            logger.log(log_level, "[BROKER] %s", message_part)
+                            continue
+                            
+                except (ValueError, IndexError):
+                    pass
+            
+            # Fallback: log the entire line as INFO
+            logger.info("[BROKER] %s", line)
+            
+    except Exception as e:
+        logger.error("Error streaming broker logs: %s", e)
+    finally:
+        logger.debug("Broker log streaming thread ended")
 
 
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker subprocess"""
-    global _broker_process
+    global _broker_process, _broker_log_thread
     broker_port = 50051
     
     # Check if broker is already running
@@ -149,7 +212,17 @@ def broker_process():
     broker_script = os.path.join(os.path.dirname(__file__), "main.py")
     _broker_process = subprocess.Popen([
         "python", broker_script
-    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    
+    # Start log streaming thread
+    _broker_log_thread = threading.Thread(
+        target=_stream_broker_logs,
+        args=(_broker_process, logger),
+        daemon=True,
+        name="BrokerLogStreamer"
+    )
+    _broker_log_thread.start()
+    logger.debug("Started broker log streaming thread")
     
     # Wait for server to start
     max_retries = 20
@@ -178,6 +251,12 @@ def broker_process():
             _broker_process.wait()
         logger.info("Broker subprocess shutdown complete")
         _broker_process = None
+        
+    # Log thread will automatically end when process terminates (daemon=True)
+    if _broker_log_thread and _broker_log_thread.is_alive():
+        logger.debug("Waiting for broker log streaming thread to finish...")
+        _broker_log_thread.join(timeout=2)
+        _broker_log_thread = None
 
 
 @pytest.fixture(scope="function") 
