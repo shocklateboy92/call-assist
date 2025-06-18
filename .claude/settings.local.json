@@ -24,7 +24,10 @@
       "Bash(python -m pytest *)",
       "Bash(git add:*)",
       "WebFetch(domain:developers.home-assistant.io)",
-      "WebFetch(domain:www.home-assistant.io)"
+      "WebFetch(domain:www.home-assistant.io)",
+      "Bash(chmod:*)",
+      "Bash(./call-assist/scripts/run-integration-tests.sh:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

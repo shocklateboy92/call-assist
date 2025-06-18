@@ -29,7 +29,6 @@ import broker_integration_pb2 as bi_pb2
 import common_pb2
 import broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
-from main import CallAssistBroker
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)

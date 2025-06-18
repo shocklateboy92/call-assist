@@ -9,22 +9,16 @@ from grpc import aio as grpc_aio
 from grpc.aio import AioRpcError
 
 # Import protobuf generated files
-import sys
-import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'addon', 'broker'))
-
-from broker_integration_pb2_grpc import BrokerIntegrationStub
-from broker_integration_pb2 import (
+from .broker_integration_pb2_grpc import BrokerIntegrationStub
+from .broker_integration_pb2 import (
     IntegrationStatusRequest,
     IntegrationCallRequest,
     IntegrationCallResponse,
     IntegrationEvent,
 )
-from common_pb2 import CallState, ContactAvailability
+from .common_pb2 import CallState, ContactAvailability
 
 _LOGGER = logging.getLogger(__name__)
-
-
 class CallAssistGrpcClient:
     """Async gRPC client for communicating with Call Assist broker."""
     
