@@ -10,3 +10,6 @@ applyTo: '**.py'
 
 - Use `logging` for logging instead of `print`.
 - Use `pytest` for testing
+
+- Check for type errors after making code changes
+- Run integration tests to validate after code changes
