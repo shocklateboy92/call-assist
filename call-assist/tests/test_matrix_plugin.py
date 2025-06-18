@@ -547,7 +547,7 @@ class TestMatrixPluginIntegration:
             
             messages = await matrix_client.get_room_messages(matrix_test_room)
             
-            # Look for call-related message
+            # Look for call-related message or Matrix call events
             call_message_found = False
             for event in messages.get('chunk', []):
                 if event.get('type') == 'm.room.message':
@@ -555,8 +555,12 @@ class TestMatrixPluginIntegration:
                     if 'call' in body.lower() or 'video' in body.lower():
                         call_message_found = True
                         break
+                # Also check for Matrix call events (which is what the plugin actually sends)
+                elif event.get('type') in ['m.call.invite', 'm.call.answer', 'm.call.hangup']:
+                    call_message_found = True
+                    break
             
-            assert call_message_found, "No call message found in Matrix room"
+            assert call_message_found, "No call message or Matrix call event found in room"
         
         # Terminate the call
         term_request = bi_pb2.CallTerminateRequest(
