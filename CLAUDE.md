@@ -1,3 +1,8 @@
+
+# General Instructions
+
+When dealing with python code, follow the guidelines written in @.github/instructions/python.instructions.md
+
 # Call Assist Project Plan
 
 ## Overview

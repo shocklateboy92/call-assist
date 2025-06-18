@@ -55,7 +55,7 @@ class CapabilitiesConfig(JsonSchemaMixin):
     video_codecs: List[str]
     audio_codecs: List[str]
     supported_resolutions: List[ResolutionConfig]
-    supports_webrtc: bool
+    webrtc_support: bool
     features: Optional[List[str]] = None
 
 @dataclass

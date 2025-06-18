@@ -30,7 +30,7 @@ capabilities:
     - width: 640
       height: 480
       framerate: 30
-  supports_webrtc: true
+  webrtc_support: true
   features: ["video_call", "audio_call", "screen_share"]
 
 # Required credentials

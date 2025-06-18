@@ -12,7 +12,13 @@
       "mcp__ide__getDiagnostics",
       "Bash(timeout:*)",
       "Bash(true)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(npm run proto:*)",
+      "Bash(grep:*)",
+      "Bash(npm run build:*)",
+      "Bash(sed:*)",
+      "Bash(npm start)"
     ],
     "deny": []
   }

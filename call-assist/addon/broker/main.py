@@ -99,6 +99,14 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
     async def InitiateCall(self, request: bi_pb2.CallRequest, context) -> bi_pb2.CallResponse:
         """Initiate a new call"""
         try:
+            # Validate protocol exists
+            if request.protocol not in self.plugin_manager.plugins:
+                return bi_pb2.CallResponse(
+                    success=False, 
+                    call_id="", 
+                    message=f"Unknown protocol: {request.protocol}"
+                )
+            
             self.call_counter += 1
             call_id = f"call_{self.call_counter}"
             
@@ -117,7 +125,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             
             self.active_calls[call_id] = call_info
             
-            # TODO: Forward to appropriate plugin
+            # Forward to appropriate plugin
             await self._forward_call_to_plugin(call_info)
             
             return bi_pb2.CallResponse(
@@ -231,7 +239,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         video_codecs=caps.video_codecs,
                         audio_codecs=caps.audio_codecs,
                         supported_resolutions=resolutions,
-                        webrtc_support=caps.supports_webrtc
+                        webrtc_support=caps.webrtc_support
                     )
                 else:
                     # Default fallback resolution
