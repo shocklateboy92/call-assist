@@ -53,6 +53,12 @@ class MatrixTestClient:
     
     async def register_user(self, username: str, password: str) -> Dict[str, Any]:
         """Register a test user on the Matrix homeserver, or login if already exists"""
+        # First try to login in case user already exists
+        login_result = await self.login(username, password)
+        if 'access_token' in login_result:
+            return login_result
+        
+        # If login failed, try to register
         url = f"{self.homeserver_url}/_matrix/client/r0/register"
         data = {
             "username": username,
@@ -67,7 +73,7 @@ class MatrixTestClient:
                 self.user_id = result['user_id']
                 return result
             elif resp.status == 400 and 'M_USER_IN_USE' in str(result):
-                # User already exists, try to login instead
+                # User already exists, try to login again
                 login_result = await self.login(username, password)
                 return login_result
             return result
@@ -88,15 +94,25 @@ class MatrixTestClient:
                 self.user_id = result['user_id']
             return result
     
-    async def create_room(self, name: Optional[str] = None, is_public: bool = False) -> Dict[str, Any]:
+    async def create_room(self, name: Optional[str] = None, is_public: bool = False, is_direct: bool = False, invite_users: list = None) -> Dict[str, Any]:
         """Create a Matrix room"""
         url = f"{self.homeserver_url}/_matrix/client/r0/createRoom"
         headers = {"Authorization": f"Bearer {self.access_token}"}
         data = {
             "visibility": "public" if is_public else "private"
         }
+        
+        if is_direct:
+            # For direct chats, use specific settings per Matrix spec
+            data["preset"] = "trusted_private_chat"
+            data["is_direct"] = True
+
+        # Don't set a name for direct chats - they should be nameless
         if name:
             data["name"] = name
+        
+        if invite_users:
+            data["invite"] = invite_users
         
         async with self.session.post(url, json=data, headers=headers) as resp:
             return await resp.json()
@@ -140,6 +156,27 @@ class MatrixTestClient:
         
         async with self.session.get(url, headers=headers, params=params) as resp:
             return await resp.json()
+    
+    async def get_account_data(self, type_filter: Optional[str] = None) -> Dict[str, Any]:
+        """Get user account data"""
+        if type_filter:
+            url = f"{self.homeserver_url}/_matrix/client/r0/user/{self.user_id}/account_data/{type_filter}"
+        else:
+            url = f"{self.homeserver_url}/_matrix/client/r0/user/{self.user_id}/account_data"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        
+        async with self.session.get(url, headers=headers) as resp:
+            if resp.status == 404:
+                return {}
+            return await resp.json()
+    
+    async def set_account_data(self, data_type: str, content: Dict[str, Any]) -> Dict[str, Any]:
+        """Set user account data"""
+        url = f"{self.homeserver_url}/_matrix/client/r0/user/{self.user_id}/account_data/{data_type}"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        
+        async with self.session.put(url, json=content, headers=headers) as resp:
+            return await resp.json() if resp.status != 200 else {}
 
 
 def is_port_available(port: int) -> bool:
@@ -302,6 +339,7 @@ async def broker_server(broker_process):
 
 TEST_PASSWORD = "testpassword123"
 RECEIVER_USERNAME = "testreceiver"
+CALLER_USERNAME = "testcaller"
 TEST_ROOM_NAME = "Test Video Call Room"
 
 @pytest.fixture
@@ -310,9 +348,9 @@ async def matrix_test_users():
     users = {}
     
     async with MatrixTestClient() as client:
-        # Create caller user with unique timestamp
+        # Use consistent caller user (will login if already exists)
         caller_result = await client.register_user(
-            f"testcaller_{int(time.time())}", 
+            CALLER_USERNAME, 
             TEST_PASSWORD
         )
         if 'access_token' in caller_result:
@@ -339,7 +377,7 @@ async def matrix_test_users():
 
 @pytest.fixture
 async def matrix_test_room(broker_server, matrix_test_users):
-    """Get or create a consistent test room and ensure both users can access it"""
+    """Get or create a consistent direct chat between caller and receiver"""
     if 'receiver' not in matrix_test_users or 'caller' not in matrix_test_users:
         pytest.skip("Both receiver and caller users required")
     
@@ -358,30 +396,65 @@ async def matrix_test_room(broker_server, matrix_test_users):
     
     await broker_server.UpdateCredentials(creds_request, timeout=10.0)
     
-    # Create room with receiver credentials and invite caller
+    # Check if a direct chat room already exists
     test_room_id = None
     
     async with MatrixTestClient() as client:
-        # Create room as receiver
         client.access_token = receiver['access_token']
         client.user_id = receiver['user_id']
         
-        room_result = await client.create_room(TEST_ROOM_NAME)
-        if 'room_id' in room_result:
-            test_room_id = room_result['room_id']
-            
-            # Invite caller to the room
-            await client.invite_user_to_room(test_room_id, caller['user_id'])
+        # Check existing m.direct account data for existing room with caller
+        direct_data = await client.get_account_data('m.direct')
+        if direct_data and caller['user_id'] in direct_data:
+            room_list = direct_data[caller['user_id']]
+            if room_list:
+                # Use the first existing room
+                test_room_id = room_list[0]
+        
+        # If no existing room found, create a new direct chat
+        if not test_room_id:
+            room_result = await client.create_room(
+                is_direct=True,
+                invite_users=[caller['user_id']]
+            )
+            if 'room_id' in room_result:
+                test_room_id = room_result['room_id']
+                
+                # Set m.direct account data for receiver
+                if not direct_data:
+                    direct_data = {}
+                
+                # Add this room as a direct chat with the caller
+                if caller['user_id'] not in direct_data:
+                    direct_data[caller['user_id']] = []
+                if test_room_id not in direct_data[caller['user_id']]:
+                    direct_data[caller['user_id']].append(test_room_id)
+                    
+                await client.set_account_data('m.direct', direct_data)
     
     if not test_room_id:
-        pytest.skip("Could not create test room")
+        pytest.skip("Could not find or create direct chat room")
     
-    # Now have caller join the room
+    # Ensure caller has joined the direct chat and has proper m.direct data
     async with MatrixTestClient() as client:
         client.access_token = caller['access_token']
         client.user_id = caller['user_id']
         
+        # Try to join the room (will succeed silently if already joined)
         await client.join_room(test_room_id)
+        
+        # Set m.direct account data for caller
+        direct_data = await client.get_account_data('m.direct')
+        if not direct_data:
+            direct_data = {}
+        
+        # Add this room as a direct chat with the receiver
+        if receiver['user_id'] not in direct_data:
+            direct_data[receiver['user_id']] = []
+        if test_room_id not in direct_data[receiver['user_id']]:
+            direct_data[receiver['user_id']].append(test_room_id)
+            
+        await client.set_account_data('m.direct', direct_data)
     
     return test_room_id
 
