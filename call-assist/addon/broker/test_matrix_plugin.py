@@ -129,7 +129,7 @@ async def matrix_test_users():
         
         # Create receiver user
         receiver_result = await client.register_user(
-            f"testreceiver_{int(time.time())}", 
+            f"testreceiver", 
             "testpassword123"
         )
         if 'access_token' in receiver_result:

@@ -72,6 +72,51 @@ CALL_EVENT_ENDED: CallEventType.ValueType  # 5
 CALL_EVENT_ERROR: CallEventType.ValueType  # 6
 global___CallEventType = CallEventType
 
+class _ContactPresence:
+    ValueType = typing.NewType("ValueType", builtins.int)
+    V: typing_extensions.TypeAlias = ValueType
+
+class _ContactPresenceEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ContactPresence.ValueType], builtins.type):
+    DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    PRESENCE_UNKNOWN: _ContactPresence.ValueType  # 0
+    PRESENCE_ONLINE: _ContactPresence.ValueType  # 1
+    PRESENCE_AWAY: _ContactPresence.ValueType  # 2
+    PRESENCE_BUSY: _ContactPresence.ValueType  # 3
+    PRESENCE_OFFLINE: _ContactPresence.ValueType  # 4
+
+class ContactPresence(_ContactPresence, metaclass=_ContactPresenceEnumTypeWrapper):
+    """Contact management types"""
+
+PRESENCE_UNKNOWN: ContactPresence.ValueType  # 0
+PRESENCE_ONLINE: ContactPresence.ValueType  # 1
+PRESENCE_AWAY: ContactPresence.ValueType  # 2
+PRESENCE_BUSY: ContactPresence.ValueType  # 3
+PRESENCE_OFFLINE: ContactPresence.ValueType  # 4
+global___ContactPresence = ContactPresence
+
+class _ContactUpdateType:
+    ValueType = typing.NewType("ValueType", builtins.int)
+    V: typing_extensions.TypeAlias = ValueType
+
+class _ContactUpdateTypeEnumTypeWrapper(google.protobuf.internal.enum_type_wrapper._EnumTypeWrapper[_ContactUpdateType.ValueType], builtins.type):
+    DESCRIPTOR: google.protobuf.descriptor.EnumDescriptor
+    CONTACT_UPDATE_UNKNOWN: _ContactUpdateType.ValueType  # 0
+    CONTACT_UPDATE_ADDED: _ContactUpdateType.ValueType  # 1
+    CONTACT_UPDATE_MODIFIED: _ContactUpdateType.ValueType  # 2
+    CONTACT_UPDATE_REMOVED: _ContactUpdateType.ValueType  # 3
+    CONTACT_UPDATE_INITIAL_LIST: _ContactUpdateType.ValueType  # 4
+    """Initial batch of contacts after plugin init"""
+
+class ContactUpdateType(_ContactUpdateType, metaclass=_ContactUpdateTypeEnumTypeWrapper): ...
+
+CONTACT_UPDATE_UNKNOWN: ContactUpdateType.ValueType  # 0
+CONTACT_UPDATE_ADDED: ContactUpdateType.ValueType  # 1
+CONTACT_UPDATE_MODIFIED: ContactUpdateType.ValueType  # 2
+CONTACT_UPDATE_REMOVED: ContactUpdateType.ValueType  # 3
+CONTACT_UPDATE_INITIAL_LIST: ContactUpdateType.ValueType  # 4
+"""Initial batch of contacts after plugin init"""
+global___ContactUpdateType = ContactUpdateType
+
 @typing.final
 class Resolution(google.protobuf.message.Message):
     """Common types used across services"""
@@ -231,3 +276,112 @@ class HealthStatus(google.protobuf.message.Message):
     def ClearField(self, field_name: typing.Literal["component", b"component", "healthy", b"healthy", "message", b"message", "timestamp", b"timestamp"]) -> None: ...
 
 global___HealthStatus = HealthStatus
+
+@typing.final
+class Contact(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    @typing.final
+    class MetadataEntry(google.protobuf.message.Message):
+        DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+        KEY_FIELD_NUMBER: builtins.int
+        VALUE_FIELD_NUMBER: builtins.int
+        key: builtins.str
+        value: builtins.str
+        def __init__(
+            self,
+            *,
+            key: builtins.str = ...,
+            value: builtins.str = ...,
+        ) -> None: ...
+        def ClearField(self, field_name: typing.Literal["key", b"key", "value", b"value"]) -> None: ...
+
+    ID_FIELD_NUMBER: builtins.int
+    PROTOCOL_FIELD_NUMBER: builtins.int
+    DISPLAY_NAME_FIELD_NUMBER: builtins.int
+    PRESENCE_FIELD_NUMBER: builtins.int
+    AVATAR_URL_FIELD_NUMBER: builtins.int
+    METADATA_FIELD_NUMBER: builtins.int
+    id: builtins.str
+    """Protocol-specific ID (XMPP JID, Matrix room ID)"""
+    protocol: builtins.str
+    """"matrix" or "xmpp" - tells broker where to route"""
+    display_name: builtins.str
+    """Human-readable name"""
+    presence: global___ContactPresence.ValueType
+    avatar_url: builtins.str
+    """Optional avatar URL"""
+    @property
+    def metadata(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]:
+        """Protocol-specific metadata"""
+
+    def __init__(
+        self,
+        *,
+        id: builtins.str = ...,
+        protocol: builtins.str = ...,
+        display_name: builtins.str = ...,
+        presence: global___ContactPresence.ValueType = ...,
+        avatar_url: builtins.str = ...,
+        metadata: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["avatar_url", b"avatar_url", "display_name", b"display_name", "id", b"id", "metadata", b"metadata", "presence", b"presence", "protocol", b"protocol"]) -> None: ...
+
+global___Contact = Contact
+
+@typing.final
+class ContactUpdate(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TYPE_FIELD_NUMBER: builtins.int
+    CONTACT_FIELD_NUMBER: builtins.int
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    type: global___ContactUpdateType.ValueType
+    @property
+    def contact(self) -> global___Contact: ...
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    def __init__(
+        self,
+        *,
+        type: global___ContactUpdateType.ValueType = ...,
+        contact: global___Contact | None = ...,
+        timestamp: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["contact", b"contact", "timestamp", b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["contact", b"contact", "timestamp", b"timestamp", "type", b"type"]) -> None: ...
+
+global___ContactUpdate = ContactUpdate
+
+@typing.final
+class BrokerEvent(google.protobuf.message.Message):
+    """Unified event system using oneof (discriminated union)"""
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    CALL_EVENT_FIELD_NUMBER: builtins.int
+    CONTACT_UPDATE_FIELD_NUMBER: builtins.int
+    HEALTH_STATUS_FIELD_NUMBER: builtins.int
+    @property
+    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
+    @property
+    def call_event(self) -> global___CallEvent: ...
+    @property
+    def contact_update(self) -> global___ContactUpdate: ...
+    @property
+    def health_status(self) -> global___HealthStatus: ...
+    def __init__(
+        self,
+        *,
+        timestamp: google.protobuf.timestamp_pb2.Timestamp | None = ...,
+        call_event: global___CallEvent | None = ...,
+        contact_update: global___ContactUpdate | None = ...,
+        health_status: global___HealthStatus | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["call_event", b"call_event", "contact_update", b"contact_update", "event_data", b"event_data", "health_status", b"health_status", "timestamp", b"timestamp"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["call_event", b"call_event", "contact_update", b"contact_update", "event_data", b"event_data", "health_status", b"health_status", "timestamp", b"timestamp"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["event_data", b"event_data"]) -> typing.Literal["call_event", "contact_update", "health_status"] | None: ...
+
+global___BrokerEvent = BrokerEvent

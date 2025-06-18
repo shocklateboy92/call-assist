@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from broker_integration_pb2_grpc import BrokerIntegrationServicer, add_BrokerIntegrationServicer_to_server
-from call_plugin_pb2_grpc import CallPluginServicer, add_CallPluginServicer_to_server
+from call_plugin_pb2_grpc import CallPluginServicer
 import broker_integration_pb2 as bi_pb2
 import call_plugin_pb2 as cp_pb2  
 import common_pb2
@@ -58,6 +58,12 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         self.active_calls: Dict[str, CallInfo] = {}  # call_id -> call_info
         self.call_counter = 0
         self.plugin_manager = PluginManager()
+        
+        # Contact management
+        self.contacts: Dict[str, 'common_pb2.Contact'] = {}  # contact_id -> Contact
+        
+        # Active event listeners - plugins can register callbacks here
+        self.event_listeners: List = []  # For future extensibility
         
     async def UpdateConfiguration(self, request: bi_pb2.ConfigurationRequest, context) -> bi_pb2.ConfigurationResponse:
         """Update system configuration from Home Assistant"""
@@ -162,46 +168,61 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             logger.error(f"Call termination failed: {e}")
             return bi_pb2.CallTerminateResponse(success=False, message=str(e))
     
-    async def StreamCallStatus(self, request, context):
-        """Stream call status updates to Home Assistant"""
-        logger.info("Starting call status stream")
+    async def StreamCallEvents(self, request, context):
+        """Stream current call events and close"""
+        logger.info("Sending current call events")
         
         try:
-            while True:
-                # TODO: Implement actual event streaming from plugins
-                await asyncio.sleep(5)  # Placeholder
-                
-                # Send periodic health checks for now
-                for call_id, call_info in self.active_calls.items():
-                    event = common_pb2.CallEvent(
-                        type=common_pb2.CallEventType.CALL_EVENT_UNKNOWN,
-                        call_id=call_id,
-                        state=call_info.state,
-                        metadata={"status": f"Call {call_id} status update"}
-                    )
-                    yield event
+            # Send current active calls
+            for call_id, call_info in self.active_calls.items():
+                call_event = common_pb2.CallEvent(
+                    type=common_pb2.CallEventType.CALL_EVENT_INITIATED,
+                    call_id=call_id,
+                    state=call_info.state,
+                    metadata={"status": f"Call {call_id} active"}
+                )
+                yield call_event
+            
+            logger.info("Call events sent, closing stream")
                     
         except Exception as e:
-            logger.error(f"Call status streaming failed: {e}")
+            logger.error(f"Call event streaming failed: {e}")
     
-    async def StreamSystemHealth(self, request, context):
-        """Stream system health status to Home Assistant"""
-        logger.info("Starting system health stream")
+    async def StreamContactUpdates(self, request, context):
+        """Stream current contacts and close"""
+        logger.info("Sending current contacts")
         
         try:
-            while True:
-                # Basic health check
-                health = common_pb2.HealthStatus(
-                    healthy=True,
-                    component="broker",
-                    message="Broker running normally"
+            # Send current contact list
+            for contact in self.contacts.values():
+                contact_update = common_pb2.ContactUpdate(
+                    type=common_pb2.ContactUpdateType.CONTACT_UPDATE_INITIAL_LIST,
+                    contact=contact
                 )
-                yield health
-                
-                await asyncio.sleep(10)  # Health check every 10 seconds
-                
+                yield contact_update
+            
+            logger.info("Contact updates sent, closing stream")
+                    
         except Exception as e:
-            logger.error(f"Health streaming failed: {e}")
+            logger.error(f"Contact update streaming failed: {e}")
+    
+    async def StreamHealthStatus(self, request, context):
+        """Stream current health status and close"""
+        logger.info("Sending current health status")
+        
+        try:
+            # Send current health status
+            health = common_pb2.HealthStatus(
+                healthy=True,
+                component="broker",
+                message="Broker running normally"
+            )
+            yield health
+            
+            logger.info("Health status sent, closing stream")
+                    
+        except Exception as e:
+            logger.error(f"Health status streaming failed: {e}")
     
     async def GetSystemCapabilities(self, request, context) -> bi_pb2.SystemCapabilities:
         """Get current system capabilities"""
@@ -328,6 +349,37 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             logger.info(f"Call {call_info.call_id} terminated on {call_info.protocol} plugin")
         else:
             logger.error(f"Failed to terminate call {call_info.call_id} on {call_info.protocol} plugin")
+    
+    # Direct callback methods for plugins to call
+    def on_contact_added(self, contact: 'common_pb2.Contact'):
+        """Called by plugins when a new contact is discovered"""
+        logger.info(f"Contact added: {contact.display_name} ({contact.protocol})")
+        self.contacts[contact.id] = contact
+        # Note: Home Assistant will call StreamContactUpdates to get updated state
+    
+    def on_contact_updated(self, contact: 'common_pb2.Contact'):
+        """Called by plugins when a contact's info changes"""
+        logger.info(f"Contact updated: {contact.display_name} ({contact.protocol})")
+        self.contacts[contact.id] = contact
+        # Note: Home Assistant will call StreamContactUpdates to get updated state
+    
+    def on_contact_removed(self, contact_id: str, protocol: str):
+        """Called by plugins when a contact is no longer available"""
+        logger.info(f"Contact removed: {contact_id} ({protocol})")
+        self.contacts.pop(contact_id, None)
+        # Note: Home Assistant will call StreamContactUpdates to get updated state
+    
+    def on_call_state_changed(self, call_id: str, new_state: 'common_pb2.CallState.ValueType', metadata: Optional[Dict[str, str]] = None):
+        """Called by plugins when a call's state changes"""
+        if call_id in self.active_calls:
+            self.active_calls[call_id].state = new_state
+            logger.info(f"Call {call_id} state changed to {new_state}")
+        # Note: Home Assistant will call StreamCallEvents to get updated state
+    
+    def on_plugin_health_changed(self, protocol: str, healthy: bool, message: str):
+        """Called by plugins to report health status changes"""
+        logger.info(f"Plugin {protocol} health: {'healthy' if healthy else 'unhealthy'} - {message}")
+        # Note: Health status is reported via StreamHealthStatus when requested
 
 async def serve():
     """Start the broker gRPC server"""
