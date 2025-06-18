@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Call Assist Setup",
+        "description": "Configure connection to Call Assist broker",
+        "data": {
+          "host": "Broker Host",
+          "port": "Broker Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to broker",
+      "invalid_auth": "Invalid authentication",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Service is already configured"
+    }
+  }
+}

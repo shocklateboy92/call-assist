@@ -22,7 +22,9 @@
       "Bash(scripts/build-proto.sh:*)",
       "Bash(call-assist/scripts/build-proto.sh:*)",
       "Bash(python -m pytest *)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "WebFetch(domain:developers.home-assistant.io)",
+      "WebFetch(domain:www.home-assistant.io)"
     ],
     "deny": []
   }
