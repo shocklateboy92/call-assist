@@ -7,6 +7,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 When dealing with python code, follow the guidelines written in @.github/instructions/python.instructions.md
 
+## Essential Development Commands
+
+### Protobuf Generation
+```bash
+# Must run after proto file changes - generates Python, TypeScript, and C++ files
+./scripts/build-proto.sh
+```
+
+### Broker Development (Python)
+```bash
+cd call-assist/addon/broker
+./dev.sh                           # Start broker in development mode
+./run_all_tests.sh                 # Run basic integration tests
+./run_all_tests.sh --with-matrix   # Include Matrix plugin tests (builds and runs plugin)
+./run_all_tests.sh --full          # Run all tests including performance
+python -m pytest test_integration.py -v  # Run specific integration tests
+```
+
+### Matrix Plugin Development (TypeScript)
+```bash
+cd call-assist/addon/plugins/matrix
+npm run proto           # Generate protobuf files
+npm run build           # Compile TypeScript
+# Plugin is run via integration tests in call-assist/addon/broker/test_matrix_plugin.py, not directly
+```
+
+### Development Environment
+```bash
+# Services start automatically via devcontainer.json
+# To restart or interact with services at runtime, use sudo:
+sudo docker-compose -f docker-compose.dev.yml restart <service-name>
+
+# Services available at:
+# - Home Assistant: http://homeassistant:8123
+# - Matrix Synapse: http://synapse:8008
+# - TURN Server: coturn:3478
+```
+
+
 # Call Assist Project Plan
 
 ## Overview
