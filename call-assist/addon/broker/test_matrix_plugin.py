@@ -52,7 +52,7 @@ class MatrixTestClient:
             await self.session.close()
     
     async def register_user(self, username: str, password: str) -> Dict[str, Any]:
-        """Register a test user on the Matrix homeserver"""
+        """Register a test user on the Matrix homeserver, or login if already exists"""
         url = f"{self.homeserver_url}/_matrix/client/r0/register"
         data = {
             "username": username,
@@ -65,6 +65,11 @@ class MatrixTestClient:
             if resp.status == 200:
                 self.access_token = result['access_token']
                 self.user_id = result['user_id']
+                return result
+            elif resp.status == 400 and 'M_USER_IN_USE' in str(result):
+                # User already exists, try to login instead
+                login_result = await self.login(username, password)
+                return login_result
             return result
     
     async def login(self, username: str, password: str) -> Dict[str, Any]:
@@ -94,6 +99,25 @@ class MatrixTestClient:
             data["name"] = name
         
         async with self.session.post(url, json=data, headers=headers) as resp:
+            return await resp.json()
+    
+    async def invite_user_to_room(self, room_id: str, user_id: str) -> Dict[str, Any]:
+        """Invite a user to a Matrix room"""
+        url = f"{self.homeserver_url}/_matrix/client/r0/rooms/{room_id}/invite"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        data = {
+            "user_id": user_id
+        }
+        
+        async with self.session.post(url, json=data, headers=headers) as resp:
+            return await resp.json()
+    
+    async def join_room(self, room_id: str) -> Dict[str, Any]:
+        """Join a Matrix room"""
+        url = f"{self.homeserver_url}/_matrix/client/r0/rooms/{room_id}/join"
+        headers = {"Authorization": f"Bearer {self.access_token}"}
+        
+        async with self.session.post(url, json={}, headers=headers) as resp:
             return await resp.json()
     
     async def send_message(self, room_id: str, message: str) -> Dict[str, Any]:
@@ -276,6 +300,9 @@ async def broker_server(broker_process):
     # Cleanup just the channel
     await channel.close()
 
+TEST_PASSWORD = "testpassword123"
+RECEIVER_USERNAME = "testreceiver"
+TEST_ROOM_NAME = "Test Video Call Room"
 
 @pytest.fixture
 async def matrix_test_users():
@@ -283,50 +310,80 @@ async def matrix_test_users():
     users = {}
     
     async with MatrixTestClient() as client:
-        # Create caller user
+        # Create caller user with unique timestamp
         caller_result = await client.register_user(
             f"testcaller_{int(time.time())}", 
-            "testpassword123"
+            TEST_PASSWORD
         )
         if 'access_token' in caller_result:
             users['caller'] = {
                 'user_id': caller_result['user_id'],
                 'access_token': caller_result['access_token'],
-                'password': 'testpassword123'
+                'password': TEST_PASSWORD
             }
         
-        # Create receiver user
+        # Use consistent receiver user (will login if already exists)
         receiver_result = await client.register_user(
-            f"testreceiver", 
-            "testpassword123"
+            RECEIVER_USERNAME, 
+            TEST_PASSWORD
         )
         if 'access_token' in receiver_result:
             users['receiver'] = {
                 'user_id': receiver_result['user_id'],
                 'access_token': receiver_result['access_token'],
-                'password': 'testpassword123'
+                'password': TEST_PASSWORD
             }
     
     return users
 
 
 @pytest.fixture
-async def matrix_test_room(matrix_test_users):
-    """Create a test room for communication"""
-    if 'caller' not in matrix_test_users:
-        pytest.skip("No test users available")
+async def matrix_test_room(broker_server, matrix_test_users):
+    """Get or create a consistent test room and ensure both users can access it"""
+    if 'receiver' not in matrix_test_users or 'caller' not in matrix_test_users:
+        pytest.skip("Both receiver and caller users required")
     
+    receiver = matrix_test_users['receiver']
     caller = matrix_test_users['caller']
     
+    # Setup receiver credentials in broker
+    creds_request = bi_pb2.CredentialsRequest(
+        protocol='matrix',
+        credentials={
+            'access_token': receiver['access_token'],
+            'user_id': receiver['user_id'],
+            'homeserver': 'http://synapse:8008'
+        }
+    )
+    
+    await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+    
+    # Create room with receiver credentials and invite caller
+    test_room_id = None
+    
+    async with MatrixTestClient() as client:
+        # Create room as receiver
+        client.access_token = receiver['access_token']
+        client.user_id = receiver['user_id']
+        
+        room_result = await client.create_room(TEST_ROOM_NAME)
+        if 'room_id' in room_result:
+            test_room_id = room_result['room_id']
+            
+            # Invite caller to the room
+            await client.invite_user_to_room(test_room_id, caller['user_id'])
+    
+    if not test_room_id:
+        pytest.skip("Could not create test room")
+    
+    # Now have caller join the room
     async with MatrixTestClient() as client:
         client.access_token = caller['access_token']
         client.user_id = caller['user_id']
         
-        room_result = await client.create_room("Test Video Call Room")
-        if 'room_id' in room_result:
-            return room_result['room_id']
+        await client.join_room(test_room_id)
     
-    pytest.skip("Could not create test room")
+    return test_room_id
 
 
 class TestMatrixPluginIntegration:
