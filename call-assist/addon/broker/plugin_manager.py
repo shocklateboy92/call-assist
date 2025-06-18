@@ -194,11 +194,11 @@ class PluginManager:
             command = exec_config.command
             working_dir = os.path.join(plugin.plugin_dir, exec_config.working_directory)
             
-            # Start the plugin process
+            # Start the plugin process - pipe output to same console
             plugin.process = subprocess.Popen(
                 command,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                stdout=None,  # Inherit stdout from parent process
+                stderr=None,  # Inherit stderr from parent process
                 cwd=working_dir
             )
             
@@ -207,8 +207,8 @@ class PluginManager:
             
             # Check if process is still running
             if plugin.process.poll() is not None:
-                _, stderr = plugin.process.communicate()
-                raise RuntimeError(f"Plugin process exited: {stderr.decode()}")
+                exit_code = plugin.process.returncode
+                raise RuntimeError(f"Plugin process exited with code {exit_code}")
             
             # Establish gRPC connection
             port = plugin.metadata.grpc.port
