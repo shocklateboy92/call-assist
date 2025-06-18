@@ -27,7 +27,9 @@ import {
   CallEventType,
   MediaCapabilities,
   MediaNegotiation,
-  HealthStatus
+  HealthStatus,
+  ContactUpdate,
+  ContactUpdateType
 } from './proto_gen/common';
 import { Empty } from './proto_gen/google/protobuf/empty';
 import type { CallContext } from 'nice-grpc-common';
@@ -138,11 +140,25 @@ class MatrixCallPlugin {
           const roomId = request.targetAddress;
           const callId = request.callId;
           
-          // Send a message to the room indicating call attempt
-          await this.matrixClient.sendMessage(roomId, {
-            msgtype: MsgType.Text,
-            body: `📞 Incoming video call from ${this.config.userId} (Call ID: ${callId})`
-          });
+          // Create WebRTC offer for video call
+          const offer = {
+            type: 'offer',
+            sdp: this.generateMockWebRTCOffer(callId)
+          };
+          
+          // Send Matrix call invite event (m.call.invite)
+          const callInviteContent = {
+            call_id: callId,
+            version: 1,
+            type: 'offer',
+            sdp: offer.sdp,
+            offer,
+            lifetime: 30000, // 30 seconds timeout
+            party_id: this.config.userId
+          };
+          
+          await this.matrixClient.sendEvent(roomId, 'm.call.invite' as any, callInviteContent);
+          console.log(`Sent m.call.invite to room ${roomId} with call ID ${callId}`);
           
           // Store call information
           this.activeWebRTCCalls.set(callId, {
@@ -163,13 +179,13 @@ class MatrixCallPlugin {
           
           return {
             success: true,
-            message: 'Call initiated successfully',
+            message: 'WebRTC call invite sent successfully',
             state: CallState.CALL_STATE_INITIATING,
             remoteStreamUrl: `matrix://webrtc/${callId}`
           };
           
         } catch (error) {
-          console.error('Failed to start Matrix call:', error);
+          console.error('Failed to start Matrix WebRTC call:', error);
           return {
             success: false,
             message: `Call failed: ${error}`,
@@ -194,7 +210,34 @@ class MatrixCallPlugin {
           };
         }
 
+        if (!this.matrixClient) {
+          return {
+            success: false,
+            message: 'Matrix client not initialized',
+            remoteStreamUrl: ''
+          };
+        }
+
         try {
+          // Generate answer SDP
+          const answer = {
+            type: 'answer',
+            sdp: this.generateMockWebRTCAnswer(callId)
+          };
+          
+          // Send Matrix call answer event (m.call.answer)
+          const callAnswerContent = {
+            call_id: callId,
+            version: 1,
+            type: 'answer',
+            sdp: answer.sdp,
+            answer,
+            party_id: this.config?.userId
+          };
+          
+          await this.matrixClient.sendEvent(callInfo.roomId, 'm.call.answer' as any, callAnswerContent);
+          console.log(`Sent m.call.answer for call ${callId}`);
+          
           // Update call state
           callInfo.state = CallState.CALL_STATE_ACTIVE;
           callInfo.remoteStreamUrl = `matrix://webrtc/${callId}/accepted`;
@@ -211,11 +254,11 @@ class MatrixCallPlugin {
           
           return {
             success: true,
-            message: 'Call accepted successfully',
+            message: 'WebRTC call accepted successfully',
             remoteStreamUrl: callInfo.remoteStreamUrl || ''
           };
         } catch (error) {
-          console.error('Failed to accept Matrix call:', error);
+          console.error('Failed to accept Matrix WebRTC call:', error);
           return {
             success: false,
             message: `Failed to accept call: ${error}`,
@@ -239,12 +282,17 @@ class MatrixCallPlugin {
         }
 
         try {
-          // Send end call message
+          // Send Matrix call hangup event (m.call.hangup)
           if (this.matrixClient) {
-            await this.matrixClient.sendMessage(callInfo.roomId, {
-              msgtype: MsgType.Text,
-              body: `📞 Call ended (Call ID: ${callId})`
-            });
+            const callHangupContent = {
+              call_id: callId,
+              version: 1,
+              reason: request.reason || 'user_hangup',
+              party_id: this.config?.userId
+            };
+            
+            await this.matrixClient.sendEvent(callInfo.roomId, 'm.call.hangup' as any, callHangupContent);
+            console.log(`Sent m.call.hangup for call ${callId}`);
           }
           
           // Emit call event
@@ -261,11 +309,11 @@ class MatrixCallPlugin {
           
           return {
             success: true,
-            message: 'Call ended successfully'
+            message: 'WebRTC call ended successfully'
           };
           
         } catch (error) {
-          console.error('Failed to end Matrix call:', error);
+          console.error('Failed to end Matrix WebRTC call:', error);
           return {
             success: false,
             message: `Failed to end call: ${error}`
@@ -321,6 +369,19 @@ class MatrixCallPlugin {
         };
       },
 
+      // Stream contact updates (Matrix-specific: room membership changes)
+      streamContactUpdates: (request: Empty, context: CallContext): ServerStreamingMethodResult<ContactUpdate> => {
+        console.log('Client subscribed to contact updates');
+        // For Matrix, we could stream room membership changes
+        // For now, return an empty async iterator
+        return {
+          [Symbol.asyncIterator]: async function* () {
+            // No contact updates to stream for now
+            // In a real implementation, this would monitor room membership changes
+          }
+        };
+      },
+
       // Health check
       getHealth: async (request: Empty, context: CallContext): Promise<HealthStatus> => {
         const isHealthy = this.matrixClient !== null && this.config !== null;
@@ -365,11 +426,23 @@ class MatrixCallPlugin {
       console.log(`Matrix sync state: ${state}`);
     });
 
-    this.matrixClient.on(RoomEvent.Timeline, (event, _room) => {
+    this.matrixClient.on(RoomEvent.Timeline, (event, room) => {
       // Handle incoming messages and call events
-      if (event.getType() === 'm.call.invite') {
+      const eventType = event.getType();
+      const content = event.getContent();
+      
+      if (eventType === 'm.call.invite') {
         console.log('Received incoming call invite:', event);
-        // TODO: Handle incoming WebRTC calls
+        this.handleIncomingCallInvite(event, room);
+      } else if (eventType === 'm.call.answer') {
+        console.log('Received call answer:', event);
+        this.handleCallAnswer(event, room);
+      } else if (eventType === 'm.call.hangup') {
+        console.log('Received call hangup:', event);
+        this.handleCallHangup(event, room);
+      } else if (eventType === 'm.call.candidates') {
+        console.log('Received ICE candidates:', event);
+        this.handleIceCandidates(event, room);
       }
     });
 
@@ -377,6 +450,169 @@ class MatrixCallPlugin {
     await this.matrixClient.startClient();
     
     console.log('Matrix client started successfully');
+  }
+
+  private generateMockWebRTCOffer(callId: string): string {
+    // Generate a mock SDP offer for WebRTC
+    // In a real implementation, this would come from a WebRTC peer connection
+    return `v=0
+o=- ${Date.now()} 2 IN IP4 127.0.0.1
+s=-
+t=0 0
+a=group:BUNDLE 0 1
+a=msid-semantic: WMS
+m=audio 9 UDP/TLS/RTP/SAVPF 111
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:${callId.slice(0, 8)}
+a=ice-pwd:${callId.slice(-16)}
+a=ice-options:trickle
+a=fingerprint:sha-256 ${this.generateFingerprint()}
+a=setup:actpass
+a=mid:0
+a=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level
+a=sendrecv
+a=msid:- ${callId}_audio
+a=rtcp-mux
+a=rtpmap:111 opus/48000/2
+a=rtcp-fb:111 transport-cc
+a=fmtp:111 minptime=10;useinbandfec=1
+m=video 9 UDP/TLS/RTP/SAVPF 96
+c=IN IP4 0.0.0.0
+a=rtcp:9 IN IP4 0.0.0.0
+a=ice-ufrag:${callId.slice(0, 8)}
+a=ice-pwd:${callId.slice(-16)}
+a=ice-options:trickle
+a=fingerprint:sha-256 ${this.generateFingerprint()}
+a=setup:actpass
+a=mid:1
+a=extmap:2 urn:ietf:params:rtp-hdrext:toffset
+a=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
+a=extmap:4 urn:3gpp:video-orientation
+a=sendrecv
+a=msid:- ${callId}_video
+a=rtcp-mux
+a=rtcp-rsize
+a=rtpmap:96 VP8/90000
+a=rtcp-fb:96 goog-remb
+a=rtcp-fb:96 transport-cc
+a=rtcp-fb:96 ccm fir
+a=rtcp-fb:96 nack
+a=rtcp-fb:96 nack pli
+`;
+  }
+
+  private generateFingerprint(): string {
+    // Generate a mock SHA-256 fingerprint
+    const chars = '0123456789ABCDEF';
+    const fingerprint = Array.from({length: 64}, () => chars[Math.floor(Math.random() * chars.length)]);
+    return fingerprint.join('').match(/.{2}/g)!.join(':');
+  }
+
+  private generateMockWebRTCAnswer(callId: string): string {
+    // Generate a mock SDP answer for WebRTC
+    // In a real implementation, this would come from a WebRTC peer connection
+    return `v=0\r\no=- ${Date.now()} 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\na=msid-semantic: WMS\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:active\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=sendrecv\r\na=msid:- ${callId}_audio_answer\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:active\r\na=mid:1\r\na=extmap:2 urn:ietf:params:rtp-hdrext:toffset\r\na=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:4 urn:3gpp:video-orientation\r\na=sendrecv\r\na=msid:- ${callId}_video_answer\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:96 VP8/90000\r\na=rtcp-fb:96 goog-remb\r\na=rtcp-fb:96 transport-cc\r\na=rtcp-fb:96 ccm fir\r\na=rtcp-fb:96 nack\r\na=rtcp-fb:96 nack pli\r\n`;
+  }
+
+  private async handleIncomingCallInvite(event: any, room: any): Promise<void> {
+    const content = event.getContent();
+    const callId = content.call_id;
+    const roomId = room.roomId;
+    
+    console.log(`Handling incoming call invite for call ${callId} in room ${roomId}`);
+    
+    // Store the incoming call
+    this.activeWebRTCCalls.set(callId, {
+      roomId,
+      startTime: Date.now(),
+      state: CallState.CALL_STATE_RINGING,
+      remoteStreamUrl: `matrix://webrtc/${callId}/incoming`
+    });
+    
+    // Emit call event for incoming call
+    this.callEventSubject.next({
+      type: CallEventType.CALL_EVENT_RINGING,
+      timestamp: new Date(),
+      callId,
+      state: CallState.CALL_STATE_RINGING,
+      metadata: { 
+        roomId,
+        caller: event.getSender(),
+        offer: content.offer
+      }
+    });
+  }
+
+  private async handleCallAnswer(event: any, room: any): Promise<void> {
+    const content = event.getContent();
+    const callId = content.call_id;
+    const roomId = room.roomId;
+    const callInfo = this.activeWebRTCCalls.get(callId);
+    
+    if (!callInfo) {
+      console.warn(`Received call answer for unknown call ${callId}`);
+      return;
+    }
+    
+    console.log(`Call ${callId} was answered`);
+    
+    // Update call state
+    callInfo.state = CallState.CALL_STATE_ACTIVE;
+    callInfo.remoteStreamUrl = `matrix://webrtc/${callId}/active`;
+    this.activeWebRTCCalls.set(callId, callInfo);
+    
+    // Emit call answered event
+    this.callEventSubject.next({
+      type: CallEventType.CALL_EVENT_ANSWERED,
+      timestamp: new Date(),
+      callId,
+      state: CallState.CALL_STATE_ACTIVE,
+      metadata: { 
+        roomId: roomId,
+        answer: content.answer
+      }
+    });
+  }
+
+  private async handleCallHangup(event: any, room: any): Promise<void> {
+    const content = event.getContent();
+    const callId = content.call_id;
+    const roomId = room.roomId;
+    const callInfo = this.activeWebRTCCalls.get(callId);
+    
+    if (!callInfo) {
+      console.warn(`Received hangup for unknown call ${callId}`);
+      return;
+    }
+    
+    console.log(`Call ${callId} was hung up: ${content.reason || 'unknown reason'}`);
+    
+    // Emit call ended event
+    this.callEventSubject.next({
+      type: CallEventType.CALL_EVENT_ENDED,
+      timestamp: new Date(),
+      callId,
+      state: CallState.CALL_STATE_ENDED,
+      metadata: { 
+        roomId: roomId,
+        reason: content.reason || 'remote_hangup'
+      }
+    });
+    
+    // Remove from active calls
+    this.activeWebRTCCalls.delete(callId);
+  }
+
+  private async handleIceCandidates(event: any, room: any): Promise<void> {
+    const content = event.getContent();
+    const callId = content.call_id;
+    const roomId = room.roomId;
+    
+    console.log(`Received ICE candidates for call ${callId} in room ${roomId}:`, content.candidates);
+    
+    // In a real implementation, these would be forwarded to the WebRTC peer connection
+    // For now, we just log them for debugging
   }
 
   async shutdown(): Promise<void> {
