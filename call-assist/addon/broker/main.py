@@ -332,24 +332,46 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
 async def serve():
     """Start the broker gRPC server"""
     server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
-    
     broker = CallAssistBroker()
-    add_BrokerIntegrationServicer_to_server(broker, server)
-    # Note: CallPlugin service will be added when we implement plugin communication
-    
-    listen_addr = '[::]:50051'
-    server.add_insecure_port(listen_addr)
-    
-    logger.info(f"Starting Call Assist Broker on {listen_addr}")
-    logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
-    await server.start()
     
     try:
+        add_BrokerIntegrationServicer_to_server(broker, server)
+        # Note: CallPlugin service will be added when we implement plugin communication
+        
+        listen_addr = '[::]:50051'
+        server.add_insecure_port(listen_addr)
+        
+        logger.info(f"Starting Call Assist Broker on {listen_addr}")
+        logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
+        await server.start()
+        
+        # Wait for termination
         await server.wait_for_termination()
-    except KeyboardInterrupt:
+        
+    except asyncio.CancelledError:
+        # Handle graceful shutdown
+        logger.info("Received shutdown signal...")
+    finally:
+        # Ensure cleanup always happens
         logger.info("Shutting down broker...")
         await broker.plugin_manager.shutdown_all()
         await server.stop(5)
 
+async def main():
+    """Main entry point with proper signal handling"""
+    try:
+        await serve()
+    except KeyboardInterrupt:
+        logger.info("Received KeyboardInterrupt")
+    except Exception as e:
+        logger.error(f"Broker failed: {e}")
+        raise
+
 if __name__ == '__main__':
-    asyncio.run(serve())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Broker shutdown complete")
+    except Exception as e:
+        logger.error(f"Failed to start broker: {e}")
+        exit(1)
