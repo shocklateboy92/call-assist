@@ -1,5 +1,9 @@
 
-# General Instructions
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## General Instructions
 
 When dealing with python code, follow the guidelines written in @.github/instructions/python.instructions.md
 
@@ -110,8 +114,75 @@ call-assist/
 - Run `scripts/build-proto.sh` to regenerate protobuf files and type stubs
 - Python protobuf files (`*_pb2.py`, `*_pb2_grpc.py`) are gitignored as generated files
 
+## Matrix Plugin WebRTC Implementation Plan
+
+### Current Status
+The Matrix plugin (`addon/plugins/matrix/src/index.ts`) currently:
+- ✅ Implements proper Matrix signaling (`m.call.invite`, `m.call.answer`, `m.call.hangup`)
+- ✅ Handles Matrix room management and event processing
+- ❌ Uses mock SDP generation instead of real WebRTC peer connections
+
+### Required Changes for Real WebRTC
+
+#### High Priority Tasks:
+1. **Add WebRTC Library Dependency**
+   - Install `wrtc` or `node-webrtc` package for Node.js WebRTC support
+   - Update `package.json` dependencies
+
+2. **RTCPeerConnection Management**
+   - Create `RTCPeerConnection` instances per call ID
+   - Manage peer connection lifecycle (create, configure, cleanup)
+   - Track connection states and handle state changes
+
+3. **Real Offer Generation** 
+   - Replace `generateMockWebRTCOffer()` (line 455) with `RTCPeerConnection.createOffer()`
+   - Use actual SDP from peer connection instead of hardcoded strings
+
+4. **Answer Processing**
+   - Replace `generateMockWebRTCAnswer()` (line 512) with proper `setRemoteDescription()`
+   - Handle remote SDP offers in `handleIncomingCallInvite()`
+
+5. **ICE Candidate Handling**
+   - Collect ICE candidates from `RTCPeerConnection.onicecandidate`
+   - Send candidates via Matrix `m.call.candidates` events
+   - Process incoming ICE candidates in `handleIceCandidates()` (line 607)
+
+#### Medium Priority Tasks:
+6. **Media Stream Integration**
+   - Connect Home Assistant camera feeds to WebRTC peer connections
+   - Bridge RTSP streams to WebRTC media tracks
+   - Handle audio/video track management
+
+7. **Connection State Monitoring**
+   - Monitor `RTCPeerConnection.connectionState`
+   - Handle connection failures and reconnection logic
+   - Emit appropriate call events for state changes
+
+8. **STUN/TURN Configuration**
+   - Configure ICE servers using coturn (already available on port 3478)
+   - Add fallback STUN servers for NAT traversal
+   - Handle ICE connection failures
+
+#### Low Priority Tasks:
+9. **Cleanup Mock Methods**
+   - Remove `generateMockWebRTCOffer()` and `generateMockWebRTCAnswer()`
+   - Remove `generateFingerprint()` helper
+
+### Key Files to Modify:
+- `addon/plugins/matrix/package.json` - Add WebRTC dependencies
+- `addon/plugins/matrix/src/index.ts:144-147` - Real offer in `startCall()`
+- `addon/plugins/matrix/src/index.ts:222-226` - Real answer in `acceptCall()`
+- `addon/plugins/matrix/src/index.ts:455-516` - Remove mock SDP methods
+- `addon/plugins/matrix/src/index.ts:607-616` - Process ICE candidates
+
+### Integration Points:
+- WebRTC peer connections need media input from broker's camera feed
+- Matrix signaling layer is already functional and doesn't need changes
+- TURN server configuration should use existing coturn service
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
 3. ✅ Build Matrix plugin with WebRTC support
-4. Implement broker capability detection logic
+4. 🔄 Implement real WebRTC peer connections in Matrix plugin
+5. Implement broker capability detection logic
