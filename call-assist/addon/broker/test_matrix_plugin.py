@@ -16,6 +16,7 @@ import time
 import subprocess
 import signal
 import socket
+import threading
 from typing import Dict, Any, Optional
 from aiohttp import ClientSession
 
@@ -27,7 +28,7 @@ import broker_integration_pb2 as bi_pb2
 import common_pb2
 import broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
-from main import CallAssistBroker, serve
+from main import CallAssistBroker
 
 
 class MatrixTestClient:
@@ -123,63 +124,74 @@ def is_port_available(port: int) -> bool:
             return False
 
 
-@pytest.fixture(scope="function")
-async def broker_server():
-    """Start and stop the broker server for testing"""
+# Global variable to track broker subprocess
+_broker_process = None
+
+
+@pytest.fixture(scope="session")
+def broker_process():
+    """Session-scoped broker subprocess"""
+    global _broker_process
     broker_port = 50051
     
     # Check if broker is already running
     if not is_port_available(broker_port):
-        # Broker already running, just yield a connection
-        channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
-        stub = bi_grpc.BrokerIntegrationStub(channel)
-        
-        try:
-            # Test if it's actually responsive
-            await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=2.0)
-            yield stub
-            await channel.close()
-            return
-        except grpc.RpcError:
-            # Not responsive, close channel and start our own
-            await channel.close()
+        print(f"✓ Using existing broker server on port {broker_port}")
+        yield None  # External broker
+        return
     
-    # Start our own broker server
-    server_task = None
-    channel = None
-    try:
-        # Start broker server in background task
-        server_task = asyncio.create_task(serve())
-        
-        # Wait for server to start
-        max_retries = 10
-        for _ in range(max_retries):
-            if not is_port_available(broker_port):
-                break
-            await asyncio.sleep(0.5)
-        else:
-            raise RuntimeError("Broker server failed to start within timeout")
-        
-        # Create client connection
-        channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
-        stub = bi_grpc.BrokerIntegrationStub(channel)
-        
-        # Verify server is responsive
-        await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=5.0)
-        
-        yield stub
-        
-    finally:
-        # Cleanup
-        if channel:
-            await channel.close()
-        
-        if server_task and not server_task.done():
-            server_task.cancel()
-            try:
-                await server_task
-            except asyncio.CancelledError:
-                pass
+    # Start broker as subprocess
+    print(f"Starting broker subprocess on port {broker_port}...")
+    broker_script = os.path.join(os.path.dirname(__file__), "main.py")
+    _broker_process = subprocess.Popen([
+        "python", broker_script
+    ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    
+    # Wait for server to start
+    max_retries = 20
+    for _ in range(max_retries):
+        if not is_port_available(broker_port):
+            break
+        time.sleep(0.5)
+    else:
+        if _broker_process:
+            _broker_process.terminate()
+            _broker_process.wait()
+        raise RuntimeError("Broker server failed to start within timeout")
+    
+    print(f"✓ Broker subprocess started (PID: {_broker_process.pid})")
+    
+    yield _broker_process
+    
+    # Cleanup
+    if _broker_process:
+        print("Shutting down broker subprocess...")
+        _broker_process.terminate()
+        try:
+            _broker_process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _broker_process.kill()
+            _broker_process.wait()
+        print("✓ Broker subprocess shutdown complete")
+        _broker_process = None
+
+
+@pytest.fixture(scope="function") 
+async def broker_server(broker_process):
+    """Get broker connection for each test"""
+    broker_port = 50051
+    
+    # Create client connection to the session-scoped broker
+    channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
+    stub = bi_grpc.BrokerIntegrationStub(channel)
+    
+    # Verify server is responsive
+    await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=5.0)
+    
+    yield stub
+    
+    # Cleanup just the channel
+    await channel.close()
 
 
 @pytest.fixture
