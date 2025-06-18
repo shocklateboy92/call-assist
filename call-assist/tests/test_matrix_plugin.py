@@ -9,6 +9,7 @@ Tests use a real Matrix homeserver for protocol validation.
 
 import asyncio
 import pytest
+import pytest_asyncio
 import grpc
 import grpc.aio
 import os
@@ -269,10 +270,11 @@ def broker_process():
     
     # Start broker as subprocess
     logger.info("Starting broker subprocess on port %d", broker_port)
-    broker_script = os.path.join(os.path.dirname(__file__), "main.py")
+    broker_script = os.path.join(os.path.dirname(__file__), "..", "addon", "broker", "main.py")
+    broker_dir = os.path.join(os.path.dirname(__file__), "..", "addon", "broker")
     _broker_process = subprocess.Popen([
         "python", broker_script
-    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=broker_dir)
     
     # Start log streaming thread
     _broker_log_thread = threading.Thread(
@@ -319,7 +321,7 @@ def broker_process():
         _broker_log_thread = None
 
 
-@pytest.fixture(scope="function") 
+@pytest_asyncio.fixture(scope="function")
 async def broker_server(broker_process):
     """Get broker connection for each test"""
     broker_port = 50051
@@ -341,7 +343,7 @@ RECEIVER_USERNAME = "testreceiver"
 CALLER_USERNAME = "testcaller"
 TEST_ROOM_NAME = "Test Video Call Room"
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def matrix_test_users():
     """Create test users on the Matrix homeserver"""
     users = {}
@@ -374,7 +376,7 @@ async def matrix_test_users():
     return users
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def matrix_test_room(broker_server, matrix_test_users):
     """Get or create a consistent direct chat between caller and receiver"""
     if 'receiver' not in matrix_test_users or 'caller' not in matrix_test_users:
