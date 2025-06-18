@@ -353,35 +353,3 @@ class ContactUpdate(google.protobuf.message.Message):
     def ClearField(self, field_name: typing.Literal["contact", b"contact", "timestamp", b"timestamp", "type", b"type"]) -> None: ...
 
 global___ContactUpdate = ContactUpdate
-
-@typing.final
-class BrokerEvent(google.protobuf.message.Message):
-    """Unified event system using oneof (discriminated union)"""
-
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    TIMESTAMP_FIELD_NUMBER: builtins.int
-    CALL_EVENT_FIELD_NUMBER: builtins.int
-    CONTACT_UPDATE_FIELD_NUMBER: builtins.int
-    HEALTH_STATUS_FIELD_NUMBER: builtins.int
-    @property
-    def timestamp(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
-    @property
-    def call_event(self) -> global___CallEvent: ...
-    @property
-    def contact_update(self) -> global___ContactUpdate: ...
-    @property
-    def health_status(self) -> global___HealthStatus: ...
-    def __init__(
-        self,
-        *,
-        timestamp: google.protobuf.timestamp_pb2.Timestamp | None = ...,
-        call_event: global___CallEvent | None = ...,
-        contact_update: global___ContactUpdate | None = ...,
-        health_status: global___HealthStatus | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing.Literal["call_event", b"call_event", "contact_update", b"contact_update", "event_data", b"event_data", "health_status", b"health_status", "timestamp", b"timestamp"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["call_event", b"call_event", "contact_update", b"contact_update", "event_data", b"event_data", "health_status", b"health_status", "timestamp", b"timestamp"]) -> None: ...
-    def WhichOneof(self, oneof_group: typing.Literal["event_data", b"event_data"]) -> typing.Literal["call_event", "contact_update", "health_status"] | None: ...
-
-global___BrokerEvent = BrokerEvent
