@@ -17,6 +17,7 @@ import subprocess
 import signal
 import socket
 import threading
+import logging
 from typing import Dict, Any, Optional
 from aiohttp import ClientSession
 
@@ -29,6 +30,9 @@ import common_pb2
 import broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
 from main import CallAssistBroker
+
+# Set up logging for tests
+logger = logging.getLogger(__name__)
 
 
 class MatrixTestClient:
@@ -136,12 +140,12 @@ def broker_process():
     
     # Check if broker is already running
     if not is_port_available(broker_port):
-        print(f"✓ Using existing broker server on port {broker_port}")
+        logger.info("Using existing broker server on port %d", broker_port)
         yield None  # External broker
         return
     
     # Start broker as subprocess
-    print(f"Starting broker subprocess on port {broker_port}...")
+    logger.info("Starting broker subprocess on port %d", broker_port)
     broker_script = os.path.join(os.path.dirname(__file__), "main.py")
     _broker_process = subprocess.Popen([
         "python", broker_script
@@ -159,20 +163,20 @@ def broker_process():
             _broker_process.wait()
         raise RuntimeError("Broker server failed to start within timeout")
     
-    print(f"✓ Broker subprocess started (PID: {_broker_process.pid})")
+    logger.info("Broker subprocess started (PID: %d)", _broker_process.pid)
     
     yield _broker_process
     
     # Cleanup
     if _broker_process:
-        print("Shutting down broker subprocess...")
+        logger.info("Shutting down broker subprocess...")
         _broker_process.terminate()
         try:
             _broker_process.wait(timeout=5)
         except subprocess.TimeoutExpired:
             _broker_process.kill()
             _broker_process.wait()
-        print("✓ Broker subprocess shutdown complete")
+        logger.info("Broker subprocess shutdown complete")
         _broker_process = None
 
 
