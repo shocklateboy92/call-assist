@@ -9,11 +9,15 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
-from broker_integration_pb2_grpc import BrokerIntegrationServicer, add_BrokerIntegrationServicer_to_server
-from call_plugin_pb2_grpc import CallPluginServicer
-import broker_integration_pb2 as bi_pb2
-import call_plugin_pb2 as cp_pb2  
-import common_pb2
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from proto_gen.broker_integration_pb2_grpc import BrokerIntegrationServicer, add_BrokerIntegrationServicer_to_server
+from proto_gen.call_plugin_pb2_grpc import CallPluginServicer
+import proto_gen.broker_integration_pb2 as bi_pb2
+import proto_gen.call_plugin_pb2 as cp_pb2  
+import proto_gen.common_pb2 as common_pb2
 from plugin_manager import PluginManager, PluginConfiguration, PluginState
 
 # Set up logging

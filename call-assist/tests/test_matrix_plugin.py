@@ -23,11 +23,11 @@ from aiohttp import ClientSession
 
 # Test imports
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-import broker_integration_pb2 as bi_pb2
-import common_pb2
-import broker_integration_pb2_grpc as bi_grpc
+import proto_gen.broker_integration_pb2 as bi_pb2
+import proto_gen.common_pb2 as common_pb2
+import proto_gen.broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
 
 # Set up logging for tests

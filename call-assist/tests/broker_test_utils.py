@@ -21,8 +21,11 @@ import threading
 import time
 from typing import Optional
 
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
 import grpc.aio
-import broker_integration_pb2_grpc as bi_grpc
+import proto_gen.broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
 
 logger = logging.getLogger(__name__)

@@ -20,17 +20,22 @@ if ! python -c "import grpc_tools" 2>/dev/null; then
     exit 1
 fi
 
-# Generate Python protobuf files for broker
-echo "Generating Python protobuf files for broker..."
-mkdir -p addon/broker/proto_gen
+# Generate Python protobuf files in central location
+echo "Generating Python protobuf files in central proto_gen package..."
+mkdir -p proto_gen
 python -m grpc_tools.protoc \
     --proto_path=proto \
-    --python_out=addon/broker \
-    --grpc_python_out=addon/broker \
-    --mypy_out=addon/broker \
+    --python_out=proto_gen \
+    --grpc_python_out=proto_gen \
+    --mypy_out=proto_gen \
     proto/*.proto
 
 echo "✓ Python protobuf files generated successfully"
+
+# Fix relative imports in generated files
+echo "Fixing Python protobuf imports..."
+python scripts/fix-proto-imports.py
+echo "✓ Python protobuf imports fixed"
 
 # Generate TypeScript protobuf files for Matrix plugin using ts-proto
 if [ -d "addon/plugins/matrix/node_modules" ] && [ -f "addon/plugins/matrix/node_modules/.bin/protoc-gen-ts_proto" ]; then

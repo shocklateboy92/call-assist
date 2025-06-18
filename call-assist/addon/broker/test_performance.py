@@ -15,8 +15,12 @@ import threading
 # Import test fixtures from integration tests
 from test_integration import broker_with_mock_plugin, mock_matrix_plugin, temp_plugin_dir
 
-import broker_integration_pb2 as bi_pb2
-import common_pb2
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import proto_gen.broker_integration_pb2 as bi_pb2
+import proto_gen.common_pb2 as common_pb2
 
 
 class PerformanceMetrics:

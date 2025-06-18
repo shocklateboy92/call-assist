@@ -18,14 +18,14 @@ from unittest.mock import AsyncMock, Mock, patch
 
 # Import broker and proto files
 import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from main import CallAssistBroker
 from plugin_manager import PluginManager, PluginInstance, PluginMetadata, PluginState
-import broker_integration_pb2 as bi_pb2
-import call_plugin_pb2 as cp_pb2
-import common_pb2
-import broker_integration_pb2_grpc as bi_grpc
+import proto_gen.broker_integration_pb2 as bi_pb2
+import proto_gen.call_plugin_pb2 as cp_pb2
+import proto_gen.common_pb2 as common_pb2
+import proto_gen.broker_integration_pb2_grpc as bi_grpc
 
 
 class MockMatrixPlugin:

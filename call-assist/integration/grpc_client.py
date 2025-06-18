@@ -9,14 +9,18 @@ from grpc import aio as grpc_aio
 from grpc.aio import AioRpcError
 
 # Import protobuf generated files
-from .broker_integration_pb2_grpc import BrokerIntegrationStub
-from .broker_integration_pb2 import (
-    IntegrationStatusRequest,
-    IntegrationCallRequest,
-    IntegrationCallResponse,
-    IntegrationEvent,
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from proto_gen.broker_integration_pb2_grpc import BrokerIntegrationStub
+from proto_gen.broker_integration_pb2 import (
+    ConfigurationRequest,
+    CallRequest,
+    CallResponse,
+    CredentialsRequest,
 )
-from .common_pb2 import CallState, ContactAvailability
+from proto_gen.common_pb2 import CallState, ContactPresence, CallEvent
 
 _LOGGER = logging.getLogger(__name__)
 class CallAssistGrpcClient:
@@ -120,30 +124,28 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
         
         try:
-            request = IntegrationStatusRequest()
-            response = await self.stub.GetStatus(request)
+            # Status call - use empty request for now
+            from google.protobuf import empty_pb2
+            request = empty_pb2.Empty()
+            response = await self.stub.GetSystemCapabilities(request)
             
             return {
-                "healthy": response.healthy,
-                "version": response.version,
-                "call_stations": [
+                "broker_capabilities": {
+                    "video_codecs": list(response.broker_capabilities.video_codecs),
+                    "audio_codecs": list(response.broker_capabilities.audio_codecs),
+                    "webrtc_support": response.broker_capabilities.webrtc_support,
+                },
+                "available_plugins": [
                     {
-                        "station_id": station.station_id,
-                        "name": station.name,
-                        "state": CallState.Name(station.state),
-                        "current_call_id": station.current_call_id or None,
+                        "protocol": plugin.protocol,
+                        "available": plugin.available,
+                        "capabilities": {
+                            "video_codecs": list(plugin.capabilities.video_codecs),
+                            "audio_codecs": list(plugin.capabilities.audio_codecs),
+                            "webrtc_support": plugin.capabilities.webrtc_support,
+                        }
                     }
-                    for station in response.call_stations
-                ],
-                "contacts": [
-                    {
-                        "contact_id": contact.contact_id,
-                        "display_name": contact.display_name,
-                        "protocol": contact.protocol,
-                        "address": contact.address,
-                        "availability": ContactAvailability.Name(contact.availability),
-                    }
-                    for contact in response.contacts
+                    for plugin in response.available_plugins
                 ]
             }
             
@@ -151,14 +153,16 @@ class CallAssistGrpcClient:
             _LOGGER.error("Failed to get status: %s", ex)
             raise
     
-    async def stream_events(self) -> AsyncIterator[IntegrationEvent]:
+    async def stream_events(self) -> AsyncIterator[CallEvent]:
         """Stream events from broker."""
         if not self.stub:
             raise RuntimeError("Not connected to broker")
         
         try:
-            request = IntegrationStatusRequest()  # Empty request for streaming
-            async for event in self.stub.StreamEvents(request):
+            # Status call - use empty request for now
+            from google.protobuf import empty_pb2
+            request = empty_pb2.Empty()  # Empty request for streaming
+            async for event in self.stub.StreamCallEvents(request):
                 yield event
                 
         except AioRpcError as ex:
@@ -181,14 +185,14 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
         
         try:
-            request = IntegrationCallRequest(
-                station_id=station_id,
-                contact_id=contact_id or "",
-                protocol=protocol or "",
-                address=address or ""
+            request = CallRequest(
+                camera_entity_id=station_id,  # Assuming station_id maps to camera
+                media_player_entity_id="media_player.default",  # Default media player
+                target_address=address or contact_id or "",
+                protocol=protocol or "matrix"
             )
             
-            response = await self.stub.MakeCall(request)
+            response = await self.stub.InitiateCall(request)
             return response.call_id
             
         except AioRpcError as ex:

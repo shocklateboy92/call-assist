@@ -27,7 +27,8 @@
       "WebFetch(domain:www.home-assistant.io)",
       "Bash(chmod:*)",
       "Bash(./call-assist/scripts/run-integration-tests.sh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(./scripts/build-proto.sh:*)"
     ],
     "deny": []
   }
