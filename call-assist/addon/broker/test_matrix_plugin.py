@@ -13,6 +13,9 @@ import grpc
 import grpc.aio
 import os
 import time
+import subprocess
+import signal
+import socket
 from typing import Dict, Any, Optional
 from aiohttp import ClientSession
 
@@ -24,6 +27,7 @@ import broker_integration_pb2 as bi_pb2
 import common_pb2
 import broker_integration_pb2_grpc as bi_grpc
 from google.protobuf import empty_pb2
+from main import CallAssistBroker, serve
 
 
 class MatrixTestClient:
@@ -109,6 +113,75 @@ class MatrixTestClient:
             return await resp.json()
 
 
+def is_port_available(port: int) -> bool:
+    """Check if a port is available for binding"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            sock.bind(('localhost', port))
+            return True
+        except OSError:
+            return False
+
+
+@pytest.fixture(scope="function")
+async def broker_server():
+    """Start and stop the broker server for testing"""
+    broker_port = 50051
+    
+    # Check if broker is already running
+    if not is_port_available(broker_port):
+        # Broker already running, just yield a connection
+        channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
+        stub = bi_grpc.BrokerIntegrationStub(channel)
+        
+        try:
+            # Test if it's actually responsive
+            await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=2.0)
+            yield stub
+            await channel.close()
+            return
+        except grpc.RpcError:
+            # Not responsive, close channel and start our own
+            await channel.close()
+    
+    # Start our own broker server
+    server_task = None
+    channel = None
+    try:
+        # Start broker server in background task
+        server_task = asyncio.create_task(serve())
+        
+        # Wait for server to start
+        max_retries = 10
+        for _ in range(max_retries):
+            if not is_port_available(broker_port):
+                break
+            await asyncio.sleep(0.5)
+        else:
+            raise RuntimeError("Broker server failed to start within timeout")
+        
+        # Create client connection
+        channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
+        stub = bi_grpc.BrokerIntegrationStub(channel)
+        
+        # Verify server is responsive
+        await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=5.0)
+        
+        yield stub
+        
+    finally:
+        # Cleanup
+        if channel:
+            await channel.close()
+        
+        if server_task and not server_task.done():
+            server_task.cancel()
+            try:
+                await server_task
+            except asyncio.CancelledError:
+                pass
+
+
 @pytest.fixture
 async def matrix_test_users():
     """Create test users on the Matrix homeserver"""
@@ -165,190 +238,154 @@ class TestMatrixPluginIntegration:
     """Integration tests for Matrix plugin through broker"""
     
     @pytest.mark.asyncio
-    async def test_broker_startup(self):
+    async def test_broker_startup(self, broker_server):
         """Test that broker starts up correctly"""
-        # Connect to broker instead of matrix plugin directly
-        try:
-            channel = grpc.aio.insecure_channel('localhost:50051')
-            stub = bi_grpc.BrokerIntegrationStub(channel)
-            
-            # Test system capabilities (health check equivalent)
-            request = empty_pb2.Empty()
-            response = await stub.GetSystemCapabilities(request, timeout=5.0)
-            
-            assert response.broker_capabilities is not None
-            
-            await channel.close()
-            
-        except grpc.RpcError as e:
-            pytest.skip(f"Broker not running: {e}")
+        # Use the broker_server fixture which automatically manages broker lifecycle
+        # Test system capabilities (health check equivalent)
+        request = empty_pb2.Empty()
+        response = await broker_server.GetSystemCapabilities(request, timeout=5.0)
+        
+        assert response.broker_capabilities is not None
     
     @pytest.mark.asyncio
-    async def test_matrix_credentials_setup(self, matrix_test_users):
+    async def test_matrix_credentials_setup(self, broker_server, matrix_test_users):
         """Test Matrix plugin initialization through broker with real credentials"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
         
         caller = matrix_test_users['caller']
         
-        try:
-            channel = grpc.aio.insecure_channel('localhost:50051')
-            stub = bi_grpc.BrokerIntegrationStub(channel)
-            
-            # Send credentials to broker for matrix protocol
-            creds_request = bi_pb2.CredentialsRequest(
-                protocol='matrix',
-                credentials={
-                    'access_token': caller['access_token'],
-                    'user_id': caller['user_id'],
-                    'homeserver': 'http://synapse:8008'
-                }
-            )
-            
-            response = await stub.UpdateCredentials(creds_request, timeout=10.0)
-            
-            assert response.success is True
-            assert "matrix" in response.message.lower()
-            
-            await channel.close()
-            
-        except grpc.RpcError as e:
-            pytest.skip(f"Broker not available: {e}")
+        # Send credentials to broker for matrix protocol
+        creds_request = bi_pb2.CredentialsRequest(
+            protocol='matrix',
+            credentials={
+                'access_token': caller['access_token'],
+                'user_id': caller['user_id'],
+                'homeserver': 'http://synapse:8008'
+            }
+        )
+        
+        response = await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        
+        assert response.success is True
+        assert "matrix" in response.message.lower()
     
     @pytest.mark.asyncio
-    async def test_matrix_call_flow(self, matrix_test_users, matrix_test_room):
+    async def test_matrix_call_flow(self, broker_server, matrix_test_users, matrix_test_room):
         """Test complete Matrix call flow through broker"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
         
         caller = matrix_test_users['caller']
         
-        try:
-            channel = grpc.aio.insecure_channel('localhost:50051')
-            stub = bi_grpc.BrokerIntegrationStub(channel)
-            
-            # Setup credentials first
-            creds_request = bi_pb2.CredentialsRequest(
-                protocol='matrix',
-                credentials={
-                    'access_token': caller['access_token'],
-                    'user_id': caller['user_id'],
-                    'homeserver': 'http://synapse:8008'
-                }
+        # Setup credentials first
+        creds_request = bi_pb2.CredentialsRequest(
+            protocol='matrix',
+            credentials={
+                'access_token': caller['access_token'],
+                'user_id': caller['user_id'],
+                'homeserver': 'http://synapse:8008'
+            }
+        )
+        
+        creds_response = await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        assert creds_response.success is True
+        
+        # Initiate a call through broker
+        call_request = bi_pb2.CallRequest(
+            camera_entity_id='camera.test_camera',
+            media_player_entity_id='media_player.test_chromecast',
+            target_address=matrix_test_room,
+            protocol='matrix',
+            preferred_capabilities=common_pb2.MediaCapabilities(
+                video_codecs=['H264'],
+                audio_codecs=['OPUS'],
+                webrtc_support=True
             )
+        )
+        
+        call_response = await broker_server.InitiateCall(call_request, timeout=10.0)
+        
+        assert call_response.success is True
+        assert call_response.call_id is not None
+        assert call_response.call_id != ''
+        
+        call_id = call_response.call_id
+        
+        # Verify message was sent to Matrix room
+        await asyncio.sleep(3)  # Give time for broker to start plugin and send message
+        
+        async with MatrixTestClient() as matrix_client:
+            matrix_client.access_token = caller['access_token']
+            matrix_client.user_id = caller['user_id']
             
-            creds_response = await stub.UpdateCredentials(creds_request, timeout=10.0)
-            assert creds_response.success is True
+            messages = await matrix_client.get_room_messages(matrix_test_room)
             
-            # Initiate a call through broker
-            call_request = bi_pb2.CallRequest(
-                camera_entity_id='camera.test_camera',
-                media_player_entity_id='media_player.test_chromecast',
-                target_address=matrix_test_room,
-                protocol='matrix',
-                preferred_capabilities=common_pb2.MediaCapabilities(
-                    video_codecs=['H264'],
-                    audio_codecs=['OPUS'],
-                    webrtc_support=True
-                )
-            )
+            # Look for call-related message
+            call_message_found = False
+            for event in messages.get('chunk', []):
+                if event.get('type') == 'm.room.message':
+                    body = event.get('content', {}).get('body', '')
+                    if 'call' in body.lower() or 'video' in body.lower():
+                        call_message_found = True
+                        break
             
-            call_response = await stub.InitiateCall(call_request, timeout=10.0)
-            
-            assert call_response.success is True
-            assert call_response.call_id is not None
-            assert call_response.call_id != ''
-            
-            call_id = call_response.call_id
-            
-            # Verify message was sent to Matrix room
-            await asyncio.sleep(3)  # Give time for broker to start plugin and send message
-            
-            async with MatrixTestClient() as matrix_client:
-                matrix_client.access_token = caller['access_token']
-                matrix_client.user_id = caller['user_id']
-                
-                messages = await matrix_client.get_room_messages(matrix_test_room)
-                
-                # Look for call-related message
-                call_message_found = False
-                for event in messages.get('chunk', []):
-                    if event.get('type') == 'm.room.message':
-                        body = event.get('content', {}).get('body', '')
-                        if 'call' in body.lower() or 'video' in body.lower():
-                            call_message_found = True
-                            break
-                
-                assert call_message_found, "No call message found in Matrix room"
-            
-            # Terminate the call
-            term_request = bi_pb2.CallTerminateRequest(
-                call_id=call_id
-            )
-            
-            term_response = await stub.TerminateCall(term_request, timeout=10.0)
-            assert term_response.success is True
-            
-            await channel.close()
-            
-        except grpc.RpcError as e:
-            pytest.skip(f"Broker not available: {e}")
+            assert call_message_found, "No call message found in Matrix room"
+        
+        # Terminate the call
+        term_request = bi_pb2.CallTerminateRequest(
+            call_id=call_id
+        )
+        
+        term_response = await broker_server.TerminateCall(term_request, timeout=10.0)
+        assert term_response.success is True
     
     @pytest.mark.asyncio
-    async def test_matrix_call_with_invalid_room(self, matrix_test_users):
+    async def test_matrix_call_with_invalid_room(self, broker_server, matrix_test_users):
         """Test Matrix call to invalid room through broker"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
         
         caller = matrix_test_users['caller']
         
-        try:
-            channel = grpc.aio.insecure_channel('localhost:50051')
-            stub = bi_grpc.BrokerIntegrationStub(channel)
-            
-            # Setup credentials first
-            creds_request = bi_pb2.CredentialsRequest(
-                protocol='matrix',
-                credentials={
-                    'access_token': caller['access_token'],
-                    'user_id': caller['user_id'],
-                    'homeserver': 'http://synapse:8008'
-                }
+        # Setup credentials first
+        creds_request = bi_pb2.CredentialsRequest(
+            protocol='matrix',
+            credentials={
+                'access_token': caller['access_token'],
+                'user_id': caller['user_id'],
+                'homeserver': 'http://synapse:8008'
+            }
+        )
+        
+        await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        
+        # Try to initiate call to invalid room
+        call_request = bi_pb2.CallRequest(
+            camera_entity_id='camera.test_camera',
+            media_player_entity_id='media_player.test_chromecast',
+            target_address='!nonexistent:localhost',
+            protocol='matrix',
+            preferred_capabilities=common_pb2.MediaCapabilities()
+        )
+        
+        call_response = await broker_server.InitiateCall(call_request, timeout=10.0)
+        
+        # Should fail gracefully - either broker rejects it or plugin reports failure
+        # Since broker starts plugin on demand, this may succeed initially but fail later
+        if call_response.success:
+            # If broker accepts the call, terminate it to clean up
+            term_request = bi_pb2.CallTerminateRequest(
+                call_id=call_response.call_id
             )
-            
-            await stub.UpdateCredentials(creds_request, timeout=10.0)
-            
-            # Try to initiate call to invalid room
-            call_request = bi_pb2.CallRequest(
-                camera_entity_id='camera.test_camera',
-                media_player_entity_id='media_player.test_chromecast',
-                target_address='!nonexistent:localhost',
-                protocol='matrix',
-                preferred_capabilities=common_pb2.MediaCapabilities()
-            )
-            
-            call_response = await stub.InitiateCall(call_request, timeout=10.0)
-            
-            # Should fail gracefully - either broker rejects it or plugin reports failure
-            # Since broker starts plugin on demand, this may succeed initially but fail later
-            if call_response.success:
-                # If broker accepts the call, terminate it to clean up
-                term_request = bi_pb2.CallTerminateRequest(
-                    call_id=call_response.call_id
-                )
-                await stub.TerminateCall(term_request, timeout=5.0)
-            
-            await channel.close()
-            
-        except grpc.RpcError as e:
-            pytest.skip(f"Broker not available: {e}")
+            await broker_server.TerminateCall(term_request, timeout=5.0)
 
 
 class TestMatrixPluginStandalone:
     """Tests for Matrix plugin management through broker"""
     
     @pytest.mark.asyncio
-    async def test_matrix_plugin_process_management(self):
+    async def test_matrix_plugin_process_management(self, broker_server):
         """Test that broker can manage Matrix plugin process"""        
         matrix_plugin_dir = "/workspaces/universal/call-assist/addon/plugins/matrix"
         if not os.path.exists(matrix_plugin_dir):
@@ -362,30 +399,19 @@ class TestMatrixPluginStandalone:
         # Note: In the actual architecture, the broker manages plugin lifecycle
         # This test validates that the broker can discover and potentially start plugins
         
-        try:
-            # Connect to broker
-            channel = grpc.aio.insecure_channel('localhost:50051')
-            stub = bi_grpc.BrokerIntegrationStub(channel)
-            
-            # Check system capabilities to see if matrix plugin is available
-            request = empty_pb2.Empty()
-            response = await stub.GetSystemCapabilities(request, timeout=5.0)
-            
-            # Look for matrix plugin in available plugins
-            matrix_plugin_found = False
-            for plugin in response.available_plugins:
-                if plugin.protocol == 'matrix':
-                    matrix_plugin_found = True
-                    break
-            
-            # Matrix plugin should be discoverable even if not running
-            assert matrix_plugin_found, "Matrix plugin not found in system capabilities"
-            
-            
-            await channel.close()
-            
-        except Exception as e:
-            pytest.fail(f"Broker plugin discovery test failed: {e}")
+        # Check system capabilities to see if matrix plugin is available
+        request = empty_pb2.Empty()
+        response = await broker_server.GetSystemCapabilities(request, timeout=5.0)
+        
+        # Look for matrix plugin in available plugins
+        matrix_plugin_found = False
+        for plugin in response.available_plugins:
+            if plugin.protocol == 'matrix':
+                matrix_plugin_found = True
+                break
+        
+        # Matrix plugin should be discoverable even if not running
+        assert matrix_plugin_found, "Matrix plugin not found in system capabilities"
 
 
 if __name__ == '__main__':
