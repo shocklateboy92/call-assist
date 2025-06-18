@@ -66,3 +66,36 @@ message HealthStatus {
   string message = 3;
   google.protobuf.Timestamp timestamp = 4;
 }
+
+// Contact management types
+enum ContactPresence {
+  PRESENCE_UNKNOWN = 0;
+  PRESENCE_ONLINE = 1;
+  PRESENCE_AWAY = 2;
+  PRESENCE_BUSY = 3; 
+  PRESENCE_OFFLINE = 4;
+}
+
+message Contact {
+  string id = 1;                     // Protocol-specific ID (XMPP JID, Matrix room ID)
+  string protocol = 2;               // "matrix" or "xmpp" - tells broker where to route
+  string display_name = 3;           // Human-readable name
+  ContactPresence presence = 4;
+  string avatar_url = 5;             // Optional avatar URL
+  map<string, string> metadata = 6;  // Protocol-specific metadata
+}
+
+enum ContactUpdateType {
+  CONTACT_UPDATE_UNKNOWN = 0;
+  CONTACT_UPDATE_ADDED = 1;
+  CONTACT_UPDATE_MODIFIED = 2;
+  CONTACT_UPDATE_REMOVED = 3;
+  CONTACT_UPDATE_INITIAL_LIST = 4;   // Initial batch of contacts after plugin init
+}
+
+message ContactUpdate {
+  ContactUpdateType type = 1;
+  Contact contact = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
+

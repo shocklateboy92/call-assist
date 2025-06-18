@@ -7,6 +7,7 @@ import "google/protobuf/empty.proto";
 import "common.proto";
 
 // Service for communication between Home Assistant Integration and Broker
+// Implemented by the Broker - Home Assistant calls these methods
 service BrokerIntegration {
   // Configuration management
   rpc UpdateConfiguration(ConfigurationRequest) returns (ConfigurationResponse);
@@ -16,9 +17,10 @@ service BrokerIntegration {
   rpc InitiateCall(CallRequest) returns (CallResponse);
   rpc TerminateCall(CallTerminateRequest) returns (CallTerminateResponse);
   
-  // Status streaming
-  rpc StreamCallStatus(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
-  rpc StreamSystemHealth(google.protobuf.Empty) returns (stream callassist.common.HealthStatus);
+  // Event streaming - Home Assistant calls these when it wants current state
+  rpc StreamCallEvents(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
+  rpc StreamContactUpdates(google.protobuf.Empty) returns (stream callassist.common.ContactUpdate);
+  rpc StreamHealthStatus(google.protobuf.Empty) returns (stream callassist.common.HealthStatus);
   
   // Capability queries
   rpc GetSystemCapabilities(google.protobuf.Empty) returns (SystemCapabilities);
@@ -79,3 +81,4 @@ message PluginCapabilities {
   bool available = 2;
   callassist.common.MediaCapabilities capabilities = 3;
 }
+

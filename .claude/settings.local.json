@@ -18,7 +18,9 @@
       "Bash(grep:*)",
       "Bash(npm run build:*)",
       "Bash(sed:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(scripts/build-proto.sh:*)",
+      "Bash(call-assist/scripts/build-proto.sh:*)",
     ],
     "deny": []
   }

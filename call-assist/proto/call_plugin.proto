@@ -22,6 +22,7 @@ service CallPlugin {
   
   // Real-time events
   rpc StreamCallEvents(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
+  rpc StreamContactUpdates(google.protobuf.Empty) returns (stream callassist.common.ContactUpdate);
   
   // Health check
   rpc GetHealth(google.protobuf.Empty) returns (callassist.common.HealthStatus);
