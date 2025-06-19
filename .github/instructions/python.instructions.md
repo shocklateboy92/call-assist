@@ -10,6 +10,7 @@ applyTo: '**.py'
 
 - Use `logging` for logging instead of `print`.
 - Use `pytest` for testing
+- Don't catch all exceptions in tests. Let tests fail if an unexpected/unknown exception occurs.
 
 - Check for type errors after making code changes
 - Run integration tests to validate after code changes
