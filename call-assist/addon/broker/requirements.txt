@@ -5,3 +5,5 @@ logging
 pyyaml>=6.0
 mypy-protobuf>=3.6.0
 types-protobuf>=6.30.0
+dacite>=1.6.0
+dataclasses_jsonschema>=0.5.7
