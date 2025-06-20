@@ -6,6 +6,8 @@ services:
       - ..:/workspaces/universal:cached
       - /var/run/docker.sock:/var/run/docker-host.sock
       - ../runtime/claude-state:/home/vscode/.claude
+      # Git config was not getting copied automatically for some reason
+      - ~/.gitconfig:/home/vscode/.gitconfig
     command: sleep infinity
     environment:
       - DOCKER_HOST=unix:///var/run/docker-host.sock

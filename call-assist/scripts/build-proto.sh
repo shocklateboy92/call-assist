@@ -42,26 +42,12 @@ if [ -d "addon/plugins/matrix/node_modules" ] && [ -f "addon/plugins/matrix/node
     echo "Generating TypeScript protobuf files for Matrix plugin..."
     mkdir -p addon/plugins/matrix/src/proto_gen
     cd addon/plugins/matrix
+    npm install
     npm run proto
     cd ../../..
     echo "✓ TypeScript protobuf files generated successfully"
 else
     echo "⚠ Skipping TypeScript protobuf generation (dependencies not installed in Matrix plugin)"
-fi
-
-# Generate C++ protobuf files for XMPP plugin (if protoc is available)
-if command -v protoc &> /dev/null; then
-    echo "Generating C++ protobuf files for XMPP plugin..."
-    mkdir -p addon/plugins/xmpp/proto_gen
-    protoc \
-        --proto_path=proto \
-        --cpp_out=addon/plugins/xmpp/proto_gen \
-        --grpc_out=addon/plugins/xmpp/proto_gen \
-        --plugin=protoc-gen-grpc=$(which grpc_cpp_plugin 2>/dev/null || echo "grpc_cpp_plugin") \
-        proto/*.proto
-    echo "✓ C++ protobuf files generated successfully"
-else
-    echo "⚠ Skipping C++ protobuf generation (protoc not available)"
 fi
 
 echo "🎉 Protobuf build completed successfully!"

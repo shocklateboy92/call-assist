@@ -1,55 +1,59 @@
 #!/bin/bash
 
-# Manual setup script for Call Assist development environment
-# Run this if you need to reinstall dependencies manually
+# Call Assist development environment setup script
+# This script sets up the complete development environment including:
+# - Python package installation in editable mode
+# - Protobuf file generation
+# - Node.js dependencies for Matrix plugin
 
 set -e  # Exit on any error
 
-echo "🔄 Setting up Call Assist development environment..."
+echo "� Setting up Call Assist development environment..."
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Set up Call Assist editable package install first
-echo "📦 Setting up Call Assist package structure..."
-CALL_ASSIST_DIR="$PROJECT_ROOT"
-if [ -d "$CALL_ASSIST_DIR" ] && [ -f "$CALL_ASSIST_DIR/pyproject.toml" ]; then
-    cd "$CALL_ASSIST_DIR"
+# Install call-assist package in editable mode first
+echo "📦 Installing call-assist package in editable mode..."
+cd "$PROJECT_ROOT"
+if [ -f "pyproject.toml" ]; then
     echo "  📦 Installing call-assist package in editable mode"
     pip install -e .
     echo "  🧪 Installing test dependencies"
     pip install -e ".[test]"
     echo "  🏠 Installing integration dependencies"
     pip install -e ".[integration]"
-    echo "  ✅ Verifying installation"
-    python -c "import proto_gen, addon.broker, integration; print('✓ All packages available')"
 else
-    echo "  ❌ Call Assist directory or pyproject.toml not found at $CALL_ASSIST_DIR"
+    echo "  ❌ pyproject.toml not found at $PROJECT_ROOT"
     exit 1
 fi
 
-# Install remaining broker requirements (if any additional ones exist)
+# Install any additional broker requirements (should be minimal now)
 echo "Installing additional broker requirements..."
 cd "$PROJECT_ROOT/addon/broker"
 if [ -f "requirements.txt" ]; then
-    echo "  📋 Checking broker/requirements.txt for additional packages"
-    # Only install packages not already covered by the main package install
+    echo "  📋 Installing broker/requirements.txt"
     pip install -r requirements.txt
 fi
 
 if [ -f "test_requirements.txt" ]; then
-    echo "  🧪 Checking broker/test_requirements.txt for additional packages"
+    echo "  🧪 Installing broker/test_requirements.txt"
     pip install -r test_requirements.txt
 fi
 
-# Install remaining integration requirements (if any additional ones exist)
-echo "Installing additional integration requirements..."
+# Install integration requirements
+echo "Installing integration requirements..."
 cd "$PROJECT_ROOT/integration"
 if [ -f "test_requirements.txt" ]; then
-    echo "  🧪 Checking integration/test_requirements.txt for additional packages"
+    echo "  🧪 Installing integration/test_requirements.txt"
     pip install -r test_requirements.txt
 fi
+
+# Build protobuf files
+echo "🔧 Building protobuf files..."
+cd "$PROJECT_ROOT"
+./scripts/build-proto.sh
 
 # Install Node.js dependencies for Matrix plugin
 echo "📦 Installing Node.js dependencies for Matrix plugin..."
@@ -57,12 +61,34 @@ cd "$PROJECT_ROOT/addon/plugins/matrix"
 if [ -f "package.json" ]; then
     echo "  📋 Installing Matrix plugin dependencies"
     npm install
+    # Check if protoc is available for TypeScript protobuf generation
+    if command -v protoc &> /dev/null; then
+        echo "  🔧 Generating TypeScript protobuf files"
+        npm run proto || echo "  ⚠️  TypeScript protobuf generation failed (protoc may not be available)"
+    else
+        echo "  ⚠️  protoc not found - TypeScript protobuf files will need to be generated manually"
+        echo "     Install protoc: apt-get update && apt-get install -y protobuf-compiler"
+    fi
 fi
 
-echo "✅ Call Assist development environment setup complete!"
+# Verify installation
+echo "  ✅ Verifying installation"
+cd "$PROJECT_ROOT"
+python -c "import proto_gen, addon.broker, integration; print('✓ All packages available')"
+
+echo "✅ Development environment setup complete!"
 echo ""
-echo "🔧 You can now use clean imports without sys.path manipulation:"
+echo "🔧 Clean imports now available:"
 echo "   - import proto_gen.*"
 echo "   - from addon.broker import *"
 echo "   - from integration import *"
 echo "   - from tests import *"
+echo ""
+echo "🎯 Quick start commands:"
+echo "  • cd addon/broker && ./dev.sh    # Start broker in dev mode"
+echo "  • cd addon/broker && ./run_all_tests.sh    # Run tests"
+echo "  • ./scripts/build-proto.sh    # Rebuild protobuf files"
+echo ""
+echo "📋 Note: If you need TypeScript protobuf generation for Matrix plugin:"
+echo "  • sudo apt-get update && sudo apt-get install -y protobuf-compiler"
+echo "  • cd addon/plugins/matrix && npm run proto"

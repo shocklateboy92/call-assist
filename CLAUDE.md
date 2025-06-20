@@ -10,18 +10,23 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 ### Development Environment Setup
 
-**First-time setup**: The development environment is automatically set up during devcontainer creation. For manual setup:
+**Auto-setup**: The development environment is automatically set up during devcontainer creation by running `call-assist/scripts/setup-dev-env.sh`, which includes:
+- Call Assist package installation in editable mode
+- All Python dependencies (test, integration, broker)
+- Protobuf file generation
+- Node.js dependencies for Matrix plugin
+
+**Manual setup** (for debugging or rebuilding):
 ```bash
+cd call-assist
 ./scripts/setup-dev-env.sh         # Complete development environment setup
 ```
 
-This sets up editable installs and eliminates all `sys.path` manipulations, enabling clean imports:
+This enables clean imports without `sys.path` manipulations:
 - `proto_gen.*` for protobuf generated code  
 - `addon.broker.*` for broker functionality
 - `integration.*` for Home Assistant integration
 - `tests.*` for test utilities
-
-**Auto-setup**: Most development scripts now automatically ensure the development environment is properly configured before running.
 
 ### Protobuf Generation
 
@@ -52,9 +57,9 @@ npm run build           # Compile TypeScript
 
 ### Development Environment
 ```bash
-# Dependencies install automatically via devcontainer postCreateCommand
-# To manually reinstall dependencies:
-./scripts/setup-dev-env.sh
+# Dependencies install automatically via devcontainer calling setup-dev-env.sh
+# For manual reinstall or debugging:
+cd call-assist && ./scripts/setup-dev-env.sh
 
 # Services start automatically via devcontainer.json
 # To restart or interact with services at runtime, use sudo:

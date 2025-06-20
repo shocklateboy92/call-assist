@@ -13,6 +13,10 @@
 		"ghcr.io/devcontainers/features/docker-outside-of-docker": {
 			"installDockerBuildx": true
 		},
+		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
+			// comma-separated list of packages to install
+			"packages": "protobuf-compiler"
+		},
 		"ghcr.io/devcontainers/features/node": {
 			"version": "lts"
 		},
@@ -23,7 +27,7 @@
 		8123
 	],
 	// Run setup script after container creation
-	"postCreateCommand": ".devcontainer/postCreateCommand.sh",
+	"postCreateCommand": "call-assist/scripts/setup-dev-env.sh",
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
