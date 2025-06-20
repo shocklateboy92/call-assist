@@ -22,6 +22,8 @@
 	"forwardPorts": [
 		8123
 	],
+	// Run setup script after container creation
+	"postCreateCommand": ".devcontainer/postCreateCommand.sh",
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {

@@ -35,6 +35,10 @@ npm run build           # Compile TypeScript
 
 ### Development Environment
 ```bash
+# Dependencies install automatically via devcontainer postCreateCommand
+# To manually reinstall dependencies:
+./scripts/setup-dev-env.sh
+
 # Services start automatically via devcontainer.json
 # To restart or interact with services at runtime, use sudo:
 sudo docker-compose -f docker-compose.dev.yml restart <service-name>
