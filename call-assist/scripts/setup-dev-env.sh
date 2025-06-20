@@ -13,10 +13,10 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Set up Call Assist editable package install first
 echo "📦 Setting up Call Assist package structure..."
-CALL_ASSIST_DIR="$PROJECT_ROOT/call-assist"
+CALL_ASSIST_DIR="$PROJECT_ROOT"
 if [ -d "$CALL_ASSIST_DIR" ] && [ -f "$CALL_ASSIST_DIR/pyproject.toml" ]; then
     cd "$CALL_ASSIST_DIR"
-    echo "  � Installing call-assist package in editable mode"
+    echo "  📦 Installing call-assist package in editable mode"
     pip install -e .
     echo "  🧪 Installing test dependencies"
     pip install -e ".[test]"
@@ -31,7 +31,7 @@ fi
 
 # Install remaining broker requirements (if any additional ones exist)
 echo "Installing additional broker requirements..."
-cd "$PROJECT_ROOT/call-assist/addon/broker"
+cd "$PROJECT_ROOT/addon/broker"
 if [ -f "requirements.txt" ]; then
     echo "  📋 Checking broker/requirements.txt for additional packages"
     # Only install packages not already covered by the main package install
@@ -45,7 +45,7 @@ fi
 
 # Install remaining integration requirements (if any additional ones exist)
 echo "Installing additional integration requirements..."
-cd "$PROJECT_ROOT/call-assist/integration"
+cd "$PROJECT_ROOT/integration"
 if [ -f "test_requirements.txt" ]; then
     echo "  🧪 Checking integration/test_requirements.txt for additional packages"
     pip install -r test_requirements.txt
@@ -53,7 +53,7 @@ fi
 
 # Install Node.js dependencies for Matrix plugin
 echo "📦 Installing Node.js dependencies for Matrix plugin..."
-cd "$PROJECT_ROOT/call-assist/addon/plugins/matrix"
+cd "$PROJECT_ROOT/addon/plugins/matrix"
 if [ -f "package.json" ]; then
     echo "  📋 Installing Matrix plugin dependencies"
     npm install
