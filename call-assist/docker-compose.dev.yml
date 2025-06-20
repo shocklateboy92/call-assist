@@ -1,11 +1,11 @@
 services:
   devcontainer:
-    image: mcr.microsoft.com/devcontainers/universal:2-linux
+    image: mcr.microsoft.com/devcontainers/base:ubuntu
     container_name: call-assist-dev
     volumes:
       - ..:/workspaces/universal:cached
       - /var/run/docker.sock:/var/run/docker-host.sock
-      - ../runtime/claude-state:/home/codespace/.claude
+      - ../runtime/claude-state:/home/vscode/.claude
     command: sleep infinity
     environment:
       - DOCKER_HOST=unix:///var/run/docker-host.sock

@@ -7,10 +7,21 @@
 	"workspaceFolder": "/workspaces/universal",
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
+		"ghcr.io/devcontainers/features/python": {
+			"version": "3.13"
+		},
+		"ghcr.io/devcontainers/features/docker-outside-of-docker": {
+			"installDockerBuildx": true
+		},
+		"ghcr.io/devcontainers/features/node": {
+			"version": "lts"
+		},
 		"ghcr.io/anthropics/devcontainer-features/claude-code": {}
 	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [8123],
+	"forwardPorts": [
+		8123
+	],
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {
