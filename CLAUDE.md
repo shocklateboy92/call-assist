@@ -10,21 +10,23 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 ### Development Environment Setup
 
-**First-time setup**: Install the Call Assist package in editable mode to enable proper imports:
+**First-time setup**: The development environment is automatically set up during devcontainer creation. For manual setup:
 ```bash
-cd call-assist
-./scripts/setup-editable-install.sh  # Sets up editable installs, removes sys.path issues
+./scripts/setup-dev-env.sh         # Complete development environment setup
 ```
 
-This eliminates all `sys.path` manipulations and enables clean imports:
+This sets up editable installs and eliminates all `sys.path` manipulations, enabling clean imports:
 - `proto_gen.*` for protobuf generated code  
 - `addon.broker.*` for broker functionality
 - `integration.*` for Home Assistant integration
 - `tests.*` for test utilities
 
-See [PACKAGE_MIGRATION.md](call-assist/PACKAGE_MIGRATION.md) for migration details.
+**Auto-setup**: Most development scripts now automatically ensure the development environment is properly configured before running.
 
 ### Protobuf Generation
+
+Happens on devcontainer creation, but can be manually triggered if proto files change:
+
 ```bash
 # Must run after proto file changes - generates Python, TypeScript, and C++ files
 ./scripts/build-proto.sh

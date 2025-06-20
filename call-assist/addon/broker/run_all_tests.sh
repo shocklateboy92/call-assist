@@ -127,10 +127,28 @@ cleanup() {
 # Set up cleanup trap
 trap cleanup EXIT
 
-# Install test dependencies
-echo "Installing test dependencies..."
-cd "$BROKER_DIR"
-pip install -r test_requirements.txt
+# Set up development environment with editable installs
+echo "Setting up development environment..."
+cd "$PROJECT_ROOT"
+
+# Check if call-assist package is properly installed
+if ! python -c "import proto_gen, addon.broker" 2>/dev/null; then
+    echo "📦 Call Assist package not properly installed, running setup..."
+    if [ -f "scripts/setup-editable-install.sh" ]; then
+        ./scripts/setup-editable-install.sh
+    else
+        # Fallback to root setup script
+        ../scripts/setup-dev-env.sh
+    fi
+else
+    echo "✅ Call Assist package already available"
+    # Still install any additional test dependencies
+    cd "$BROKER_DIR"
+    if [ -f "test_requirements.txt" ]; then
+        echo "Installing additional test dependencies..."
+        pip install -r test_requirements.txt
+    fi
+fi
 
 # Build protobuf files
 echo "Building protobuf files..."
