@@ -23,9 +23,6 @@ from typing import Dict, Any, Optional
 from aiohttp import ClientSession
 
 # Test imports
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 import proto_gen.broker_integration_pb2 as bi_pb2
 import proto_gen.common_pb2 as common_pb2
 import proto_gen.broker_integration_pb2_grpc as bi_grpc
@@ -94,7 +91,7 @@ class MatrixTestClient:
                 self.user_id = result['user_id']
             return result
     
-    async def create_room(self, name: Optional[str] = None, is_public: bool = False, is_direct: bool = False, invite_users: list = None) -> Dict[str, Any]:
+    async def create_room(self, name: Optional[str] = None, is_public: bool = False, is_direct: bool = False, invite_users: Optional[list] = None) -> Dict[str, Any]:
         """Create a Matrix room"""
         url = f"{self.homeserver_url}/_matrix/client/r0/createRoom"
         headers = {"Authorization": f"Bearer {self.access_token}"}

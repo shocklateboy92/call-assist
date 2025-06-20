@@ -1,1 +1,1 @@
-# Call Assist Broker Package
+"""Call Assist broker implementation."""

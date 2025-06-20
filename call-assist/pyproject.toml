@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "call-assist"
+version = "0.1.0"
+description = "Call Assist system for Home Assistant with broker and plugins"
+authors = [
+    {name = "Call Assist Team"}
+]
+dependencies = [
+    "grpcio>=1.50.0",
+    "grpcio-tools>=1.50.0",
+    "pyyaml>=6.0",
+    "mypy-protobuf>=3.6.0",
+    "types-protobuf>=6.30.0",
+    "dacite>=1.6.0",
+    "dataclasses_jsonschema>=0.5.7",
+]
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.20",
+    "pytest-mock>=3.10",
+]
+integration = [
+    "pytest-homeassistant-custom-component>=0.13.252",
+    "homeassistant>=2025.6.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["proto_gen*", "addon*", "integration*"]
+
+[project.scripts]
+call-assist-broker = "call_assist.broker.main:main"
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "addon/broker/tests", "integration/tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]

@@ -1,4 +1,3 @@
-
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -8,6 +7,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 When dealing with python code, follow the guidelines written in @.github/instructions/python.instructions.md
 
 ## Essential Development Commands
+
+### Development Environment Setup
+
+**First-time setup**: Install the Call Assist package in editable mode to enable proper imports:
+```bash
+cd call-assist
+./scripts/setup-editable-install.sh  # Sets up editable installs, removes sys.path issues
+```
+
+This eliminates all `sys.path` manipulations and enables clean imports:
+- `proto_gen.*` for protobuf generated code  
+- `addon.broker.*` for broker functionality
+- `integration.*` for Home Assistant integration
+- `tests.*` for test utilities
+
+See [PACKAGE_MIGRATION.md](call-assist/PACKAGE_MIGRATION.md) for migration details.
 
 ### Protobuf Generation
 ```bash

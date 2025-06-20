@@ -17,13 +17,8 @@ from typing import Dict, Any, Optional
 from unittest.mock import AsyncMock, Mock, patch
 
 # Import broker and proto files
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-# Import from broker directory
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'addon', 'broker'))
-from main import CallAssistBroker
-from plugin_manager import PluginManager, PluginInstance, PluginMetadata, PluginState
+from addon.broker.main import CallAssistBroker
+from addon.broker.plugin_manager import PluginManager, PluginInstance, PluginMetadata, PluginState
 import proto_gen.broker_integration_pb2 as bi_pb2
 import proto_gen.call_plugin_pb2 as cp_pb2
 import proto_gen.common_pb2 as common_pb2
@@ -239,7 +234,7 @@ async def broker_with_mock_plugin(temp_plugin_dir, mock_matrix_plugin):
         channel = grpc.aio.insecure_channel(f'localhost:{mock_matrix_plugin.port}')
         plugin.channel = channel
         
-        from call_plugin_pb2_grpc import CallPluginStub
+        from proto_gen.call_plugin_pb2_grpc import CallPluginStub
         plugin.stub = CallPluginStub(channel)
         
         return True

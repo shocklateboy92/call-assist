@@ -17,9 +17,7 @@ from homeassistant.config_entries import ConfigEntry
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 # Import broker utilities from tests directory
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'tests'))
-from broker_test_utils import BrokerManager, BrokerClient
+from tests.broker_test_utils import BrokerManager, BrokerClient
 
 from custom_components.call_assist.const import DOMAIN
 

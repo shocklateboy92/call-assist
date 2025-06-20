@@ -9,15 +9,12 @@ from grpc import aio as grpc_aio
 from grpc.aio import AioRpcError
 
 # Import protobuf generated files
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 from proto_gen.broker_integration_pb2_grpc import BrokerIntegrationStub
 from proto_gen.broker_integration_pb2 import (
     ConfigurationRequest,
     CallRequest,
     CallResponse,
+    CallTerminateRequest,
     CredentialsRequest,
 )
 from proto_gen.common_pb2 import CallState, ContactPresence, CallEvent
@@ -205,8 +202,8 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
         
         try:
-            request = IntegrationCallRequest(station_id=station_id)
-            response = await self.stub.EndCall(request)
+            request = CallTerminateRequest(call_id=station_id)
+            response = await self.stub.TerminateCall(request)
             return response.success
             
         except AioRpcError as ex:
@@ -215,14 +212,7 @@ class CallAssistGrpcClient:
     
     async def accept_call(self, station_id: str) -> bool:
         """Accept incoming call on a station."""
-        if not self.stub:
-            raise RuntimeError("Not connected to broker")
-        
-        try:
-            request = IntegrationCallRequest(station_id=station_id)
-            response = await self.stub.AcceptCall(request)
-            return response.success
-            
-        except AioRpcError as ex:
-            _LOGGER.error("Failed to accept call: %s", ex)
-            raise
+        # Note: AcceptCall method may need to be implemented in the broker service
+        # For now, this is a placeholder
+        _LOGGER.warning("AcceptCall method not yet implemented in broker service")
+        return False

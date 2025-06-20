@@ -15,9 +15,6 @@ from dacite import from_dict
 from datetime import datetime
 from google.protobuf import empty_pb2
 
-import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
-
 import proto_gen.call_plugin_pb2 as cp_pb2
 import proto_gen.call_plugin_pb2_grpc as cp_grpc
 import proto_gen.common_pb2 as common_pb2
