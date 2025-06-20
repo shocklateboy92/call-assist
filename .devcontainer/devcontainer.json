@@ -14,8 +14,7 @@
 			"installDockerBuildx": true
 		},
 		"ghcr.io/devcontainers-extra/features/apt-packages:1": {
-			// comma-separated list of packages to install
-			"packages": "protobuf-compiler"
+			"packages": "protobuf-compiler,libprotobuf-dev"
 		},
 		"ghcr.io/devcontainers/features/node": {
 			"version": "lts"
