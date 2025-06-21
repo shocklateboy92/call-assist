@@ -11,25 +11,12 @@ import logging
 
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-import pytest_homeassistant_custom_component.common
 
 from integration.const import DOMAIN, CONF_HOST, CONF_PORT, DEFAULT_HOST, DEFAULT_PORT
 from integration.config_flow import CallAssistConfigFlow
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
-
-
-
-
-@pytest.fixture
-def call_assist_integration(monkeypatch) -> None:
-    """Update the Home Assistant configuration directory so the integration can be loaded."""
-    monkeypatch.setattr(
-        pytest_homeassistant_custom_component.common,
-        "get_test_config_dir",
-        lambda _add_path="": "/workspaces/universal/call-assist/config/homeassistant",
-    )
 
 
 class TestCallAssistConfigFlow:
@@ -72,7 +59,12 @@ class TestCallAssistConfigFlow:
         }
 
     @pytest.mark.asyncio
-    async def test_config_flow_with_invalid_broker(self, call_assist_integration: None, enable_custom_integrations: None, hass: HomeAssistant):
+    async def test_config_flow_with_invalid_broker(
+        self,
+        call_assist_integration: None,
+        enable_custom_integrations: None,
+        hass: HomeAssistant,
+    ):
         """Test config flow with invalid broker connection."""
         # Test through the config entries flow manager
         result = await hass.config_entries.flow.async_init(
@@ -109,11 +101,11 @@ class TestCallAssistConfigFlow:
         data_schema = result.get("data_schema")
         assert data_schema is not None
 
-        # Extract default values from schema - voluptuous schema format  
+        # Extract default values from schema - voluptuous schema format
         # The schema is processed and defaults are stored as callable lambdas
         # We need to access the original voluptuous schema to get the default values
         from integration.config_flow import STEP_USER_DATA_SCHEMA
-        
+
         defaults = {}
         for field in STEP_USER_DATA_SCHEMA.schema:
             if hasattr(field, "default"):
@@ -125,7 +117,11 @@ class TestCallAssistConfigFlow:
 
     @pytest.mark.asyncio
     async def test_config_flow_duplicate_configuration(
-        self, call_assist_integration: None, enable_custom_integrations: None, broker_process, hass: HomeAssistant
+        self,
+        call_assist_integration: None,
+        enable_custom_integrations: None,
+        broker_process,
+        hass: HomeAssistant,
     ):
         """Test that duplicate configurations are rejected."""
         # First successful configuration
@@ -161,7 +157,12 @@ class TestCallAssistConfigFlow:
         assert result4.get("reason") in ["already_configured", "already_in_progress"]
 
     @pytest.mark.asyncio
-    async def test_config_flow_with_connection_timeout(self, call_assist_integration: None, enable_custom_integrations: None, hass: HomeAssistant):
+    async def test_config_flow_with_connection_timeout(
+        self,
+        call_assist_integration: None,
+        enable_custom_integrations: None,
+        hass: HomeAssistant,
+    ):
         """Test config flow with connection timeout."""
         # Test through the config entries flow manager
         result = await hass.config_entries.flow.async_init(
@@ -202,7 +203,12 @@ class TestCallAssistConfigFlow:
         assert "broker_version" in result  # From status response
 
     @pytest.mark.asyncio
-    async def test_config_flow_unique_id_generation(self, call_assist_integration: None, enable_custom_integrations: None, hass: HomeAssistant):
+    async def test_config_flow_unique_id_generation(
+        self,
+        call_assist_integration: None,
+        enable_custom_integrations: None,
+        hass: HomeAssistant,
+    ):
         """Test that unique IDs are generated correctly."""
         # Test through the config entries flow manager like a real user would
         result = await hass.config_entries.flow.async_init(
@@ -226,7 +232,7 @@ class TestCallAssistConfigFlow:
         result3 = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
-        
+
         result4 = await hass.config_entries.flow.async_configure(
             result3["flow_id"],
             {

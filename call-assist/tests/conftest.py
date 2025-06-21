@@ -14,6 +14,7 @@ import threading
 
 import pytest
 import pytest_asyncio
+import pytest_homeassistant_custom_component.common
 import pytest_socket
 import grpc
 import grpc.aio
@@ -188,3 +189,12 @@ async def broker_server(broker_process):
     
     # Cleanup just the channel
     await channel.close()
+
+@pytest.fixture
+def call_assist_integration(monkeypatch) -> None:
+    """Update the Home Assistant configuration directory so the integration can be loaded."""
+    monkeypatch.setattr(
+        pytest_homeassistant_custom_component.common,
+        "get_test_config_dir",
+        lambda _add_path="": "/workspaces/universal/call-assist/config/homeassistant",
+    )
