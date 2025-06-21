@@ -197,11 +197,6 @@ def is_port_available(port: int) -> bool:
             return False
 
 
-# Global variable to track broker subprocess
-_broker_process = None
-_broker_log_thread = None
-
-
 def _stream_broker_logs(process, logger):
     """Stream broker subprocess logs to the test logger"""
     try:
@@ -267,7 +262,6 @@ def _stream_broker_logs(process, logger):
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker subprocess"""
-    global _broker_process, _broker_log_thread
     broker_port = 50051
     
     # Check if broker is already running
@@ -280,18 +274,18 @@ def broker_process():
     logger.info("Starting broker subprocess on port %d", broker_port)
     broker_script = os.path.join(os.path.dirname(__file__), "..", "addon", "broker", "main.py")
     broker_dir = os.path.join(os.path.dirname(__file__), "..", "addon", "broker")
-    _broker_process = subprocess.Popen([
+    broker_process = subprocess.Popen([
         "python", broker_script
     ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=broker_dir)
     
     # Start log streaming thread
-    _broker_log_thread = threading.Thread(
+    broker_log_thread = threading.Thread(
         target=_stream_broker_logs,
-        args=(_broker_process, logger),
+        args=(broker_process, logger),
         daemon=True,
         name="BrokerLogStreamer"
     )
-    _broker_log_thread.start()
+    broker_log_thread.start()
     logger.debug("Started broker log streaming thread")
     
     # Wait for server to start
@@ -301,32 +295,32 @@ def broker_process():
             break
         time.sleep(0.5)
     else:
-        if _broker_process:
-            _broker_process.terminate()
-            _broker_process.wait()
+        if broker_process:
+            broker_process.terminate()
+            broker_process.wait()
         raise RuntimeError("Broker server failed to start within timeout")
     
-    logger.info("Broker subprocess started (PID: %d)", _broker_process.pid)
+    logger.info("Broker subprocess started (PID: %d)", broker_process.pid)
     
-    yield _broker_process
+    yield broker_process
     
     # Cleanup
-    if _broker_process:
+    if broker_process:
         logger.info("Shutting down broker subprocess...")
-        _broker_process.terminate()
+        broker_process.terminate()
         try:
-            _broker_process.wait(timeout=5)
+            broker_process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            _broker_process.kill()
-            _broker_process.wait()
+            broker_process.kill()
+            broker_process.wait()
         logger.info("Broker subprocess shutdown complete")
-        _broker_process = None
+        broker_process = None
         
     # Log thread will automatically end when process terminates (daemon=True)
-    if _broker_log_thread and _broker_log_thread.is_alive():
+    if broker_log_thread and broker_log_thread.is_alive():
         logger.debug("Waiting for broker log streaming thread to finish...")
-        _broker_log_thread.join(timeout=2)
-        _broker_log_thread = None
+        broker_log_thread.join(timeout=2)
+        broker_log_thread = None
 
 
 @pytest_asyncio.fixture(scope="function")
