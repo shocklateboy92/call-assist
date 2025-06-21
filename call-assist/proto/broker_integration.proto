@@ -43,7 +43,9 @@ message ConfigurationResponse {
 
 message CredentialsRequest {
   string protocol = 1; // "matrix" or "xmpp"
-  map<string, string> credentials = 2; // username, password, server, etc.
+  string account_id = 2; // unique account identifier (e.g., "user@matrix.org")
+  string display_name = 3; // human-readable account name (e.g., "Personal Matrix")
+  map<string, string> credentials = 4; // username, password, server, etc.
 }
 
 message CredentialsResponse {
@@ -56,7 +58,8 @@ message CallRequest {
   string media_player_entity_id = 2;
   string target_address = 3;  // Matrix room ID or XMPP JID
   string protocol = 4;         // "matrix" or "xmpp"
-  callassist.common.MediaCapabilities preferred_capabilities = 5;
+  string account_id = 5;       // which account to use for this protocol
+  callassist.common.MediaCapabilities preferred_capabilities = 6;
 }
 
 message CallResponse {
@@ -82,8 +85,10 @@ message SystemCapabilities {
 
 message PluginCapabilities {
   string protocol = 1;
-  bool available = 2;
-  callassist.common.MediaCapabilities capabilities = 3;
+  string account_id = 2;       // which account this applies to
+  string display_name = 3;     // human-readable account name
+  bool available = 4;
+  callassist.common.MediaCapabilities capabilities = 5;
 }
 
 // Generic entity system - broker decides what entities to expose

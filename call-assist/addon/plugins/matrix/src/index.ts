@@ -39,6 +39,8 @@ interface MatrixConfig {
   homeserver: string;
   accessToken: string;
   userId: string;
+  accountId: string;
+  displayName: string;
 }
 
 // Strongly typed call info interface
@@ -82,8 +84,12 @@ class MatrixCallPlugin {
           this.config = {
             homeserver: request.credentials.homeserver || 'https://matrix.org',
             accessToken: request.credentials.access_token,
-            userId: request.credentials.user_id
+            userId: request.credentials.user_id,
+            accountId: request.account_id,
+            displayName: request.display_name
           };
+          
+          console.log(`Initializing Matrix plugin for account: ${request.display_name} (${request.account_id})`);
           
           // Initialize Matrix client
           await this.initializeMatrixClient();

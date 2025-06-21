@@ -28,12 +28,19 @@ class BrokerConfiguration:
     enabled_protocols: List[str]
 
 @dataclass
-class ProtocolCredentials:
-    """Credentials for a specific protocol"""
+class AccountCredentials:
+    """Credentials for a specific account on a protocol"""
     protocol: str
+    account_id: str  # e.g., "user@matrix.org"
+    display_name: str  # e.g., "Personal Matrix"
     credentials: Dict[str, str]
     is_valid: bool = True
     last_updated: Optional[str] = None  # ISO timestamp
+    
+    @property
+    def unique_key(self) -> str:
+        """Generate unique key for this account"""
+        return f"{self.protocol}_{hash(self.account_id)}"
 
 @dataclass
 class CallInfo:
@@ -43,6 +50,7 @@ class CallInfo:
     media_player_entity_id: str
     target_address: str
     protocol: str
+    account_id: str  # Which account is used for this call
     state: 'common_pb2.CallState.ValueType'  # common_pb2.CallState enum value
     preferred_capabilities: Optional['common_pb2.MediaCapabilities'] = None
 
@@ -54,7 +62,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
     
     def __init__(self):
         self.configuration: Optional[BrokerConfiguration] = None
-        self.credentials: Dict[str, ProtocolCredentials] = {}  # protocol -> credentials
+        self.account_credentials: Dict[str, AccountCredentials] = {}  # account_key -> credentials
         self.active_calls: Dict[str, CallInfo] = {}  # call_id -> call_info
         self.call_counter = 0
         self.plugin_manager = PluginManager()
@@ -83,23 +91,27 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             return bi_pb2.ConfigurationResponse(success=False, message=str(e))
     
     async def UpdateCredentials(self, request: bi_pb2.CredentialsRequest, context) -> bi_pb2.CredentialsResponse:
-        """Update credentials for a specific protocol"""
+        """Update credentials for a specific account"""
         try:
-            logger.info(f"Updating credentials for protocol: {request.protocol}")
+            logger.info(f"Updating credentials for account: {request.account_id} ({request.protocol})")
             
-            self.credentials[request.protocol] = ProtocolCredentials(
+            account_creds = AccountCredentials(
                 protocol=request.protocol,
+                account_id=request.account_id,
+                display_name=request.display_name,
                 credentials=dict(request.credentials),
                 last_updated=datetime.now().isoformat()
             )
             
-            # TODO: Send credentials to the relevant plugin
-            await self._notify_plugin_credentials(request.protocol, self.credentials[request.protocol].credentials)
+            self.account_credentials[account_creds.unique_key] = account_creds
             
-            return bi_pb2.CredentialsResponse(success=True, message=f"Credentials updated for {request.protocol}")
+            # Send credentials to the relevant plugin instance
+            await self._notify_plugin_credentials(account_creds)
+            
+            return bi_pb2.CredentialsResponse(success=True, message=f"Credentials updated for {request.account_id} ({request.protocol})")
             
         except Exception as e:
-            logger.error(f"Credentials update failed for {request.protocol}: {e}")
+            logger.error(f"Credentials update failed for {request.account_id} ({request.protocol}): {e}")
             return bi_pb2.CredentialsResponse(success=False, message=str(e))
     
     async def InitiateCall(self, request: bi_pb2.CallRequest, context) -> bi_pb2.CallResponse:
@@ -125,6 +137,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 media_player_entity_id=request.media_player_entity_id,
                 target_address=request.target_address,
                 protocol=request.protocol,
+                account_id=request.account_id,  # Store which account to use
                 state=common_pb2.CallState.CALL_STATE_INITIATING,
                 preferred_capabilities=request.preferred_capabilities
             )
@@ -314,6 +327,8 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                     "configured_cameras": str(len(self.configuration.camera_entities)) if self.configuration else "0",
                     "configured_players": str(len(self.configuration.media_player_entities)) if self.configuration else "0",
                     "available_protocols": ",".join(self.plugin_manager.get_available_protocols()),
+                    "configured_accounts": str(len(self.account_credentials)),
+                    "active_instances": str(len(self.plugin_manager.plugin_instances)),
                 },
                 icon="mdi:video-switch",
                 available=True,
@@ -354,12 +369,14 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         """Convert plugin state to entity state string"""
         if not is_configured:
             return "not_configured"
-        elif plugin_state == PluginState.CONNECTED:
+        elif plugin_state == PluginState.RUNNING:
             return "connected"
         elif plugin_state == PluginState.ERROR:
             return "error"
         elif plugin_state == PluginState.STARTING:
             return "starting"
+        elif plugin_state == PluginState.STOPPING:
+            return "stopping"
         else:
             return "disconnected"
     
@@ -443,13 +460,27 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         webrtc_support=False
                     )
                 
-                plugin_caps.append(bi_pb2.PluginCapabilities(
-                    protocol=protocol,
-                    available=(protocol in self.credentials and 
-                             self.credentials[protocol].is_valid and 
-                             plugin_state is not None and plugin_state != PluginState.ERROR),
-                    capabilities=plugin_media_caps
-                ))
+                # Create capabilities for each configured account
+                configured_accounts = self.get_configured_accounts(protocol)
+                if configured_accounts:
+                    for account_creds in configured_accounts:
+                        plugin_caps.append(bi_pb2.PluginCapabilities(
+                            protocol=protocol,
+                            account_id=account_creds.account_id,
+                            display_name=account_creds.display_name,
+                            available=(account_creds.is_valid and 
+                                     plugin_state is not None and plugin_state != PluginState.ERROR),
+                            capabilities=plugin_media_caps
+                        ))
+                else:
+                    # No accounts configured, show protocol as unavailable
+                    plugin_caps.append(bi_pb2.PluginCapabilities(
+                        protocol=protocol,
+                        account_id="",
+                        display_name=f"{protocol.title()} (Not Configured)",
+                        available=False,
+                        capabilities=plugin_media_caps
+                    ))
             
             return bi_pb2.SystemCapabilities(
                 broker_capabilities=broker_caps,
@@ -461,36 +492,46 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             return bi_pb2.SystemCapabilities()
     
     # Helper methods for plugin communication
-    def get_plugin_configuration(self, protocol: str) -> Optional[PluginConfiguration]:
-        """Get the configuration for a specific protocol plugin"""
-        if protocol in self.credentials:
-            plugin = self.plugin_manager.plugins.get(protocol)
-            if plugin and plugin.configuration:
-                return plugin.configuration
+    def get_account_configuration(self, protocol: str, account_id: str) -> Optional[PluginConfiguration]:
+        """Get the configuration for a specific account plugin instance"""
+        account_key = f"{protocol}_{hash(account_id)}"
+        if account_key in self.account_credentials:
+            plugin_instance = self.plugin_manager.get_plugin_instance(protocol, account_id)
+            if plugin_instance and plugin_instance.configuration:
+                return plugin_instance.configuration
         return None
     
-    def is_plugin_configured(self, protocol: str) -> bool:
-        """Check if a plugin is properly configured with valid credentials"""
-        return (protocol in self.credentials and 
-                self.credentials[protocol].is_valid and 
-                self.get_plugin_configuration(protocol) is not None)
+    def is_account_configured(self, protocol: str, account_id: str) -> bool:
+        """Check if an account is properly configured with valid credentials"""
+        account_key = f"{protocol}_{hash(account_id)}"
+        return (account_key in self.account_credentials and 
+                self.account_credentials[account_key].is_valid and 
+                self.get_account_configuration(protocol, account_id) is not None)
+    
+    def get_configured_accounts(self, protocol: str) -> List[AccountCredentials]:
+        """Get all configured accounts for a protocol"""
+        return [creds for creds in self.account_credentials.values() 
+                if creds.protocol == protocol and creds.is_valid]
 
-    async def _notify_plugin_credentials(self, protocol: str, credentials: Dict[str, str]):
-        """Send credentials to the appropriate plugin"""
-        success = await self.plugin_manager.initialize_plugin(protocol, credentials)
+    async def _notify_plugin_credentials(self, account_creds: AccountCredentials):
+        """Send credentials to the appropriate plugin instance"""
+        success = await self.plugin_manager.initialize_plugin_account(
+            account_creds.protocol, 
+            account_creds.account_id,
+            account_creds.display_name,
+            account_creds.credentials
+        )
         if success:
-            logger.info(f"Plugin {protocol} initialized with credentials")
+            logger.info(f"Plugin instance initialized for {account_creds.account_id} ({account_creds.protocol})")
             # Update the credentials validity if successful
-            if protocol in self.credentials:
-                self.credentials[protocol].is_valid = True
+            account_creds.is_valid = True
         else:
-            logger.error(f"Failed to initialize plugin {protocol}")
+            logger.error(f"Failed to initialize plugin instance for {account_creds.account_id} ({account_creds.protocol})")
             # Mark credentials as invalid if initialization failed
-            if protocol in self.credentials:
-                self.credentials[protocol].is_valid = False
+            account_creds.is_valid = False
     
     async def _forward_call_to_plugin(self, call_info: CallInfo):
-        """Forward call request to the appropriate plugin"""
+        """Forward call request to the appropriate plugin instance"""
         # Create call start request
         call_request = cp_pb2.CallStartRequest(
             call_id=call_info.call_id,
@@ -500,27 +541,35 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             player_capabilities=common_pb2.MediaCapabilities()  # TODO: Get actual player capabilities
         )
         
-        response = await self.plugin_manager.start_call(call_info.protocol, call_request)
+        response = await self.plugin_manager.start_call_on_account(
+            call_info.protocol, 
+            call_info.account_id, 
+            call_request
+        )
         if response and response.success:
             # Update call state
             call_info.state = response.state
-            logger.info(f"Call {call_info.call_id} forwarded to {call_info.protocol} plugin")
+            logger.info(f"Call {call_info.call_id} forwarded to {call_info.protocol} plugin (account: {call_info.account_id})")
         else:
             call_info.state = common_pb2.CallState.CALL_STATE_FAILED
-            logger.error(f"Failed to forward call {call_info.call_id} to {call_info.protocol} plugin")
+            logger.error(f"Failed to forward call {call_info.call_id} to {call_info.protocol} plugin (account: {call_info.account_id})")
     
     async def _terminate_call_on_plugin(self, call_info: CallInfo):
-        """Request call termination from plugin"""
+        """Request call termination from plugin instance"""
         call_request = cp_pb2.CallEndRequest(
             call_id=call_info.call_id,
             reason="User requested termination"
         )
         
-        response = await self.plugin_manager.end_call(call_info.protocol, call_request)
+        response = await self.plugin_manager.end_call_on_account(
+            call_info.protocol, 
+            call_info.account_id, 
+            call_request
+        )
         if response and response.success:
-            logger.info(f"Call {call_info.call_id} terminated on {call_info.protocol} plugin")
+            logger.info(f"Call {call_info.call_id} terminated on {call_info.protocol} plugin (account: {call_info.account_id})")
         else:
-            logger.error(f"Failed to terminate call {call_info.call_id} on {call_info.protocol} plugin")
+            logger.error(f"Failed to terminate call {call_info.call_id} on {call_info.protocol} plugin (account: {call_info.account_id})")
     
     # Direct callback methods for plugins to call
     def on_contact_added(self, contact: 'common_pb2.Contact'):

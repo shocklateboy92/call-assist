@@ -30,8 +30,10 @@ service CallPlugin {
 
 message PluginConfig {
   string protocol = 1; // "matrix" or "xmpp"
-  map<string, string> credentials = 2;
-  map<string, string> settings = 3; // Additional protocol-specific settings
+  string account_id = 2; // unique account identifier (e.g., "user@matrix.org")
+  string display_name = 3; // human-readable account name
+  map<string, string> credentials = 4;
+  map<string, string> settings = 5; // Additional protocol-specific settings
 }
 
 message PluginStatus {
