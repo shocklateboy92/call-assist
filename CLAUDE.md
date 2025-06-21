@@ -83,10 +83,11 @@ Call Assist: Like Music Assistant, but for making video calls. Tightly integrate
 1. **Home Assistant Custom Integration** (Python) - Published to HACS
    - Handles user interaction/configuration
    - Manages authentication credentials
+   - Receives generic entities from broker (domain-agnostic)
    - Sends credentials to broker/plugins on startup
 
 2. **Home Assistant Add-on** - Published on GitHub
-   - **Broker**: Orchestrates plugins and communication with HA integration
+   - **Broker**: Orchestrates plugins and exposes business-logic-driven entities
    - **Matrix Plugin**: NodeJS/TypeScript using matrix-js-sdk
    - **XMPP Plugin**: C++ using QXMPP library
 
@@ -138,6 +139,7 @@ call-assist/
 2. **Camera Support**: RTSP streams + Home Assistant camera entities
 3. **Media Player Support**: Chromecast primary, DLNA/UPnP/Miracast stretch goals
 4. **WebRTC Integration**: Leverage Matrix's native WebRTC support for direct streaming
+5. **Entity Architecture**: Broker-controlled, domain-agnostic entity system
 
 ### gRPC Service Definitions
 **Completed**: Three core service contracts defined in `/proto/`
@@ -145,7 +147,8 @@ call-assist/
 1. **broker_integration.proto** - HA Integration ↔ Broker communication
    - Configuration/credentials management
    - Call initiation/termination
-   - Real-time status streaming
+   - **Generic entity management** (`GetEntities` RPC)
+   - Real-time entity update streaming
    - System capability queries
 
 2. **call_plugin.proto** - Broker ↔ Call Plugin communication
@@ -158,12 +161,42 @@ call-assist/
    - Media capabilities and negotiation
    - Call states and events
    - Health status monitoring
+   - **Generic entity update system** (`EntityUpdate` messages)
 
 **Key Features:**
+- **Business-logic-driven entity system**: Broker decides what entities to expose
+- **Domain-agnostic integration**: Single entity type handles all use cases
 - Bidirectional streaming for real-time events
 - Capability negotiation system for direct/transcoding fallback
 - Protocol-agnostic design for future extensibility
 - Comprehensive call lifecycle management
+
+### Entity Architecture Design
+
+**Philosophy**: Push business logic to the broker for easier future updates, while keeping the integration thin and domain-agnostic.
+
+**Implementation**:
+```
+Broker (Business Logic) → Generic Entities → HA Integration (Presentation)
+```
+
+**Entity Types** (defined by broker):
+1. **Call Stations**: Camera + Media Player combinations for making calls
+2. **Contacts**: Discovered contacts from protocol plugins (Matrix rooms, XMPP JIDs)
+3. **Plugin Status**: Status of protocol plugins (Matrix, XMPP)
+4. **Broker Status**: Overall system health and configuration
+
+**Benefits**:
+- ✅ **Future-proof**: Add new entity types without changing integration code
+- ✅ **Broker-controlled**: Business logic updates don't require integration releases
+- ✅ **Scalable**: Handles any number of cameras, media players, contacts automatically
+- ✅ **Maintainable**: Clear separation between broker logic and HA presentation
+
+**Key Changes**:
+- Added `GetEntities` RPC that returns `EntityDefinition` objects
+- Broker creates call stations from camera+media_player combinations
+- Integration uses generic sensor platform for all entity types
+- Real-time updates via `StreamEntityUpdates` for state changes
 
 ### Development Environment
 **Docker Compose Setup**: VS Code dev container automatically starts all services:
@@ -249,5 +282,9 @@ The Matrix plugin (`addon/plugins/matrix/src/index.ts`) currently:
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
 3. ✅ Build Matrix plugin with WebRTC support
-4. 🔄 Implement real WebRTC peer connections in Matrix plugin
-5. Implement broker capability detection logic
+4. ✅ **Implement generic entity architecture** (domain-agnostic integration)
+5. ✅ **Fix integration startup issues** (NoneType errors resolved)
+6. 🔄 Implement real WebRTC peer connections in Matrix plugin
+7. Implement broker capability detection logic
+8. Add configuration flow for camera/media player selection
+9. Implement contact discovery from Matrix plugin
