@@ -1,14 +1,14 @@
 {
   "domain": "call_assist",
   "name": "Call Assist",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "documentation": "https://github.com/shocklateboy92/call-assist",
   "issue_tracker": "https://github.com/shocklateboy92/call-assist/issues",
   "dependencies": [],
   "codeowners": ["@shocklateboy92"],
   "requirements": [
-    "grpcio>=1.73.0",
-    "grpcio-tools>=1.73.0",
+    "grpcio>=1.72.1",
+    "grpcio-tools>=1.72.1",
     "protobuf>=6.30.0"
   ],
   "config_flow": true,

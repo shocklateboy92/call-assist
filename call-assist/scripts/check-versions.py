@@ -47,12 +47,12 @@ def main():
     os.chdir(project_root)
     
     # Check main project dependencies
-    pyproject_grpc = get_version_from_file('pyproject.toml', r'grpcio>=([0-9.]+)')
-    pyproject_grpc_tools = get_version_from_file('pyproject.toml', r'grpcio-tools>=([0-9.]+)')
-    broker_grpc = get_version_from_file('addon/broker/requirements.txt', r'grpcio>=([0-9.]+)')
-    broker_grpc_tools = get_version_from_file('addon/broker/requirements.txt', r'grpcio-tools>=([0-9.]+)')
-    manifest_grpc = get_version_from_file('integration/manifest.json', r'"grpcio>=([0-9.]+)')
-    manifest_grpc_tools = get_version_from_file('integration/manifest.json', r'"grpcio-tools>=([0-9.]+)')
+    pyproject_grpc = get_version_from_file('pyproject.toml', r'grpcio>=([0-9.]+\.[0-9.]+)')
+    pyproject_grpc_tools = get_version_from_file('pyproject.toml', r'grpcio-tools>=([0-9.]+\.[0-9.]+)')
+    broker_grpc = get_version_from_file('addon/broker/requirements.txt', r'grpcio>=([0-9.]+\.[0-9.]+)')
+    broker_grpc_tools = get_version_from_file('addon/broker/requirements.txt', r'grpcio-tools>=([0-9.]+\.[0-9.]+)')
+    manifest_grpc = get_version_from_file('integration/manifest.json', r'"grpcio>=([0-9.]+\.[0-9.]+)')
+    manifest_grpc_tools = get_version_from_file('integration/manifest.json', r'"grpcio-tools>=([0-9.]+\.[0-9.]+)')
     
     print(f'pyproject.toml grpcio: {pyproject_grpc}')
     print(f'pyproject.toml grpcio-tools: {pyproject_grpc_tools}')

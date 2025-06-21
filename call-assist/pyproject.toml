@@ -10,8 +10,8 @@ authors = [
     {name = "Call Assist Team"}
 ]
 dependencies = [
-    "grpcio>=1.73.0",
-    "grpcio-tools>=1.73.0",
+    "grpcio>=1.72.1",
+    "grpcio-tools>=1.72.1",
     "pyyaml>=6.0.2",
     "mypy-protobuf>=3.6.0",
     "types-protobuf>=6.30.2.20250516",

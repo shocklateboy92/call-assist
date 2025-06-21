@@ -1,5 +1,5 @@
-grpcio>=1.73.0
-grpcio-tools>=1.73.0
+grpcio>=1.72.1
+grpcio-tools>=1.72.1
 asyncio
 logging
 pyyaml>=6.0.2
