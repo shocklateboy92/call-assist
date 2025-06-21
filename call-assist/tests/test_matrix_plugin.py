@@ -21,6 +21,7 @@ import threading
 import logging
 from typing import Dict, Any, Optional
 from aiohttp import ClientSession
+import pytest_socket
 
 # Test imports
 import proto_gen.broker_integration_pb2 as bi_pb2
@@ -31,6 +32,11 @@ from google.protobuf import empty_pb2
 # Set up logging for tests
 logger = logging.getLogger(__name__)
 
+@pytest.fixture()
+def enable_socket():
+    # Work-around pytest-socket to allow network requests in E2E tests
+    socket.socket = pytest_socket._true_socket
+    socket.socket.connect = pytest_socket._true_connect
 
 class MatrixTestClient:
     """Test client for interacting with Matrix homeserver"""
@@ -178,6 +184,11 @@ class MatrixTestClient:
 
 def is_port_available(port: int) -> bool:
     """Check if a port is available for binding"""
+
+    # Work-around pytest-socket to allow network requests in E2E tests
+    socket.socket = pytest_socket._true_socket
+    socket.socket.connect = pytest_socket._true_connect
+
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             sock.bind(('localhost', port))
@@ -471,7 +482,7 @@ class TestMatrixPluginIntegration:
         assert response.broker_capabilities is not None
     
     @pytest.mark.asyncio
-    async def test_matrix_credentials_setup(self, broker_server, matrix_test_users):
+    async def test_matrix_credentials_setup(self, enable_socket, broker_server, matrix_test_users):
         """Test Matrix plugin initialization through broker with real credentials"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
@@ -494,7 +505,7 @@ class TestMatrixPluginIntegration:
         assert "matrix" in response.message.lower()
     
     @pytest.mark.asyncio
-    async def test_matrix_call_flow(self, broker_server, matrix_test_users, matrix_test_room):
+    async def test_matrix_call_flow(self, enable_socket, broker_server, matrix_test_users, matrix_test_room):
         """Test complete Matrix call flow through broker"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
@@ -568,7 +579,7 @@ class TestMatrixPluginIntegration:
         assert term_response.success is True
     
     @pytest.mark.asyncio
-    async def test_matrix_call_with_invalid_room(self, broker_server, matrix_test_users):
+    async def test_matrix_call_with_invalid_room(self, enable_socket, broker_server, matrix_test_users):
         """Test Matrix call to invalid room through broker"""
         if 'caller' not in matrix_test_users:
             pytest.skip("No test users available")
