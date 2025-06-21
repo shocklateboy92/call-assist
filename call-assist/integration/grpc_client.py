@@ -127,6 +127,7 @@ class CallAssistGrpcClient:
             response = await self.stub.GetSystemCapabilities(request)
             
             return {
+                "version": getattr(response, "version", "1.0.0"),  # Add version field
                 "broker_capabilities": {
                     "video_codecs": list(response.broker_capabilities.video_codecs),
                     "audio_codecs": list(response.broker_capabilities.audio_codecs),

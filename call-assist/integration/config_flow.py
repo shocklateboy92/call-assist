@@ -56,6 +56,10 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: Dict[str, str] = {}
         
         if user_input is not None:
+            # Set unique ID early to check for duplicates
+            await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
+            self._abort_if_unique_id_configured()
+            
             try:
                 info = await validate_input(self.hass, user_input)
             except CannotConnect:
@@ -64,10 +68,6 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
             else:
-                # Check if already configured
-                await self.async_set_unique_id(f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}")
-                self._abort_if_unique_id_configured()
-                
                 return self.async_create_entry(title=info["title"], data=user_input)
 
         return self.async_show_form(
