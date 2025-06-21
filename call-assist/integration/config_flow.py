@@ -6,7 +6,7 @@ from typing import Any, Dict
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.exceptions import HomeAssistantError
 
 from .const import DOMAIN, CONF_HOST, CONF_PORT, DEFAULT_HOST, DEFAULT_PORT
@@ -48,10 +48,14 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Call Assist."""
 
     VERSION = 1
+    CONNECTION_CLASS = config_entries.CONN_CLASS_LOCAL_PUSH
+    
+    # Set domain as class attribute
+    domain = DOMAIN
 
     async def async_step_user(
         self, user_input: Dict[str, Any] | None = None
-    ) -> FlowResult:
+    ) -> ConfigFlowResult:
         """Handle the initial step."""
         errors: Dict[str, str] = {}
         

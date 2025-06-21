@@ -9,15 +9,15 @@ from grpc import aio as grpc_aio
 from grpc.aio import AioRpcError
 
 # Import protobuf generated files
-from proto_gen.broker_integration_pb2_grpc import BrokerIntegrationStub
-from proto_gen.broker_integration_pb2 import (
+from .proto_gen.broker_integration_pb2_grpc import BrokerIntegrationStub
+from .proto_gen.broker_integration_pb2 import (
     ConfigurationRequest,
     CallRequest,
     CallResponse,
     CallTerminateRequest,
     CredentialsRequest,
 )
-from proto_gen.common_pb2 import CallState, ContactPresence, CallEvent
+from .proto_gen.common_pb2 import CallState, ContactPresence, CallEvent
 
 _LOGGER = logging.getLogger(__name__)
 class CallAssistGrpcClient:
