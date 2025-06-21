@@ -14,6 +14,9 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Change to project root
 cd "$PROJECT_ROOT"
 
+# Check for version consistency across gRPC/protobuf dependencies
+python scripts/check-versions.py
+
 # Ensure we have grpc tools installed
 if ! python -c "import grpc_tools" 2>/dev/null; then
     echo "Error: grpcio-tools not installed. Please install with: pip install grpcio-tools"
@@ -34,8 +37,25 @@ echo "✓ Python protobuf files generated successfully"
 
 # Fix relative imports in generated files
 echo "Fixing Python protobuf imports..."
-python scripts/fix-proto-imports.py
+python scripts/fix-proto-imports.py proto_gen
 echo "✓ Python protobuf imports fixed"
+
+# Generate Python protobuf files for Home Assistant integration
+echo "Generating Python protobuf files for Home Assistant integration..."
+mkdir -p integration/proto_gen
+python -m grpc_tools.protoc \
+    --proto_path=proto \
+    --python_out=integration/proto_gen \
+    --grpc_python_out=integration/proto_gen \
+    --mypy_out=integration/proto_gen \
+    proto/*.proto
+
+echo "✓ Integration protobuf files generated successfully"
+
+# Fix relative imports in integration files
+echo "Fixing integration protobuf imports..."
+python scripts/fix-proto-imports.py integration/proto_gen
+echo "✓ Integration protobuf imports fixed"
 
 # Generate TypeScript protobuf files for Matrix plugin using ts-proto
 if [ -d "addon/plugins/matrix/node_modules" ] && [ -f "addon/plugins/matrix/node_modules/.bin/protoc-gen-ts_proto" ]; then

@@ -10,21 +10,21 @@ authors = [
     {name = "Call Assist Team"}
 ]
 dependencies = [
-    "grpcio>=1.50.0",
-    "grpcio-tools>=1.50.0",
-    "pyyaml>=6.0",
+    "grpcio>=1.73.0",
+    "grpcio-tools>=1.73.0",
+    "pyyaml>=6.0.2",
     "mypy-protobuf>=3.6.0",
-    "types-protobuf>=6.30.0",
-    "dacite>=1.6.0",
-    "dataclasses_jsonschema>=0.5.7",
+    "types-protobuf>=6.30.2.20250516",
+    "dacite>=1.9.2",
+    "dataclasses_jsonschema>=2.16.0",
 ]
 requires-python = ">=3.11"
 
 [project.optional-dependencies]
 test = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.20",
-    "pytest-mock>=3.10",
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.26.0",
+    "pytest-mock>=3.14.1",
 ]
 integration = [
     "pytest-homeassistant-custom-component>=0.13.252",
