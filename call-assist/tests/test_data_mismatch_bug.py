@@ -46,18 +46,18 @@ class TestDataMismatchBug:
         logger.info(f"Actual keys: {actual_keys}")
         logger.info(f"Expected keys: {expected_keys}")
 
-        # This test documents the mismatch
-        assert (
-            "call_stations" not in status_data
-        ), "call_stations key should not be present (this documents the bug)"
-        assert (
-            "contacts" not in status_data
-        ), "contacts key should not be present (this documents the bug)"
+        # Test shows the bug is now FIXED
+        assert "call_stations" in status_data, "call_stations key should now be present (bug is fixed!)"
+        assert "contacts" in status_data, "contacts key should now be present (bug is fixed!)"
 
-        # But these are present instead
+        # These should also still be present
         assert "version" in status_data
         assert "broker_capabilities" in status_data
         assert "available_plugins" in status_data
+        
+        # Verify the data structure is correct
+        assert isinstance(status_data["call_stations"], list)
+        assert isinstance(status_data["contacts"], list)
 
         await client.async_disconnect()
 
@@ -89,9 +89,10 @@ class TestDataMismatchBug:
             logger.info(f"Found {len(call_stations)} call stations")
             logger.info(f"Found {len(contacts)} contacts")
 
-            # This demonstrates the issue - empty lists because keys don't exist
-            assert len(call_stations) == 0, "Should be empty due to key mismatch"
-            assert len(contacts) == 0, "Should be empty due to key mismatch"
+            # Bug is fixed - keys now exist and return proper data
+            # Empty lists are expected when broker has no configured entities
+            assert isinstance(call_stations, list), "call_stations should be a list"
+            assert isinstance(contacts, list), "contacts should be a list"
         else:
             logger.error("Coordinator data is None - this would cause NoneType error!")
             # This should not happen, but if it does, it would cause the NoneType error
@@ -154,9 +155,8 @@ class TestDataMismatchBug:
             await sensor_setup(hass, config_entry, mock_async_add_entities)
 
             logger.info(f"Total entities added: {len(added_entities)}")
-            assert (
-                len(added_entities) == 0
-            ), "Should be 0 due to data structure mismatch"
+            # Bug is fixed - entities can now be created from broker data
+            # The number depends on broker configuration (0 is valid for unconfigured broker)
 
         except Exception as ex:
             logger.error(f"Integration setup failed: {ex}")

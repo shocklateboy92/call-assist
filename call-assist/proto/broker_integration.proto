@@ -21,9 +21,13 @@ service BrokerIntegration {
   rpc StreamCallEvents(google.protobuf.Empty) returns (stream callassist.common.CallEvent);
   rpc StreamContactUpdates(google.protobuf.Empty) returns (stream callassist.common.ContactUpdate);
   rpc StreamHealthStatus(google.protobuf.Empty) returns (stream callassist.common.HealthStatus);
+  rpc StreamEntityUpdates(google.protobuf.Empty) returns (stream callassist.common.EntityUpdate);
   
   // Capability queries
   rpc GetSystemCapabilities(google.protobuf.Empty) returns (SystemCapabilities);
+  
+  // Entity management - broker decides what entities to expose
+  rpc GetEntities(google.protobuf.Empty) returns (EntitiesResponse);
 }
 
 message ConfigurationRequest {
@@ -80,5 +84,29 @@ message PluginCapabilities {
   string protocol = 1;
   bool available = 2;
   callassist.common.MediaCapabilities capabilities = 3;
+}
+
+// Generic entity system - broker decides what entities to expose
+message EntitiesResponse {
+  repeated EntityDefinition entities = 1;
+}
+
+message EntityDefinition {
+  string entity_id = 1;           // Unique identifier
+  string name = 2;                // Display name
+  EntityType entity_type = 3;     // Type of entity
+  string state = 4;               // Current state
+  map<string, string> attributes = 5; // Additional attributes
+  string icon = 6;                // MDI icon name
+  bool available = 7;             // Whether entity is available
+  repeated string capabilities = 8; // What actions this entity supports
+}
+
+enum EntityType {
+  ENTITY_TYPE_UNKNOWN = 0;
+  ENTITY_TYPE_CALL_STATION = 1;   // Camera + Media Player combo
+  ENTITY_TYPE_CONTACT = 2;        // A callable contact
+  ENTITY_TYPE_PLUGIN_STATUS = 3;  // Status of a protocol plugin
+  ENTITY_TYPE_BROKER_STATUS = 4;  // Overall broker status
 }
 

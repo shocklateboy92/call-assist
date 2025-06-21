@@ -224,6 +224,178 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         except Exception as e:
             logger.error(f"Health status streaming failed: {e}")
     
+    async def GetEntities(self, request, context) -> bi_pb2.EntitiesResponse:
+        """Get all entities that should be exposed to Home Assistant"""
+        try:
+            entities = []
+            
+            # Create call station entities based on configuration
+            if self.configuration:
+                for camera_entity_id, camera_name in self.configuration.camera_entities.items():
+                    for media_player_id, media_player_name in self.configuration.media_player_entities.items():
+                        station_id = f"station_{camera_entity_id}_{media_player_id}".replace(".", "_")
+                        
+                        # Determine if this station has active calls
+                        active_call = None
+                        current_state = "idle"
+                        for call_id, call_info in self.active_calls.items():
+                            if (call_info.camera_entity_id == camera_entity_id and 
+                                call_info.media_player_entity_id == media_player_id):
+                                active_call = call_info
+                                current_state = self._call_state_to_entity_state(call_info.state)
+                                break
+                        
+                        # Create call station entity
+                        station_entity = bi_pb2.EntityDefinition(
+                            entity_id=station_id,
+                            name=f"{camera_name} + {media_player_name}",
+                            entity_type=bi_pb2.EntityType.ENTITY_TYPE_CALL_STATION,
+                            state=current_state,
+                            attributes={
+                                "camera_entity": camera_entity_id,
+                                "media_player_entity": media_player_id,
+                                "protocols": ",".join(self.configuration.enabled_protocols),
+                                "current_call_id": active_call.call_id if active_call else "",
+                            },
+                            icon=self._get_station_icon(current_state),
+                            available=True,
+                            capabilities=["make_call", "end_call"]
+                        )
+                        entities.append(station_entity)
+            
+            # Create contact entities from discovered contacts
+            for contact_id, contact in self.contacts.items():
+                contact_entity = bi_pb2.EntityDefinition(
+                    entity_id=contact_id,
+                    name=contact.display_name,
+                    entity_type=bi_pb2.EntityType.ENTITY_TYPE_CONTACT,
+                    state=self._presence_to_availability(contact.presence),
+                    attributes={
+                        "protocol": contact.protocol,
+                        "address": contact.id,  # The contact.id is the protocol-specific address
+                        "avatar_url": contact.avatar_url or "",
+                        "favorite": "false",  # TODO: Implement favorites
+                    },
+                    icon=self._get_contact_icon(contact.presence),
+                    available=True,
+                    capabilities=["call"]
+                )
+                entities.append(contact_entity)
+            
+            # Create plugin status entities
+            for protocol in self.plugin_manager.get_available_protocols():
+                plugin_state = self.plugin_manager.get_plugin_state(protocol)
+                is_configured = self.is_plugin_configured(protocol)
+                
+                status_entity = bi_pb2.EntityDefinition(
+                    entity_id=f"plugin_{protocol}",
+                    name=f"{protocol.title()} Plugin",
+                    entity_type=bi_pb2.EntityType.ENTITY_TYPE_PLUGIN_STATUS,
+                    state=self._plugin_state_to_entity_state(plugin_state, is_configured),
+                    attributes={
+                        "protocol": protocol,
+                        "configured": str(is_configured).lower(),
+                        "state": str(plugin_state) if plugin_state else "unknown",
+                    },
+                    icon=self._get_plugin_icon(plugin_state, is_configured),
+                    available=True,
+                    capabilities=[]
+                )
+                entities.append(status_entity)
+            
+            # Create broker status entity
+            broker_entity = bi_pb2.EntityDefinition(
+                entity_id="broker_status",
+                name="Call Assist Broker",
+                entity_type=bi_pb2.EntityType.ENTITY_TYPE_BROKER_STATUS,
+                state="online",
+                attributes={
+                    "active_calls": str(len(self.active_calls)),
+                    "configured_cameras": str(len(self.configuration.camera_entities)) if self.configuration else "0",
+                    "configured_players": str(len(self.configuration.media_player_entities)) if self.configuration else "0",
+                    "available_protocols": ",".join(self.plugin_manager.get_available_protocols()),
+                },
+                icon="mdi:video-switch",
+                available=True,
+                capabilities=[]
+            )
+            entities.append(broker_entity)
+            
+            logger.info(f"Returning {len(entities)} entities to Home Assistant")
+            return bi_pb2.EntitiesResponse(entities=entities)
+            
+        except Exception as e:
+            logger.error(f"Entity query failed: {e}")
+            return bi_pb2.EntitiesResponse(entities=[])
+    
+    def _call_state_to_entity_state(self, call_state: 'common_pb2.CallState.ValueType') -> str:
+        """Convert protobuf CallState to entity state string"""
+        if call_state == common_pb2.CallState.CALL_STATE_ACTIVE:
+            return "in_call"
+        elif call_state in [common_pb2.CallState.CALL_STATE_INITIATING, common_pb2.CallState.CALL_STATE_RINGING]:
+            return "ringing"
+        elif call_state == common_pb2.CallState.CALL_STATE_FAILED:
+            return "unavailable"
+        else:
+            return "idle"
+    
+    def _presence_to_availability(self, presence: 'common_pb2.ContactPresence.ValueType') -> str:
+        """Convert protobuf ContactPresence to availability string"""
+        if presence == common_pb2.ContactPresence.PRESENCE_ONLINE:
+            return "online"
+        elif presence == common_pb2.ContactPresence.PRESENCE_BUSY:
+            return "busy"
+        elif presence == common_pb2.ContactPresence.PRESENCE_AWAY:
+            return "away"
+        else:
+            return "offline"
+    
+    def _plugin_state_to_entity_state(self, plugin_state: Optional[PluginState], is_configured: bool) -> str:
+        """Convert plugin state to entity state string"""
+        if not is_configured:
+            return "not_configured"
+        elif plugin_state == PluginState.CONNECTED:
+            return "connected"
+        elif plugin_state == PluginState.ERROR:
+            return "error"
+        elif plugin_state == PluginState.STARTING:
+            return "starting"
+        else:
+            return "disconnected"
+    
+    def _get_station_icon(self, state: str) -> str:
+        """Get icon for call station based on state"""
+        if state == "in_call":
+            return "mdi:video"
+        elif state == "ringing":
+            return "mdi:phone-ring"
+        elif state == "unavailable":
+            return "mdi:video-off"
+        else:
+            return "mdi:video-account"
+    
+    def _get_contact_icon(self, presence: 'common_pb2.ContactPresence.ValueType') -> str:
+        """Get icon for contact based on presence"""
+        if presence == common_pb2.ContactPresence.PRESENCE_ONLINE:
+            return "mdi:account-voice"
+        elif presence == common_pb2.ContactPresence.PRESENCE_BUSY:
+            return "mdi:account-cancel"
+        elif presence == common_pb2.ContactPresence.PRESENCE_OFFLINE:
+            return "mdi:account-off"
+        else:
+            return "mdi:account-question"
+    
+    def _get_plugin_icon(self, plugin_state: Optional[PluginState], is_configured: bool) -> str:
+        """Get icon for plugin based on state"""
+        if not is_configured:
+            return "mdi:cog-outline"
+        elif plugin_state == PluginState.CONNECTED:
+            return "mdi:connection"
+        elif plugin_state == PluginState.ERROR:
+            return "mdi:alert-circle"
+        else:
+            return "mdi:lan-disconnect"
+
     async def GetSystemCapabilities(self, request, context) -> bi_pb2.SystemCapabilities:
         """Get current system capabilities"""
         try:

@@ -99,3 +99,20 @@ message ContactUpdate {
   google.protobuf.Timestamp timestamp = 3;
 }
 
+// Generic entity update system
+enum EntityUpdateType {
+  ENTITY_UPDATE_UNKNOWN = 0;
+  ENTITY_UPDATE_CREATED = 1;
+  ENTITY_UPDATE_MODIFIED = 2;
+  ENTITY_UPDATE_REMOVED = 3;
+  ENTITY_UPDATE_STATE_CHANGED = 4;
+}
+
+message EntityUpdate {
+  EntityUpdateType type = 1;
+  string entity_id = 2;
+  string new_state = 3;
+  map<string, string> updated_attributes = 4;
+  google.protobuf.Timestamp timestamp = 5;
+}
+

@@ -116,22 +116,59 @@ class CallAssistGrpcClient:
         return False
     
     async def async_get_status(self) -> Dict[str, Any]:
-        """Get current broker status."""
+        """Get current broker entities and system status."""
         if not self.stub:
             raise RuntimeError("Not connected to broker")
         
         try:
-            # Status call - use empty request for now
+            # Get entities from broker - this is the new primary data source
             from google.protobuf import empty_pb2
-            request = empty_pb2.Empty()
-            response = await self.stub.GetSystemCapabilities(request)
+            entities_request = empty_pb2.Empty()
+            entities_response = await self.stub.GetEntities(entities_request)
+            
+            # Get system capabilities for additional context
+            capabilities_request = empty_pb2.Empty()
+            capabilities_response = await self.stub.GetSystemCapabilities(capabilities_request)
+            
+            # Transform entities into the format the integration expects
+            call_stations = []
+            contacts = []
+            
+            for entity in entities_response.entities:
+                if entity.entity_type == 1:  # ENTITY_TYPE_CALL_STATION
+                    call_stations.append({
+                        "station_id": entity.entity_id,
+                        "name": entity.name,
+                        "state": entity.state,
+                        "camera_entity": entity.attributes.get("camera_entity", ""),
+                        "media_player_entity": entity.attributes.get("media_player_entity", ""),
+                        "protocols": entity.attributes.get("protocols", "matrix").split(","),
+                        "available": entity.available,
+                        "icon": entity.icon,
+                        "capabilities": list(entity.capabilities),
+                        "current_call_id": entity.attributes.get("current_call_id"),
+                    })
+                elif entity.entity_type == 2:  # ENTITY_TYPE_CONTACT
+                    contacts.append({
+                        "contact_id": entity.entity_id,
+                        "display_name": entity.name,
+                        "protocol": entity.attributes.get("protocol", "matrix"),
+                        "address": entity.attributes.get("address", ""),
+                        "availability": entity.state,
+                        "avatar_url": entity.attributes.get("avatar_url"),
+                        "favorite": entity.attributes.get("favorite", "false").lower() == "true",
+                        "available": entity.available,
+                        "icon": entity.icon,
+                    })
             
             return {
-                "version": getattr(response, "version", "1.0.0"),  # Add version field
+                "version": "1.0.0",  # Static version for now
+                "call_stations": call_stations,
+                "contacts": contacts,
                 "broker_capabilities": {
-                    "video_codecs": list(response.broker_capabilities.video_codecs),
-                    "audio_codecs": list(response.broker_capabilities.audio_codecs),
-                    "webrtc_support": response.broker_capabilities.webrtc_support,
+                    "video_codecs": list(capabilities_response.broker_capabilities.video_codecs),
+                    "audio_codecs": list(capabilities_response.broker_capabilities.audio_codecs),
+                    "webrtc_support": capabilities_response.broker_capabilities.webrtc_support,
                 },
                 "available_plugins": [
                     {
@@ -143,7 +180,7 @@ class CallAssistGrpcClient:
                             "webrtc_support": plugin.capabilities.webrtc_support,
                         }
                     }
-                    for plugin in response.available_plugins
+                    for plugin in capabilities_response.available_plugins
                 ]
             }
             
