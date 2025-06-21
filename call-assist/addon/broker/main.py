@@ -14,7 +14,7 @@ from proto_gen.call_plugin_pb2_grpc import CallPluginServicer
 import proto_gen.broker_integration_pb2 as bi_pb2
 import proto_gen.call_plugin_pb2 as cp_pb2  
 import proto_gen.common_pb2 as common_pb2
-from .plugin_manager import PluginManager, PluginConfiguration, PluginState
+from plugin_manager import PluginManager, PluginConfiguration, PluginState
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
