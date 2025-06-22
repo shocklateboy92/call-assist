@@ -15,6 +15,13 @@ from .const import (
     SERVICE_ACCEPT_CALL,
     SERVICE_ADD_CONTACT,
     SERVICE_REMOVE_CONTACT,
+    SERVICE_ADD_ACCOUNT,
+    SERVICE_REMOVE_ACCOUNT,
+    SERVICE_UPDATE_ACCOUNT,
+    CONF_PROTOCOL,
+    CONF_ACCOUNT_ID,
+    CONF_DISPLAY_NAME,
+    CONF_CREDENTIALS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -55,6 +62,31 @@ ADD_CONTACT_SCHEMA = vol.Schema(
 REMOVE_CONTACT_SCHEMA = vol.Schema(
     {
         vol.Required("contact_id"): str,
+    }
+)
+
+ADD_ACCOUNT_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_PROTOCOL): vol.In(["matrix", "xmpp"]),
+        vol.Required(CONF_ACCOUNT_ID): str,
+        vol.Required(CONF_DISPLAY_NAME): str,
+        vol.Required(CONF_CREDENTIALS): dict,
+    }
+)
+
+UPDATE_ACCOUNT_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_PROTOCOL): vol.In(["matrix", "xmpp"]),
+        vol.Required(CONF_ACCOUNT_ID): str,
+        vol.Required(CONF_DISPLAY_NAME): str,
+        vol.Required(CONF_CREDENTIALS): dict,
+    }
+)
+
+REMOVE_ACCOUNT_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_PROTOCOL): vol.In(["matrix", "xmpp"]),
+        vol.Required(CONF_ACCOUNT_ID): str,
     }
 )
 
@@ -180,6 +212,84 @@ async def async_remove_contact(call: ServiceCall) -> None:
     # TODO: Remove from broker and remove entity
 
 
+async def async_add_account(call: ServiceCall) -> None:
+    """Handle add_account service."""
+    hass = call.hass
+    coordinator = _get_coordinator_for_service(hass)
+    
+    protocol = call.data[CONF_PROTOCOL]
+    account_id = call.data[CONF_ACCOUNT_ID]
+    display_name = call.data[CONF_DISPLAY_NAME]
+    credentials = call.data[CONF_CREDENTIALS]
+    
+    try:
+        success = await coordinator.client.add_account(
+            protocol=protocol,
+            account_id=account_id,
+            display_name=display_name,
+            credentials=credentials
+        )
+        
+        if success:
+            _LOGGER.info("Added account: %s (%s)", display_name, protocol)
+            # Trigger coordinator refresh to update entities
+            await coordinator.async_request_refresh()
+        else:
+            _LOGGER.error("Failed to add account: %s (%s)", display_name, protocol)
+            
+    except Exception as ex:
+        _LOGGER.error("Failed to add account %s (%s): %s", display_name, protocol, ex)
+        raise
+
+
+async def async_update_account(call: ServiceCall) -> None:
+    """Handle update_account service."""
+    hass = call.hass
+    coordinator = _get_coordinator_for_service(hass)
+    
+    protocol = call.data[CONF_PROTOCOL]
+    account_id = call.data[CONF_ACCOUNT_ID]
+    display_name = call.data[CONF_DISPLAY_NAME]
+    credentials = call.data[CONF_CREDENTIALS]
+    
+    try:
+        success = await coordinator.client.update_account(
+            protocol=protocol,
+            account_id=account_id,
+            display_name=display_name,
+            credentials=credentials
+        )
+        
+        if success:
+            _LOGGER.info("Updated account: %s (%s)", display_name, protocol)
+            # Trigger coordinator refresh to update entities
+            await coordinator.async_request_refresh()
+        else:
+            _LOGGER.error("Failed to update account: %s (%s)", display_name, protocol)
+            
+    except Exception as ex:
+        _LOGGER.error("Failed to update account %s (%s): %s", display_name, protocol, ex)
+        raise
+
+
+async def async_remove_account(call: ServiceCall) -> None:
+    """Handle remove_account service."""
+    hass = call.hass
+    coordinator = _get_coordinator_for_service(hass)
+    
+    protocol = call.data[CONF_PROTOCOL]
+    account_id = call.data[CONF_ACCOUNT_ID]
+    
+    try:
+        # TODO: Implement account removal in broker
+        _LOGGER.info("Removing account: %s (%s)", account_id, protocol)
+        _LOGGER.warning("Account removal not yet implemented in broker")
+        
+    except Exception as ex:
+        _LOGGER.error("Failed to remove account %s (%s): %s", account_id, protocol, ex)
+        raise
+
+
 async def async_setup_services(hass: HomeAssistant, coordinator: CallAssistCoordinator) -> None:
     """Set up services for Call Assist."""
     
@@ -218,6 +328,27 @@ async def async_setup_services(hass: HomeAssistant, coordinator: CallAssistCoord
         schema=REMOVE_CONTACT_SCHEMA,
     )
     
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ADD_ACCOUNT,
+        async_add_account,
+        schema=ADD_ACCOUNT_SCHEMA,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_UPDATE_ACCOUNT,
+        async_update_account,
+        schema=UPDATE_ACCOUNT_SCHEMA,
+    )
+    
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_REMOVE_ACCOUNT,
+        async_remove_account,
+        schema=REMOVE_ACCOUNT_SCHEMA,
+    )
+    
     _LOGGER.info("Call Assist services registered")
 
 
@@ -230,6 +361,9 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_ACCEPT_CALL,
         SERVICE_ADD_CONTACT,
         SERVICE_REMOVE_CONTACT,
+        SERVICE_ADD_ACCOUNT,
+        SERVICE_UPDATE_ACCOUNT,
+        SERVICE_REMOVE_ACCOUNT,
     ]
     
     for service in services:

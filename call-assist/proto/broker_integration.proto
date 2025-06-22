@@ -28,6 +28,9 @@ service BrokerIntegration {
   
   // Entity management - broker decides what entities to expose
   rpc GetEntities(google.protobuf.Empty) returns (EntitiesResponse);
+  
+  // Schema management - get configuration schemas for protocols
+  rpc GetProtocolSchemas(google.protobuf.Empty) returns (ProtocolSchemasResponse);
 }
 
 message ConfigurationRequest {
@@ -113,5 +116,50 @@ enum EntityType {
   ENTITY_TYPE_CONTACT = 2;        // A callable contact
   ENTITY_TYPE_PLUGIN_STATUS = 3;  // Status of a protocol plugin
   ENTITY_TYPE_BROKER_STATUS = 4;  // Overall broker status
+}
+
+// Protocol configuration schema definitions
+message ProtocolSchemasResponse {
+  repeated ProtocolSchema schemas = 1;
+}
+
+message ProtocolSchema {
+  string protocol = 1;              // e.g., "matrix", "xmpp"
+  string display_name = 2;          // e.g., "Matrix", "XMPP/Jabber"
+  string description = 3;           // User-friendly description
+  repeated CredentialField credential_fields = 4;  // Required credential fields
+  repeated SettingField setting_fields = 5;        // Optional setting fields
+  repeated string example_account_ids = 6;          // Example account IDs for help
+}
+
+message CredentialField {
+  string key = 1;                   // e.g., "homeserver", "access_token"
+  string display_name = 2;          // e.g., "Homeserver URL", "Access Token"
+  string description = 3;           // Help text
+  FieldType type = 4;              // Field type
+  bool required = 5;               // Whether field is required
+  string default_value = 6;        // Default value if any
+  repeated string allowed_values = 7; // For select fields
+  bool sensitive = 8;              // Whether to mask input (passwords)
+}
+
+message SettingField {
+  string key = 1;
+  string display_name = 2;
+  string description = 3;
+  FieldType type = 4;
+  bool required = 5;
+  string default_value = 6;
+  repeated string allowed_values = 7;
+}
+
+enum FieldType {
+  FIELD_TYPE_STRING = 0;
+  FIELD_TYPE_PASSWORD = 1;
+  FIELD_TYPE_INTEGER = 2;
+  FIELD_TYPE_BOOLEAN = 3;
+  FIELD_TYPE_SELECT = 4;
+  FIELD_TYPE_URL = 5;
+  FIELD_TYPE_EMAIL = 6;
 }
 

@@ -224,7 +224,8 @@ class CallAssistGrpcClient:
                 camera_entity_id=station_id,  # Assuming station_id maps to camera
                 media_player_entity_id="media_player.default",  # Default media player
                 target_address=address or contact_id or "",
-                protocol=protocol or "matrix"
+                protocol=protocol or "matrix",
+                account_id=""  # TODO: Add account selection to make_call
             )
             
             response = await self.stub.InitiateCall(request)
@@ -254,3 +255,112 @@ class CallAssistGrpcClient:
         # For now, this is a placeholder
         _LOGGER.warning("AcceptCall method not yet implemented in broker service")
         return False
+    
+    async def add_account(self, protocol: str, account_id: str, display_name: str, credentials: Dict[str, str]) -> bool:
+        """Add a new account for a protocol."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+        
+        try:
+            request = CredentialsRequest(
+                protocol=protocol,
+                account_id=account_id,
+                display_name=display_name,
+                credentials=credentials
+            )
+            
+            response = await self.stub.UpdateCredentials(request)
+            return response.success
+            
+        except AioRpcError as ex:
+            _LOGGER.error("Failed to add account: %s", ex)
+            raise
+    
+    async def update_account(self, protocol: str, account_id: str, display_name: str, credentials: Dict[str, str]) -> bool:
+        """Update an existing account."""
+        # Same as add_account since UpdateCredentials handles both cases
+        return await self.add_account(protocol, account_id, display_name, credentials)
+    
+    async def get_configured_accounts(self) -> Dict[str, Any]:
+        """Get list of configured accounts from broker."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+        
+        try:
+            from google.protobuf import empty_pb2
+            capabilities_request = empty_pb2.Empty()
+            capabilities_response = await self.stub.GetSystemCapabilities(capabilities_request)
+            
+            accounts = {}
+            for plugin in capabilities_response.available_plugins:
+                if plugin.account_id:  # Only include configured accounts
+                    key = f"{plugin.protocol}_{plugin.account_id}"
+                    accounts[key] = {
+                        "protocol": plugin.protocol,
+                        "account_id": plugin.account_id,
+                        "display_name": plugin.display_name,
+                        "available": plugin.available,
+                        "capabilities": {
+                            "video_codecs": list(plugin.capabilities.video_codecs),
+                            "audio_codecs": list(plugin.capabilities.audio_codecs),
+                            "webrtc_support": plugin.capabilities.webrtc_support,
+                        }
+                    }
+            
+            return accounts
+            
+        except AioRpcError as ex:
+            _LOGGER.error("Failed to get configured accounts: %s", ex)
+            raise
+    
+    async def get_protocol_schemas(self) -> Dict[str, Any]:
+        """Get configuration schemas for all protocols."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+        
+        try:
+            from google.protobuf import empty_pb2
+            request = empty_pb2.Empty()
+            response = await self.stub.GetProtocolSchemas(request)
+            
+            schemas = {}
+            for schema in response.schemas:
+                credential_fields = []
+                for field in schema.credential_fields:
+                    credential_fields.append({
+                        "key": field.key,
+                        "display_name": field.display_name,
+                        "description": field.description,
+                        "type": field.type,
+                        "required": field.required,
+                        "default_value": field.default_value,
+                        "allowed_values": list(field.allowed_values),
+                        "sensitive": field.sensitive
+                    })
+                
+                setting_fields = []
+                for field in schema.setting_fields:
+                    setting_fields.append({
+                        "key": field.key,
+                        "display_name": field.display_name,
+                        "description": field.description,
+                        "type": field.type,
+                        "required": field.required,
+                        "default_value": field.default_value,
+                        "allowed_values": list(field.allowed_values)
+                    })
+                
+                schemas[schema.protocol] = {
+                    "protocol": schema.protocol,
+                    "display_name": schema.display_name,
+                    "description": schema.description,
+                    "credential_fields": credential_fields,
+                    "setting_fields": setting_fields,
+                    "example_account_ids": list(schema.example_account_ids)
+                }
+            
+            return schemas
+            
+        except AioRpcError as ex:
+            _LOGGER.error("Failed to get protocol schemas: %s", ex)
+            raise

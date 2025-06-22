@@ -491,6 +491,167 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             logger.error(f"Capability query failed: {e}")
             return bi_pb2.SystemCapabilities()
     
+    async def GetProtocolSchemas(self, request, context) -> bi_pb2.ProtocolSchemasResponse:
+        """Get configuration schemas for all available protocols"""
+        try:
+            schemas = []
+            
+            for protocol in self.plugin_manager.get_available_protocols():
+                plugin_metadata = self.plugin_manager.get_plugin_info(protocol)
+                if not plugin_metadata:
+                    continue
+                
+                # Generate schema from plugin metadata
+                schema = self._generate_protocol_schema(protocol, plugin_metadata)
+                schemas.append(schema)
+            
+            return bi_pb2.ProtocolSchemasResponse(schemas=schemas)
+            
+        except Exception as e:
+            logger.error(f"Protocol schema query failed: {e}")
+            return bi_pb2.ProtocolSchemasResponse(schemas=[])
+    
+    def _generate_protocol_schema(self, protocol: str, metadata) -> bi_pb2.ProtocolSchema:
+        """Generate protocol schema from plugin metadata"""
+        # Protocol-specific schema definitions
+        schema_definitions = {
+            "matrix": {
+                "display_name": "Matrix",
+                "description": "Matrix is an open standard for interoperable, decentralised, real-time communication.",
+                "credential_fields": [
+                    {
+                        "key": "homeserver",
+                        "display_name": "Homeserver URL",
+                        "description": "The Matrix homeserver URL (e.g., https://matrix.org)",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_URL,
+                        "required": True,
+                        "default_value": "https://matrix.org",
+                        "sensitive": False
+                    },
+                    {
+                        "key": "access_token",
+                        "display_name": "Access Token",
+                        "description": "Your Matrix access token. Get this from Element > Settings > Help & About > Advanced.",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_PASSWORD,
+                        "required": True,
+                        "default_value": "",
+                        "sensitive": True
+                    },
+                    {
+                        "key": "user_id",
+                        "display_name": "User ID",
+                        "description": "Your Matrix user ID (e.g., @username:matrix.org)",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "required": True,
+                        "default_value": "",
+                        "sensitive": False
+                    }
+                ],
+                "setting_fields": [],
+                "example_account_ids": ["@alice:matrix.org", "@bob:example.com"]
+            },
+            "xmpp": {
+                "display_name": "XMPP/Jabber",
+                "description": "XMPP (Extensible Messaging and Presence Protocol) is an open standard for messaging and presence.",
+                "credential_fields": [
+                    {
+                        "key": "username",
+                        "display_name": "Username",
+                        "description": "Your XMPP username (without the @domain part)",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "required": True,
+                        "default_value": "",
+                        "sensitive": False
+                    },
+                    {
+                        "key": "password",
+                        "display_name": "Password",
+                        "description": "Your XMPP account password",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_PASSWORD,
+                        "required": True,
+                        "default_value": "",
+                        "sensitive": True
+                    },
+                    {
+                        "key": "server",
+                        "display_name": "Server",
+                        "description": "Your XMPP server domain (e.g., jabber.org)",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "required": True,
+                        "default_value": "",
+                        "sensitive": False
+                    },
+                    {
+                        "key": "port",
+                        "display_name": "Port",
+                        "description": "XMPP server port (usually 5222 for client connections)",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_INTEGER,
+                        "required": False,
+                        "default_value": "5222",
+                        "sensitive": False
+                    }
+                ],
+                "setting_fields": [
+                    {
+                        "key": "encryption",
+                        "display_name": "Encryption",
+                        "description": "Connection encryption method",
+                        "type": bi_pb2.FieldType.FIELD_TYPE_SELECT,
+                        "required": False,
+                        "default_value": "starttls",
+                        "allowed_values": ["starttls", "direct_tls", "plain"]
+                    }
+                ],
+                "example_account_ids": ["alice@jabber.org", "bob@xmpp.example.com"]
+            }
+        }
+        
+        # Get schema definition for this protocol
+        schema_def = schema_definitions.get(protocol, {
+            "display_name": protocol.title(),
+            "description": f"{protocol.title()} protocol support",
+            "credential_fields": [],
+            "setting_fields": [],
+            "example_account_ids": []
+        })
+        
+        # Convert to protobuf fields
+        credential_fields = []
+        for field_def in schema_def["credential_fields"]:
+            field = bi_pb2.CredentialField(
+                key=field_def["key"],
+                display_name=field_def["display_name"],
+                description=field_def["description"],
+                type=field_def["type"],
+                required=field_def["required"],
+                default_value=field_def["default_value"],
+                allowed_values=field_def.get("allowed_values", []),
+                sensitive=field_def["sensitive"]
+            )
+            credential_fields.append(field)
+        
+        setting_fields = []
+        for field_def in schema_def.get("setting_fields", []):
+            field = bi_pb2.SettingField(
+                key=field_def["key"],
+                display_name=field_def["display_name"],
+                description=field_def["description"],
+                type=field_def["type"],
+                required=field_def["required"],
+                default_value=field_def["default_value"],
+                allowed_values=field_def.get("allowed_values", [])
+            )
+            setting_fields.append(field)
+        
+        return bi_pb2.ProtocolSchema(
+            protocol=protocol,
+            display_name=schema_def["display_name"],
+            description=schema_def["description"],
+            credential_fields=credential_fields,
+            setting_fields=setting_fields,
+            example_account_ids=schema_def["example_account_ids"]
+        )
+    
     # Helper methods for plugin communication
     def get_account_configuration(self, protocol: str, account_id: str) -> Optional[PluginConfiguration]:
         """Get the configuration for a specific account plugin instance"""

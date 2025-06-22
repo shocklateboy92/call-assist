@@ -18,5 +18,40 @@
     "abort": {
       "already_configured": "Service is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "account_menu": {
+        "title": "Account Management",
+        "description": "Manage Call Assist accounts\n\n{accounts}",
+        "menu_options": {
+          "add_account": "Add New Account"
+        }
+      },
+      "select_protocol": {
+        "title": "Add New Account",
+        "description": "Choose the protocol for your new account:\n\n{protocols}",
+        "data": {
+          "protocol": "Protocol",
+          "display_name": "Display Name"
+        }
+      },
+      "configure_credentials": {
+        "title": "{title}",
+        "description": "{description}"
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to broker",
+      "add_account_failed": "Failed to add account. Please check your credentials.",
+      "no_protocols_available": "No protocols are available. Check broker configuration.",
+      "no_protocol_selected": "No protocol was selected.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "cannot_connect": "Failed to connect to broker",
+      "no_protocols_available": "No protocols are available",
+      "no_protocol_selected": "No protocol was selected"
+    }
   }
 }

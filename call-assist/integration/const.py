@@ -6,6 +6,21 @@ DOMAIN = "call_assist"
 CONF_HOST = "host"
 CONF_PORT = "port"
 
+# Account configuration keys
+CONF_ACCOUNT_ID = "account_id"
+CONF_DISPLAY_NAME = "display_name"
+CONF_PROTOCOL = "protocol"
+CONF_CREDENTIALS = "credentials"
+
+# Protocol-specific credential keys
+CONF_MATRIX_HOMESERVER = "homeserver"
+CONF_MATRIX_ACCESS_TOKEN = "access_token"
+CONF_MATRIX_USER_ID = "user_id"
+CONF_XMPP_USERNAME = "username"
+CONF_XMPP_PASSWORD = "password"
+CONF_XMPP_SERVER = "server"
+CONF_XMPP_PORT = "xmpp_port"
+
 # Default values
 DEFAULT_HOST = "call-assist-addon"
 DEFAULT_PORT = 50051
@@ -32,6 +47,9 @@ SERVICE_END_CALL = "end_call"
 SERVICE_ACCEPT_CALL = "accept_call"
 SERVICE_ADD_CONTACT = "add_contact"
 SERVICE_REMOVE_CONTACT = "remove_contact"
+SERVICE_ADD_ACCOUNT = "add_account"
+SERVICE_REMOVE_ACCOUNT = "remove_account"
+SERVICE_UPDATE_ACCOUNT = "update_account"
 
 # Event names
 EVENT_CALL_ASSIST_CALL_EVENT = "call_assist_call_event"
