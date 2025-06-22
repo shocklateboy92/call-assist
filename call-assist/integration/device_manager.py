@@ -99,7 +99,7 @@ class CallAssistDeviceManager:
             identifiers={(DOMAIN, identifier)},
             name=f"{display_name} ({protocol.title()})",
             manufacturer="Call Assist",
-            model=f"{protocol.title()} Account 2",
+            model=f"{protocol.title()} Account",
             suggested_area="Communication",
             via_device=(DOMAIN, f"broker_{self.coordinator.client.target}"),
             # Opens the options flow for your config entry

@@ -369,25 +369,7 @@ Call Assist Broker (Main Device)
 - **Automatic Registration**: Devices created/updated when accounts are added/modified
 - **Device Hierarchy**: Accounts linked to broker via `via_device` relationship
 
-#### **2. Device Actions** (`device_action.py`)
-Native HA device actions accessible via:
-- **Device Registry UI**: Integrations → Call Assist → [Account Device] → Configure
-- **Automations**: Device-based triggers and actions
-- **Service Calls**: Programmatic access via device actions
-
-**Available Actions:**
-- `test_connection`: Test account connectivity with latency reporting
-- `disable_account` / `enable_account`: Toggle account status
-- `remove_account`: Permanently delete account and cleanup
-- `update_credentials`: Modify account credentials
-
-#### **3. Device Triggers** (`device_trigger.py`)
-Device-based automation triggers:
-- `connection_lost` / `connection_restored`: Network connectivity changes
-- `account_error`: Authentication or protocol errors
-- `call_received` / `call_started`: Call-related events
-
-#### **4. Account Status Entities** (`account_sensor.py`)
+#### **2. Account Status Entities** (`account_sensor.py`)
 Diagnostic sensors attached to each account device:
 - **Status Sensor**: Connected/Disconnected with error details
 - **Call Counter**: Number of active calls with call details
@@ -397,7 +379,6 @@ Diagnostic sensors attached to each account device:
 1. **Device Discovery**: Accounts appear as devices in Integrations → Call Assist
 2. **Native UI**: Standard HA device management interface (same as Z-Wave/Zigbee)
 3. **Status Monitoring**: Real-time connection status and error reporting
-4. **Device Actions**: Right-click → Configure for account management
 5. **Automation Integration**: Device triggers/actions in automation editor
 
 ### **Benefits vs Custom Panel:**
