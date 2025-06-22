@@ -85,11 +85,11 @@ class MatrixCallPlugin {
             homeserver: request.credentials.homeserver || 'https://matrix.org',
             accessToken: request.credentials.access_token,
             userId: request.credentials.user_id,
-            accountId: request.account_id,
-            displayName: request.display_name
+            accountId: request.accountId,
+            displayName: request.displayName
           };
           
-          console.log(`Initializing Matrix plugin for account: ${request.display_name} (${request.account_id})`);
+          console.log(`Initializing Matrix plugin for account: ${request.displayName} (${request.accountId})`);
           
           // Initialize Matrix client
           await this.initializeMatrixClient();

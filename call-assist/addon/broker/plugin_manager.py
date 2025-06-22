@@ -324,6 +324,8 @@ class PluginManager:
         try:
             config = cp_pb2.PluginConfig(
                 protocol=protocol,
+                account_id="", # TODO: Add account_id parameter to initialize_plugin
+                display_name="", # TODO: Add display_name parameter to initialize_plugin
                 credentials=credentials,
                 settings=settings or {}
             )
@@ -402,6 +404,71 @@ class PluginManager:
             return self.plugins[protocol].metadata
         return None
     
+    async def initialize_plugin_account(self, protocol: str, account_id: str, display_name: str, credentials: Dict[str, str]) -> bool:
+        """Initialize a plugin account with specific account details"""
+        if not await self.ensure_plugin_running(protocol):
+            return False
+        
+        plugin = self.plugins[protocol]
+        if not plugin.stub:
+            return False
+        
+        # Validate required credentials
+        missing_creds = []
+        for required_cred in (plugin.metadata.required_credentials or []):
+            if required_cred not in credentials:
+                missing_creds.append(required_cred)
+        
+        if missing_creds:
+            logger.error(f"Missing required credentials for {protocol}: {missing_creds}")
+            return False
+        
+        try:
+            config = cp_pb2.PluginConfig(
+                protocol=protocol,
+                account_id=account_id,
+                display_name=display_name,
+                credentials=credentials,
+                settings={}
+            )
+            
+            response = await plugin.stub.Initialize(config)
+            
+            if response.initialized:
+                plugin.configuration = PluginConfiguration(
+                    protocol=protocol,
+                    credentials=credentials,
+                    settings={},
+                    initialized_at=datetime.now().isoformat()
+                )
+                logger.info(f"Plugin {protocol} account {account_id} initialized successfully")
+                return True
+            else:
+                logger.error(f"Plugin {protocol} account {account_id} initialization failed: {response.message}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize plugin {protocol} account {account_id}: {e}")
+            return False
+    
+    def get_plugin_instance(self, protocol: str, account_id: str) -> Optional['PluginInstance']:
+        """Get plugin instance for a specific account"""
+        # For now, just return the main plugin instance
+        # In the future, this could support multiple instances per protocol
+        if protocol in self.plugins:
+            return self.plugins[protocol]
+        return None
+    
+    async def start_call_on_account(self, protocol: str, account_id: str, call_request: cp_pb2.CallStartRequest) -> Optional[cp_pb2.CallStartResponse]:
+        """Start a call on a specific account"""
+        # For now, just use the main plugin instance
+        return await self.start_call(protocol, call_request)
+    
+    async def end_call_on_account(self, protocol: str, account_id: str, call_request: cp_pb2.CallEndRequest) -> Optional[cp_pb2.CallEndResponse]:
+        """End a call on a specific account"""
+        # For now, just use the main plugin instance
+        return await self.end_call(protocol, call_request)
+
     async def shutdown_all(self):
         """Shutdown all running plugins"""
         logger.info("Shutting down all plugins")

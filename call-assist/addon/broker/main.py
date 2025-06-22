@@ -94,6 +94,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         """Update credentials for a specific account"""
         try:
             logger.info(f"Updating credentials for account: {request.account_id} ({request.protocol})")
+            logger.info(f"Received credentials: {list(request.credentials.keys())}")
             
             account_creds = AccountCredentials(
                 protocol=request.protocol,
@@ -106,9 +107,12 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             self.account_credentials[account_creds.unique_key] = account_creds
             
             # Send credentials to the relevant plugin instance
-            await self._notify_plugin_credentials(account_creds)
+            success = await self._notify_plugin_credentials(account_creds)
             
-            return bi_pb2.CredentialsResponse(success=True, message=f"Credentials updated for {request.account_id} ({request.protocol})")
+            if success:
+                return bi_pb2.CredentialsResponse(success=True, message=f"Credentials updated for {request.account_id} ({request.protocol})")
+            else:
+                return bi_pb2.CredentialsResponse(success=False, message=f"Plugin initialization failed for {request.account_id} ({request.protocol})")
             
         except Exception as e:
             logger.error(f"Credentials update failed for {request.account_id} ({request.protocol}): {e}")
@@ -298,7 +302,8 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             # Create plugin status entities
             for protocol in self.plugin_manager.get_available_protocols():
                 plugin_state = self.plugin_manager.get_plugin_state(protocol)
-                is_configured = self.is_plugin_configured(protocol)
+                configured_accounts = self.get_configured_accounts(protocol)
+                is_configured = len(configured_accounts) > 0
                 
                 status_entity = bi_pb2.EntityDefinition(
                     entity_id=f"plugin_{protocol}",
@@ -328,7 +333,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                     "configured_players": str(len(self.configuration.media_player_entities)) if self.configuration else "0",
                     "available_protocols": ",".join(self.plugin_manager.get_available_protocols()),
                     "configured_accounts": str(len(self.account_credentials)),
-                    "active_instances": str(len(self.plugin_manager.plugin_instances)),
+                    "active_instances": str(len(self.plugin_manager.plugins)),
                 },
                 icon="mdi:video-switch",
                 available=True,
@@ -406,7 +411,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         """Get icon for plugin based on state"""
         if not is_configured:
             return "mdi:cog-outline"
-        elif plugin_state == PluginState.CONNECTED:
+        elif plugin_state == PluginState.RUNNING:
             return "mdi:connection"
         elif plugin_state == PluginState.ERROR:
             return "mdi:alert-circle"
@@ -674,7 +679,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         return [creds for creds in self.account_credentials.values() 
                 if creds.protocol == protocol and creds.is_valid]
 
-    async def _notify_plugin_credentials(self, account_creds: AccountCredentials):
+    async def _notify_plugin_credentials(self, account_creds: AccountCredentials) -> bool:
         """Send credentials to the appropriate plugin instance"""
         success = await self.plugin_manager.initialize_plugin_account(
             account_creds.protocol, 
@@ -690,6 +695,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             logger.error(f"Failed to initialize plugin instance for {account_creds.account_id} ({account_creds.protocol})")
             # Mark credentials as invalid if initialization failed
             account_creds.is_valid = False
+        return success
     
     async def _forward_call_to_plugin(self, call_info: CallInfo):
         """Forward call request to the appropriate plugin instance"""

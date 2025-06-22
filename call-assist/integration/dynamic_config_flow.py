@@ -160,6 +160,7 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                         )
                     else:
                         errors["base"] = "add_account_failed"
+                        _LOGGER.error(f"Account addition failed for {self._selected_protocol} account {account_id}")
                 else:
                     errors["base"] = "cannot_connect"
                     
