@@ -7,9 +7,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_HOST, CONF_PORT
 from .coordinator import CallAssistCoordinator
+from .device_manager import CallAssistDeviceManager
 from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -33,8 +35,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Failed to connect to Call Assist broker: %s", ex)
         raise ConfigEntryNotReady("Cannot connect to broker") from ex
     
-    # Store coordinator
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    # Create device manager
+    device_manager = CallAssistDeviceManager(hass, coordinator, entry.entry_id)
+    
+    # Setup devices
+    await device_manager.async_setup_devices()
+    
+    # Store coordinator and device manager
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "device_manager": device_manager
+    }
     
     # Setup platform for entities
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -49,8 +60,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     
-    # Get coordinator
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    # Get coordinator and device manager
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry_data["coordinator"]
     
     # Shutdown coordinator
     await coordinator.async_shutdown()

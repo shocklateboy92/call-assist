@@ -344,14 +344,107 @@ DATA_SCHEMA = {
 3. **Medium**: Device registry integration
 4. **Low**: Advanced features (bulk operations, templates)
 
+## Account Management via Device Registry
+
+### Implementation Complete ✅
+Implemented native Home Assistant device-based account management as an alternative to custom panels:
+
+### **Device Architecture:**
+```
+Call Assist Broker (Main Device)
+├── Matrix Account (@user:server.com) [Sub-device]
+│   ├── Account Status Sensor [Diagnostic Entity]
+│   └── Active Calls Sensor [Diagnostic Entity]
+├── XMPP Account (user@jabber.org) [Sub-device]
+│   ├── Account Status Sensor [Diagnostic Entity]
+│   └── Active Calls Sensor [Diagnostic Entity]
+└── ... (Additional accounts as sub-devices)
+```
+
+### **Key Components:**
+
+#### **1. Device Manager** (`device_manager.py`)
+- **Broker Device**: Main device representing the Call Assist broker
+- **Account Devices**: Sub-devices for each configured account (Matrix, XMPP, etc.)
+- **Automatic Registration**: Devices created/updated when accounts are added/modified
+- **Device Hierarchy**: Accounts linked to broker via `via_device` relationship
+
+#### **2. Device Actions** (`device_action.py`)
+Native HA device actions accessible via:
+- **Device Registry UI**: Integrations → Call Assist → [Account Device] → Configure
+- **Automations**: Device-based triggers and actions
+- **Service Calls**: Programmatic access via device actions
+
+**Available Actions:**
+- `test_connection`: Test account connectivity with latency reporting
+- `disable_account` / `enable_account`: Toggle account status
+- `remove_account`: Permanently delete account and cleanup
+- `update_credentials`: Modify account credentials
+
+#### **3. Device Triggers** (`device_trigger.py`)
+Device-based automation triggers:
+- `connection_lost` / `connection_restored`: Network connectivity changes
+- `account_error`: Authentication or protocol errors
+- `call_received` / `call_started`: Call-related events
+
+#### **4. Account Status Entities** (`account_sensor.py`)
+Diagnostic sensors attached to each account device:
+- **Status Sensor**: Connected/Disconnected with error details
+- **Call Counter**: Number of active calls with call details
+- **Real-time Updates**: Via coordinator and dispatcher events
+
+### **User Experience:**
+1. **Device Discovery**: Accounts appear as devices in Integrations → Call Assist
+2. **Native UI**: Standard HA device management interface (same as Z-Wave/Zigbee)
+3. **Status Monitoring**: Real-time connection status and error reporting
+4. **Device Actions**: Right-click → Configure for account management
+5. **Automation Integration**: Device triggers/actions in automation editor
+
+### **Benefits vs Custom Panel:**
+- ✅ **Native HA Experience**: Users already familiar with device management
+- ✅ **Zero Additional UI Code**: Leverages existing HA device registry UI  
+- ✅ **Automation Integration**: Built-in trigger/action support
+- ✅ **Mobile App Support**: Device management works in HA mobile apps
+- ✅ **Maintenance**: No custom frontend code to maintain
+
+### **Test Migration Complete** ✅
+Updated all tests to use device-based account management:
+
+#### **New Test Structure:**
+- **`test_device_management.py`**: Comprehensive device-based account management tests
+  - Device registration (broker + account devices)
+  - Device actions (test, enable/disable, remove)
+  - Device triggers for automation
+  - Account status sensors
+- **`test_config_flow.py`**: Simplified to focus on integration setup
+  - Basic broker connection and config flow
+  - Device registry integration verification
+  - Legacy options flow support (now supplementary to device actions)
+
+#### **Test Coverage:**
+- ✅ **Broker Device Registration**: Main broker device with proper metadata
+- ✅ **Account Device Creation**: Sub-devices created when accounts added
+- ✅ **Device Actions**: Test connection, enable/disable, remove account actions
+- ✅ **Device Triggers**: Automation triggers for account events
+- ✅ **Status Sensors**: Account status and call counter entities
+- ✅ **Integration Flow**: Config flow → device creation → device management
+
+#### **User Experience Validation:**
+Tests verify the complete user journey:
+1. **Setup**: Install integration → broker device created
+2. **Add Account**: Use config flow → account device + sensors created  
+3. **Manage**: Use device actions → test/enable/disable/remove accounts
+4. **Automate**: Use device triggers → account events in automations
+5. **Monitor**: Use status sensors → real-time account monitoring
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
 3. ✅ Build Matrix plugin with WebRTC support
 4. ✅ **Implement generic entity architecture** (domain-agnostic integration)
 5. ✅ **Fix integration startup issues** (NoneType errors resolved)
-6. 🔄 Implement real WebRTC peer connections in Matrix plugin
-7. 🔄 **Implement account management UI enhancements**
+6. ✅ **Implement device-based account management**
+7. 🔄 Implement real WebRTC peer connections in Matrix plugin
 8. Implement broker capability detection logic
 9. Add configuration flow for camera/media player selection
 10. Implement contact discovery from Matrix plugin

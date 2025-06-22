@@ -169,6 +169,9 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                     await self._client.async_disconnect()
                     
                     if success:
+                        # Trigger device registry update for new account
+                        await self._refresh_devices_after_account_change()
+                        
                         return self.async_create_entry(
                             title="Account Added",
                             data={"account_added": True}
@@ -219,6 +222,22 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                 if field["key"] in credentials:
                     return credentials[field["key"]]
             return ""
+    
+    async def _refresh_devices_after_account_change(self) -> None:
+        """Refresh device registry after account changes."""
+        try:
+            # Get device manager from hass data
+            from .const import DOMAIN
+            call_assist_data = self.hass.data.get(DOMAIN, {})
+            
+            for entry_data in call_assist_data.values():
+                if isinstance(entry_data, dict) and "device_manager" in entry_data:
+                    device_manager = entry_data["device_manager"]
+                    await device_manager.async_refresh_devices()
+                    break
+                    
+        except Exception as ex:
+            _LOGGER.warning("Failed to refresh devices after account change: %s", ex)
     
     def _build_account_dashboard(self, accounts: List[Dict[str, Any]]):
         """Build the account management dashboard."""

@@ -108,11 +108,17 @@ def _get_coordinator_for_service(hass: HomeAssistant) -> CallAssistCoordinator:
     if DOMAIN not in hass.data:
         raise ValueError("Call Assist integration not found")
     
-    coordinators = list(hass.data[DOMAIN].values())
-    if not coordinators:
+    entry_data_list = list(hass.data[DOMAIN].values())
+    if not entry_data_list:
         raise ValueError("No Call Assist coordinators found")
     
-    return coordinators[0]  # For now, use the first coordinator
+    # Get coordinator from the first entry data
+    entry_data = entry_data_list[0]
+    if isinstance(entry_data, dict):
+        return entry_data["coordinator"]
+    else:
+        # Fallback for old data structure
+        return entry_data
 
 
 async def async_make_call(call: ServiceCall) -> None:

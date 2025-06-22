@@ -23,7 +23,8 @@ async def async_setup_entry(
 ) -> None:
     """Set up Call Assist entities from a config entry."""
     
-    coordinator: CallAssistCoordinator = hass.data[DOMAIN][config_entry.entry_id]
+    entry_data = hass.data[DOMAIN][config_entry.entry_id]
+    coordinator: CallAssistCoordinator = entry_data["coordinator"]
     
     # Wait for initial data
     await coordinator.async_config_entry_first_refresh()
