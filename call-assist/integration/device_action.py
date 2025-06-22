@@ -69,6 +69,13 @@ async def async_get_actions(
         "name": "Test connection",
     })
     
+    actions.append({
+        CONF_DEVICE_ID: device_id,
+        CONF_DOMAIN: DOMAIN,
+        "type": "configure_device",
+        "name": "Configure",
+    })
+    
     # Enable/Disable actions based on current state
     if device.disabled_by == dr.DeviceEntryDisabler.INTEGRATION:
         actions.append({

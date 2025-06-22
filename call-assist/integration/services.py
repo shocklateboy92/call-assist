@@ -100,7 +100,8 @@ def _get_station_id_from_entity_id(entity_id: str) -> str:
             return entity_name.replace("_station", "")
         elif entity_name.startswith("station_"):
             return entity_name.replace("station_", "")
-    return entity_name
+        return entity_name
+    return entity_id
 
 
 def _get_coordinator_for_service(hass: HomeAssistant) -> CallAssistCoordinator:
@@ -229,19 +230,39 @@ async def async_add_account(call: ServiceCall) -> None:
     credentials = call.data[CONF_CREDENTIALS]
     
     try:
-        success = await coordinator.client.add_account(
+        # Get device manager to store the account
+        device_manager = coordinator._device_manager
+        if not device_manager:
+            _LOGGER.error("Device manager not available for adding account")
+            return
+        
+        # Store account configuration
+        store_success = await device_manager.async_store_account(
             protocol=protocol,
             account_id=account_id,
             display_name=display_name,
             credentials=credentials
         )
         
-        if success:
+        if not store_success:
+            _LOGGER.error("Failed to store account configuration: %s (%s)", display_name, protocol)
+            return
+        
+        # Add account to broker
+        broker_success = await coordinator.client.add_account(
+            protocol=protocol,
+            account_id=account_id,
+            display_name=display_name,
+            credentials=credentials
+        )
+        
+        if broker_success:
             _LOGGER.info("Added account: %s (%s)", display_name, protocol)
-            # Trigger coordinator refresh to update entities
-            await coordinator.async_request_refresh()
         else:
-            _LOGGER.error("Failed to add account: %s (%s)", display_name, protocol)
+            _LOGGER.warning("Account stored but failed to add to broker - will retry on next connection: %s (%s)", display_name, protocol)
+        
+        # Refresh devices to register new account device
+        await device_manager.async_refresh_devices()
             
     except Exception as ex:
         _LOGGER.error("Failed to add account %s (%s): %s", display_name, protocol, ex)
@@ -287,9 +308,33 @@ async def async_remove_account(call: ServiceCall) -> None:
     account_id = call.data[CONF_ACCOUNT_ID]
     
     try:
-        # TODO: Implement account removal in broker
-        _LOGGER.info("Removing account: %s (%s)", account_id, protocol)
-        _LOGGER.warning("Account removal not yet implemented in broker")
+        # Get device manager to remove the stored account
+        device_manager = coordinator._device_manager
+        if not device_manager:
+            _LOGGER.error("Device manager not available for removing account")
+            return
+        
+        # Remove from stored configuration
+        store_success = await device_manager.async_remove_stored_account(protocol, account_id)
+        
+        if not store_success:
+            _LOGGER.error("Failed to remove stored account configuration: %s (%s)", account_id, protocol)
+            return
+        
+        # Remove from broker
+        try:
+            broker_success = await coordinator.client.remove_account(f"{protocol}_{account_id}")
+            if broker_success:
+                _LOGGER.info("Removed account from broker: %s (%s)", account_id, protocol)
+            else:
+                _LOGGER.warning("Account removed from storage but failed to remove from broker: %s (%s)", account_id, protocol)
+        except Exception as ex:
+            _LOGGER.warning("Account removed from storage but failed to remove from broker: %s", ex)
+        
+        # Remove device from registry
+        await device_manager.async_remove_account_device(protocol, account_id)
+        
+        _LOGGER.info("Successfully removed account: %s (%s)", account_id, protocol)
         
     except Exception as ex:
         _LOGGER.error("Failed to remove account %s (%s): %s", account_id, protocol, ex)

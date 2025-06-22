@@ -82,9 +82,11 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
         try:
             await self._client.async_connect()
             
-            # Load protocol schemas and accounts
+            # Load protocol schemas from broker
             self._protocol_schemas = await self._client.get_protocol_schemas()
-            accounts_dict = await self._client.get_configured_accounts()
+            
+            # Get accounts from stored configuration instead of broker
+            accounts_dict = self._get_stored_accounts()
             # Convert dict to list for UI
             accounts = list(accounts_dict.values())
             
@@ -157,30 +159,25 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                 # Extract account ID based on protocol
                 account_id = self._extract_account_id(user_input, self._selected_protocol)
                 
-                # Add account to broker
-                if self._client:
-                    await self._client.async_connect()
-                    success = await self._client.add_account(
-                        protocol=self._selected_protocol,
-                        account_id=account_id,
-                        display_name=self._account_data["display_name"],
-                        credentials=user_input
-                    )
-                    await self._client.async_disconnect()
+                # Store account in config entry options and add to broker
+                success = await self._store_and_add_account(
+                    protocol=self._selected_protocol,
+                    account_id=account_id,
+                    display_name=self._account_data["display_name"],
+                    credentials=user_input
+                )
                     
-                    if success:
-                        # Trigger device registry update for new account
-                        await self._refresh_devices_after_account_change()
-                        
-                        return self.async_create_entry(
-                            title="Account Added",
-                            data={"account_added": True}
-                        )
-                    else:
-                        errors["base"] = "add_account_failed"
-                        _LOGGER.error(f"Account addition failed for {self._selected_protocol} account {account_id}")
+                if success:
+                    # Trigger device registry update for new account
+                    await self._refresh_devices_after_account_change()
+                    
+                    return self.async_create_entry(
+                        title="Account Added",
+                        data={"account_added": True}
+                    )
                 else:
-                    errors["base"] = "cannot_connect"
+                    errors["base"] = "add_account_failed"
+                    _LOGGER.error("Account addition failed for %s account %s", self._selected_protocol, account_id)
                     
             except Exception as ex:
                 _LOGGER.error("Failed to add %s account: %s", self._selected_protocol, ex)
@@ -404,20 +401,22 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
         if user_input is not None:
             if user_input.get("confirm") == "yes":
                 try:
-                    if self._client:
-                        await self._client.async_connect()
-                        success = await self._client.remove_account(self._selected_account_id)
-                        await self._client.async_disconnect()
+                    # Parse the account ID to get protocol and account_id
+                    protocol, account_id = self._parse_account_identifier(self._selected_account_id)
+                    
+                    # Remove stored account configuration and from broker
+                    success = await self._remove_stored_and_broker_account(protocol, account_id)
                         
-                        if success:
-                            return self.async_create_entry(
-                                title="Account Removed",
-                                data={"account_removed": True}
-                            )
-                        else:
-                            return self.async_abort(reason="remove_account_failed")
+                    if success:
+                        # Trigger device registry update after account removal
+                        await self._refresh_devices_after_account_change()
+                        
+                        return self.async_create_entry(
+                            title="Account Removed",
+                            data={"account_removed": True}
+                        )
                     else:
-                        return self.async_abort(reason="cannot_connect")
+                        return self.async_abort(reason="remove_account_failed")
                 except Exception as ex:
                     _LOGGER.error("Failed to remove account: %s", ex)
                     return self.async_abort(reason="cannot_connect")
@@ -549,3 +548,114 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                 "description": help_text
             }
         )
+    
+    async def _store_and_add_account(self, protocol: str, account_id: str, display_name: str, credentials: Dict[str, str]) -> bool:
+        """Store account configuration and add to broker."""
+        try:
+            # Get device manager to store the account
+            from .const import DOMAIN
+            call_assist_data = self.hass.data.get(DOMAIN, {})
+            
+            device_manager = None
+            for entry_data in call_assist_data.values():
+                if isinstance(entry_data, dict) and "device_manager" in entry_data:
+                    device_manager = entry_data["device_manager"]
+                    break
+            
+            if not device_manager:
+                _LOGGER.error("Device manager not found for storing account")
+                return False
+            
+            # Store account configuration in config entry options
+            store_success = await device_manager.async_store_account(
+                protocol=protocol,
+                account_id=account_id,
+                display_name=display_name,
+                credentials=credentials
+            )
+            
+            if not store_success:
+                _LOGGER.error("Failed to store account configuration")
+                return False
+            
+            # Add account to broker
+            if self._client:
+                await self._client.async_connect()
+                broker_success = await self._client.add_account(
+                    protocol=protocol,
+                    account_id=account_id,
+                    display_name=display_name,
+                    credentials=credentials
+                )
+                await self._client.async_disconnect()
+                
+                if not broker_success:
+                    _LOGGER.warning("Account stored but failed to add to broker - will retry on next connection")
+                
+                # We consider this success even if broker fails, since it will be pushed on next connection
+                return True
+            else:
+                _LOGGER.warning("No broker client available - account stored and will be pushed on next connection")
+                return True
+                
+        except Exception as ex:
+            _LOGGER.error("Failed to store and add account: %s", ex)
+            return False
+    
+    def _parse_account_identifier(self, account_identifier: str) -> tuple[str, str]:
+        """Parse account identifier to get protocol and account_id."""
+        # The account identifier should be in format "protocol_account_id"
+        if "_" in account_identifier:
+            parts = account_identifier.split("_", 1)
+            return parts[0], parts[1]
+        else:
+            # Fallback - assume it's just the account_id and try to find protocol
+            _LOGGER.warning("Account identifier '%s' doesn't contain protocol", account_identifier)
+            return "unknown", account_identifier
+
+    async def _remove_stored_and_broker_account(self, protocol: str, account_id: str) -> bool:
+        """Remove account from stored configuration and broker."""
+        try:
+            # Get device manager to remove the stored account
+            from .const import DOMAIN
+            call_assist_data = self.hass.data.get(DOMAIN, {})
+            
+            device_manager = None
+            for entry_data in call_assist_data.values():
+                if isinstance(entry_data, dict) and "device_manager" in entry_data:
+                    device_manager = entry_data["device_manager"]
+                    break
+            
+            if not device_manager:
+                _LOGGER.error("Device manager not found for removing account")
+                return False
+            
+            # Remove from stored configuration
+            store_success = await device_manager.async_remove_stored_account(protocol, account_id)
+            
+            # Remove from broker
+            broker_success = True
+            if self._client:
+                try:
+                    await self._client.async_connect()
+                    broker_success = await self._client.remove_account(f"{protocol}_{account_id}")
+                    await self._client.async_disconnect()
+                except Exception as ex:
+                    _LOGGER.warning("Failed to remove account from broker (account was removed from storage): %s", ex)
+                    broker_success = False
+            
+            # We consider this success if we removed it from storage, even if broker fails
+            return store_success
+                
+        except Exception as ex:
+            _LOGGER.error("Failed to remove stored account: %s", ex)
+            return False
+    
+    def _get_stored_accounts(self) -> Dict[str, Any]:
+        """Get stored account configurations from config entry options."""
+        if not self.config_entry or not self.config_entry.options:
+            return {}
+        
+        accounts = self.config_entry.options.get("accounts", {})
+        _LOGGER.debug("Retrieved %d stored accounts from config entry for UI", len(accounts))
+        return accounts

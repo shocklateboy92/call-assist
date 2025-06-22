@@ -38,6 +38,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Create device manager
     device_manager = CallAssistDeviceManager(hass, coordinator, entry.entry_id)
     
+    # Set device manager reference in coordinator for reconnection handling
+    coordinator.set_device_manager(device_manager)
+    
     # Setup devices
     await device_manager.async_setup_devices()
     

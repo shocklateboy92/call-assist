@@ -29,6 +29,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self.client = CallAssistGrpcClient(host, port)
         self._streaming_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
+        self._device_manager = None  # Will be set by device manager after creation
         
     async def async_setup(self) -> None:
         """Setup coordinator and start streaming."""
@@ -121,15 +122,21 @@ class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         _LOGGER.info("System event: %s", system_event.message)
     
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Fetch current state (fallback polling)."""
+        """Update data by fetching status and pushing accounts on reconnection."""
         try:
-            if not await self.client.ensure_connection():
-                raise Exception("Cannot connect to broker")
+            # Ensure connection and push accounts if we have a device manager
+            if self._device_manager:
+                await self._device_manager.async_push_accounts_to_broker_on_reconnect()
+            
             return await self.client.async_get_status()
         except Exception as ex:
             _LOGGER.error("Failed to fetch status: %s", ex)
             raise
     
+    def set_device_manager(self, device_manager) -> None:
+        """Set the device manager reference for pushing accounts on reconnection."""
+        self._device_manager = device_manager
+
     async def async_shutdown(self) -> None:
         """Shutdown coordinator gracefully."""
         self._shutdown_event.set()
