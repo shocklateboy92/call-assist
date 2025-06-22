@@ -12,14 +12,7 @@ CONF_DISPLAY_NAME = "display_name"
 CONF_PROTOCOL = "protocol"
 CONF_CREDENTIALS = "credentials"
 
-# Protocol-specific credential keys
-CONF_MATRIX_HOMESERVER = "homeserver"
-CONF_MATRIX_ACCESS_TOKEN = "access_token"
-CONF_MATRIX_USER_ID = "user_id"
-CONF_XMPP_USERNAME = "username"
-CONF_XMPP_PASSWORD = "password"
-CONF_XMPP_SERVER = "server"
-CONF_XMPP_PORT = "xmpp_port"
+# Protocol-specific credential keys removed - now handled dynamically via broker schemas
 
 # Default values
 DEFAULT_HOST = "call-assist-addon"
