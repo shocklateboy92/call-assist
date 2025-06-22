@@ -19,7 +19,7 @@ _LOGGER = logging.getLogger(__name__)
 class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
     """Coordinator for Call Assist gRPC streaming."""
     
-    def __init__(self, hass: HomeAssistant, host: str, port: int):
+    def __init__(self, hass: HomeAssistant, host: str, port: int, config_entry=None):
         super().__init__(
             hass,
             _LOGGER,
@@ -29,12 +29,16 @@ class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self.client = CallAssistGrpcClient(host, port)
         self._streaming_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
-        self._device_manager = None  # Will be set by device manager after creation
+        self._config_entry = config_entry
         
     async def async_setup(self) -> None:
         """Setup coordinator and start streaming."""
         try:
             await self.client.async_connect()
+            
+            # Push account configuration to broker if available
+            await self._push_account_to_broker()
+            
             await self.async_refresh()
             
             # Start background streaming
@@ -122,20 +126,44 @@ class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         _LOGGER.info("System event: %s", system_event.message)
     
     async def _async_update_data(self) -> Dict[str, Any]:
-        """Update data by fetching status and pushing accounts on reconnection."""
+        """Update data by fetching status and pushing account on reconnection."""
         try:
-            # Ensure connection and push accounts if we have a device manager
-            if self._device_manager:
-                await self._device_manager.async_push_accounts_to_broker_on_reconnect()
+            # Push account configuration on reconnection
+            await self._push_account_to_broker()
             
             return await self.client.async_get_status()
         except Exception as ex:
             _LOGGER.error("Failed to fetch status: %s", ex)
             raise
     
-    def set_device_manager(self, device_manager) -> None:
-        """Set the device manager reference for pushing accounts on reconnection."""
-        self._device_manager = device_manager
+    async def _push_account_to_broker(self) -> None:
+        """Push account configuration to broker from config entry data."""
+        if not self._config_entry or not self._config_entry.data:
+            _LOGGER.debug("No config entry data available for account push")
+            return
+            
+        config_data = self._config_entry.data
+        
+        # Check if we have account information in config data
+        if not all(key in config_data for key in ["protocol", "account_id", "credentials"]):
+            _LOGGER.debug("No account configuration found in config entry data")
+            return
+            
+        try:
+            success = await self.client.add_account(
+                protocol=config_data["protocol"],
+                account_id=config_data["account_id"],
+                display_name=config_data.get("display_name", config_data["account_id"]),
+                credentials=config_data["credentials"]
+            )
+            
+            if success:
+                _LOGGER.debug("Successfully pushed account %s to broker", config_data["account_id"])
+            else:
+                _LOGGER.warning("Failed to push account %s to broker", config_data["account_id"])
+                
+        except Exception as ex:
+            _LOGGER.error("Error pushing account to broker: %s", ex)
 
     async def async_shutdown(self) -> None:
         """Shutdown coordinator gracefully."""

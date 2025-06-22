@@ -11,8 +11,6 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_HOST, CONF_PORT
 from .coordinator import CallAssistCoordinator
-from .device_manager import CallAssistDeviceManager
-from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,7 +24,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = CallAssistCoordinator(
         hass, 
         entry.data[CONF_HOST], 
-        entry.data[CONF_PORT]
+        entry.data[CONF_PORT],
+        entry
     )
     
     try:
@@ -35,26 +34,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Failed to connect to Call Assist broker: %s", ex)
         raise ConfigEntryNotReady("Cannot connect to broker") from ex
     
-    # Create device manager
-    device_manager = CallAssistDeviceManager(hass, coordinator, entry.entry_id)
-    
-    # Set device manager reference in coordinator for reconnection handling
-    coordinator.set_device_manager(device_manager)
-    
-    # Setup devices
-    await device_manager.async_setup_devices()
-    
-    # Store coordinator and device manager
+    # Store coordinator
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
-        "coordinator": coordinator,
-        "device_manager": device_manager
+        "coordinator": coordinator
     }
     
     # Setup platform for entities
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-    
-    # Register services
-    await async_setup_services(hass, coordinator)
     
     _LOGGER.info("Call Assist integration setup complete")
     return True
@@ -63,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     
-    # Get coordinator and device manager
+    # Get coordinator
     entry_data = hass.data[DOMAIN][entry.entry_id]
     coordinator = entry_data["coordinator"]
     
@@ -76,10 +62,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         # Remove from data
         hass.data[DOMAIN].pop(entry.entry_id)
-        
-        # Remove services if this was the last entry
-        if not hass.data[DOMAIN]:
-            await async_unload_services(hass)
     
     _LOGGER.info("Call Assist integration unloaded")
     return unload_ok

@@ -30,7 +30,9 @@
       "Bash(curl:*)",
       "Bash(./scripts/build-proto.sh:*)",
       "Bash(cp:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(rm:*)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
