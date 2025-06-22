@@ -278,6 +278,72 @@ The Matrix plugin (`addon/plugins/matrix/src/index.ts`) currently:
 - Matrix signaling layer is already functional and doesn't need changes
 - TURN server configuration should use existing coturn service
 
+## Home Assistant Integration UI Enhancement Plan
+
+### Current UI Implementation Status
+- ✅ **Basic Config Flow**: Host/port validation and broker connectivity testing
+- ✅ **Dynamic Options Flow**: Data-driven forms from broker schemas with protocol selection
+- ✅ **Service-Based Account Management**: Add/update/remove accounts via HA services
+- ❌ **User-Accessible Account Management**: No UI for viewing/managing added accounts
+
+### Available Home Assistant UI Components
+**Modern Selector Types** (36+ available):
+- **Select/Multi-Select**: Dropdown menus with predefined options
+- **Text Selectors**: Input fields with autocomplete, validation, and password masking
+- **Device/Entity Selectors**: Choose from existing HA devices/entities
+- **Boolean Selectors**: Toggle switches
+- **Object Selectors**: YAML data input
+- **Template Selectors**: Jinja2 template input
+
+**Integration Patterns**:
+- **Multi-Step Config Flows**: Sequential setup processes
+- **Options Flows**: Runtime configuration accessible via Integrations → Configure
+- **Device Registry**: Visual device management with status and actions
+- **OAuth2 Scaffolding**: Centralized authentication handling
+
+### Required UI Enhancements
+
+#### 1. **Options Flow for Account Management**
+Create accessible account management via Integrations → Configure:
+```python
+async def async_step_init(self, user_input=None):
+    # Show account list with status
+    
+async def async_step_manage_account(self, user_input=None):
+    # Edit/Remove specific account
+    
+async def async_step_add_account(self, user_input=None):
+    # Add new account flow
+```
+
+#### 2. **Modernize with Selector System**
+Replace voluptuous schemas with selector-based ones:
+```python
+DATA_SCHEMA = {
+    "protocol": {"selector": {"select": {"options": ["matrix", "xmpp"]}}},
+    "homeserver": {"selector": {"text": {"type": "url"}}},
+    "username": {"selector": {"text": {"autocomplete": "username"}}},
+    "password": {"selector": {"text": {"type": "password"}}}
+}
+```
+
+#### 3. **Device Registry Integration**
+- Register broker as device with accounts as sub-devices
+- Provide device information (protocol, status, last seen)
+- Enable device-level management actions
+
+#### 4. **Enhanced Account Dashboard**
+- **Account List**: Show all configured accounts with connection status
+- **Status Indicators**: Real-time connection monitoring per account
+- **Bulk Operations**: Add multiple accounts, test all connections
+- **Error Recovery**: Reauthentication flows for expired credentials
+
+### Implementation Priority
+1. **High**: Options flow for account list and management
+2. **Medium**: Modernize to selector-based schemas  
+3. **Medium**: Device registry integration
+4. **Low**: Advanced features (bulk operations, templates)
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
@@ -285,6 +351,7 @@ The Matrix plugin (`addon/plugins/matrix/src/index.ts`) currently:
 4. ✅ **Implement generic entity architecture** (domain-agnostic integration)
 5. ✅ **Fix integration startup issues** (NoneType errors resolved)
 6. 🔄 Implement real WebRTC peer connections in Matrix plugin
-7. Implement broker capability detection logic
-8. Add configuration flow for camera/media player selection
-9. Implement contact discovery from Matrix plugin
+7. 🔄 **Implement account management UI enhancements**
+8. Implement broker capability detection logic
+9. Add configuration flow for camera/media player selection
+10. Implement contact discovery from Matrix plugin

@@ -65,13 +65,14 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
         self._client: CallAssistGrpcClient | None = None
         self._protocol_schemas: Dict[str, Any] = {}
         self._selected_protocol: str | None = None
+        self._selected_account_id: str | None = None
     
     async def async_step_init(self, user_input=None):
         """Manage account options."""
-        return await self.async_step_account_menu()
+        return await self.async_step_account_dashboard()
     
-    async def async_step_account_menu(self, user_input=None):
-        """Show account management menu."""
+    async def async_step_account_dashboard(self, user_input=None):
+        """Show account management dashboard."""
         if self._client is None:
             self._client = CallAssistGrpcClient(
                 self.config_entry.data[CONF_HOST],
@@ -81,19 +82,33 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
         try:
             await self._client.async_connect()
             
-            # Load protocol schemas from broker
+            # Load protocol schemas and accounts
             self._protocol_schemas = await self._client.get_protocol_schemas()
-            
-            # Get configured accounts
-            accounts = await self._client.get_configured_accounts()
+            accounts_dict = await self._client.get_configured_accounts()
+            # Convert dict to list for UI
+            accounts = list(accounts_dict.values())
             
             await self._client.async_disconnect()
         except Exception as ex:
             _LOGGER.error("Failed to get broker data: %s", ex)
             return self.async_abort(reason="cannot_connect")
         
-        # For now, just show the add account form since menu support may vary
-        return await self.async_step_select_protocol()
+        if user_input is not None:
+            action = user_input.get("action")
+            if action == "add_account":
+                return await self.async_step_select_protocol()
+            elif action.startswith("manage_"):
+                self._selected_account_id = action.replace("manage_", "")
+                return await self.async_step_manage_account()
+            elif action.startswith("test_"):
+                self._selected_account_id = action.replace("test_", "")
+                return await self.async_step_test_account()
+            elif action.startswith("remove_"):
+                self._selected_account_id = action.replace("remove_", "")
+                return await self.async_step_confirm_remove_account()
+        
+        # Build account dashboard
+        return self._build_account_dashboard(accounts)
     
     async def async_step_select_protocol(self, user_input=None):
         """Select protocol for new account."""
@@ -204,3 +219,314 @@ class DynamicCallAssistOptionsFlow(config_entries.OptionsFlow):
                 if field["key"] in credentials:
                     return credentials[field["key"]]
             return ""
+    
+    def _build_account_dashboard(self, accounts: List[Dict[str, Any]]):
+        """Build the account management dashboard."""
+        schema_dict = {}
+        
+        # Add "Add Account" option
+        actions = {"add_account": "➕ Add New Account"}
+        
+        # Add account management options
+        account_info = "**Configured Accounts:**\n\n"
+        if not accounts:
+            account_info += "*No accounts configured yet*\n\n"
+        else:
+            for account in accounts:
+                status_icon = self._get_status_icon(account.get("status", "unknown"))
+                display_name = account.get("display_name", account.get("account_id", "Unknown"))
+                protocol = account.get("protocol", "").title()
+                last_seen = account.get("last_seen", "Never")
+                
+                account_info += f"**{display_name}** ({protocol}) {status_icon}\n"
+                account_info += f"  ID: `{account.get('account_id', 'N/A')}`\n"
+                account_info += f"  Last seen: {last_seen}\n\n"
+                
+                # Add action options for this account
+                account_id = account.get("account_id", "")
+                if account_id:
+                    actions[f"manage_{account_id}"] = f"⚙️ Manage {display_name}"
+                    actions[f"test_{account_id}"] = f"🔍 Test {display_name}"
+                    actions[f"remove_{account_id}"] = f"🗑️ Remove {display_name}"
+        
+        schema_dict[vol.Required("action")] = vol.In(actions)
+        
+        return self.async_show_form(
+            step_id="account_dashboard",
+            data_schema=vol.Schema(schema_dict),
+            description_placeholders={
+                "accounts": account_info,
+                "title": "Call Assist Account Management"
+            }
+        )
+    
+    def _get_status_icon(self, status: str) -> str:
+        """Get status icon for account status."""
+        status_icons = {
+            "connected": "✅",
+            "connecting": "🔄", 
+            "error": "❌",
+            "disabled": "⏸️",
+            "unknown": "❓"
+        }
+        return status_icons.get(status.lower(), "❓")
+    
+    async def async_step_manage_account(self, user_input=None):
+        """Manage a specific account."""
+        if not self._selected_account_id:
+            return self.async_abort(reason="no_account_selected")
+        
+        if user_input is not None:
+            action = user_input.get("action")
+            if action == "back":
+                return await self.async_step_account_dashboard()
+            elif action == "edit_credentials":
+                return await self.async_step_edit_account_credentials()
+            elif action == "disable_account":
+                return await self.async_step_toggle_account_status(disable=True)
+            elif action == "enable_account":
+                return await self.async_step_toggle_account_status(disable=False)
+        
+        # Get account details
+        try:
+            if self._client:
+                await self._client.async_connect()
+                account = await self._client.get_account_details(self._selected_account_id)
+                await self._client.async_disconnect()
+            else:
+                return self.async_abort(reason="cannot_connect")
+        except Exception as ex:
+            _LOGGER.error("Failed to get account details: %s", ex)
+            return self.async_abort(reason="cannot_connect")
+        
+        if not account:
+            return self.async_abort(reason="account_not_found")
+        
+        # Build management options
+        actions = {
+            "edit_credentials": "🔑 Edit Credentials",
+            "back": "← Back to Dashboard"
+        }
+        
+        if account.get("status") == "disabled":
+            actions["enable_account"] = "▶️ Enable Account"
+        else:
+            actions["disable_account"] = "⏸️ Disable Account"
+        
+        account_info = f"""
+**Account Details:**
+
+• **Display Name:** {account.get('display_name', 'N/A')}
+• **Protocol:** {account.get('protocol', 'N/A').title()}
+• **Account ID:** `{account.get('account_id', 'N/A')}`
+• **Status:** {self._get_status_icon(account.get('status', 'unknown'))} {account.get('status', 'Unknown').title()}
+• **Last Seen:** {account.get('last_seen', 'Never')}
+"""
+        
+        if account.get("error_message"):
+            account_info += f"• **Error:** {account.get('error_message')}\n"
+        
+        return self.async_show_form(
+            step_id="manage_account",
+            data_schema=vol.Schema({vol.Required("action"): vol.In(actions)}),
+            description_placeholders={
+                "account_info": account_info,
+                "title": f"Manage Account: {account.get('display_name', 'Unknown')}"
+            }
+        )
+    
+    async def async_step_test_account(self, user_input=None):
+        """Test account connection."""
+        if not self._selected_account_id:
+            return self.async_abort(reason="no_account_selected")
+        
+        # Handle retry action
+        if user_input is not None and user_input.get("action") == "retry":
+            # Fall through to test again
+            pass
+        elif user_input is not None and user_input.get("action") == "back":
+            return await self.async_step_account_dashboard()
+        
+        try:
+            if self._client:
+                await self._client.async_connect()
+                result = await self._client.test_account_connection(self._selected_account_id)
+                await self._client.async_disconnect()
+            else:
+                return self.async_abort(reason="cannot_connect")
+        except Exception as ex:
+            _LOGGER.error("Failed to test account: %s", ex)
+            result = {"success": False, "error": str(ex)}
+        
+        if result.get("success"):
+            message = f"✅ Connection test successful!\n\nLatency: {result.get('latency', 'N/A')}ms"
+        else:
+            message = f"❌ Connection test failed!\n\nError: {result.get('error', 'Unknown error')}"
+        
+        return self.async_show_form(
+            step_id="test_result",
+            data_schema=vol.Schema({
+                vol.Required("action", default="back"): vol.In({
+                    "back": "← Back to Dashboard",
+                    "retry": "🔄 Test Again"
+                })
+            }),
+            description_placeholders={
+                "result": message,
+                "title": "Connection Test Result"
+            }
+        )
+    
+    async def async_step_confirm_remove_account(self, user_input=None):
+        """Confirm account removal."""
+        if not self._selected_account_id:
+            return self.async_abort(reason="no_account_selected")
+        
+        if user_input is not None:
+            if user_input.get("confirm") == "yes":
+                try:
+                    if self._client:
+                        await self._client.async_connect()
+                        success = await self._client.remove_account(self._selected_account_id)
+                        await self._client.async_disconnect()
+                        
+                        if success:
+                            return self.async_create_entry(
+                                title="Account Removed",
+                                data={"account_removed": True}
+                            )
+                        else:
+                            return self.async_abort(reason="remove_account_failed")
+                    else:
+                        return self.async_abort(reason="cannot_connect")
+                except Exception as ex:
+                    _LOGGER.error("Failed to remove account: %s", ex)
+                    return self.async_abort(reason="cannot_connect")
+            else:
+                return await self.async_step_account_dashboard()
+        
+        return self.async_show_form(
+            step_id="confirm_remove_account",
+            data_schema=vol.Schema({
+                vol.Required("confirm"): vol.In({
+                    "no": "❌ Cancel",
+                    "yes": "🗑️ Yes, Remove Account"
+                })
+            }),
+            description_placeholders={
+                "warning": f"⚠️ **Warning:** This will permanently remove the account and all associated data.\n\nAccount ID: `{self._selected_account_id}`",
+                "title": "Confirm Account Removal"
+            }
+        )
+    
+    async def async_step_toggle_account_status(self, user_input=None, disable=False):
+        """Toggle account enabled/disabled status."""
+        if not self._selected_account_id:
+            return self.async_abort(reason="no_account_selected")
+        
+        try:
+            if self._client:
+                await self._client.async_connect()
+                success = await self._client.toggle_account_status(
+                    self._selected_account_id, 
+                    disable=disable
+                )
+                await self._client.async_disconnect()
+                
+                if success:
+                    action = "disabled" if disable else "enabled"
+                    return self.async_create_entry(
+                        title=f"Account {action.title()}",
+                        data={"account_toggled": True, "action": action}
+                    )
+                else:
+                    return self.async_abort(reason="toggle_account_failed")
+            else:
+                return self.async_abort(reason="cannot_connect")
+        except Exception as ex:
+            _LOGGER.error("Failed to toggle account status: %s", ex)
+            return self.async_abort(reason="cannot_connect")
+    
+    async def async_step_test_result(self, user_input=None):
+        """Handle test result actions."""
+        if user_input is not None:
+            action = user_input.get("action")
+            if action == "back":
+                return await self.async_step_account_dashboard()
+            elif action == "retry":
+                return await self.async_step_test_account()
+        
+        # This should not be reached, but handle gracefully
+        return await self.async_step_account_dashboard()
+    
+    async def async_step_edit_account_credentials(self, user_input=None):
+        """Edit account credentials."""
+        if not self._selected_account_id:
+            return self.async_abort(reason="no_account_selected")
+        
+        # Get current account details
+        try:
+            if self._client:
+                await self._client.async_connect()
+                account = await self._client.get_account_details(self._selected_account_id)
+                await self._client.async_disconnect()
+            else:
+                return self.async_abort(reason="cannot_connect")
+        except Exception as ex:
+            _LOGGER.error("Failed to get account details: %s", ex)
+            return self.async_abort(reason="cannot_connect")
+        
+        if not account:
+            return self.async_abort(reason="account_not_found")
+        
+        # Get protocol schema for editing
+        protocol = account.get("protocol")
+        if not protocol or protocol not in self._protocol_schemas:
+            return self.async_abort(reason="protocol_not_supported")
+        
+        protocol_schema = self._protocol_schemas[protocol]
+        errors = {}
+        
+        if user_input is not None:
+            try:
+                # Update account credentials
+                if self._client:
+                    await self._client.async_connect()
+                    success = await self._client.update_account(
+                        protocol=protocol,
+                        account_id=self._selected_account_id,
+                        display_name=account.get("display_name", ""),
+                        credentials=user_input
+                    )
+                    await self._client.async_disconnect()
+                    
+                    if success:
+                        return self.async_create_entry(
+                            title="Credentials Updated",
+                            data={"credentials_updated": True}
+                        )
+                    else:
+                        errors["base"] = "update_credentials_failed"
+                else:
+                    errors["base"] = "cannot_connect"
+                    
+            except Exception as ex:
+                _LOGGER.error("Failed to update credentials: %s", ex)
+                errors["base"] = "cannot_connect"
+        
+        # Build credential edit form
+        schema = _build_voluptuous_schema(protocol_schema["credential_fields"])
+        
+        help_text = f"Update credentials for **{account.get('display_name', 'Unknown')}**:\\n\\n"
+        for field in protocol_schema["credential_fields"]:
+            help_text += f"• **{field['display_name']}**: {field['description']}\\n"
+        
+        return self.async_show_form(
+            step_id="edit_account_credentials",
+            data_schema=schema,
+            errors=errors,
+            description_placeholders={
+                "title": f"Edit Credentials: {account.get('display_name', 'Unknown')}",
+                "description": help_text
+            }
+        )

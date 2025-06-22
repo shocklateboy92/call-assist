@@ -280,13 +280,25 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        # Should show protocol selection step
+        # Should show account dashboard first
         assert options_flow.get("type") == FlowResultType.FORM
-        assert options_flow.get("step_id") == "select_protocol"
+        assert options_flow.get("step_id") == "account_dashboard"
+        
+        # Click "Add New Account" to proceed to protocol selection
+        dashboard_result = await hass.config_entries.options.async_configure(
+            options_flow["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        # Should show protocol selection step
+        assert dashboard_result.get("type") == FlowResultType.FORM
+        assert dashboard_result.get("step_id") == "select_protocol"
         
         # Select Matrix protocol
         protocol_result = await hass.config_entries.options.async_configure(
-            options_flow["flow_id"],
+            dashboard_result["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "My Matrix Account",
@@ -342,9 +354,25 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
+        # Should show account dashboard first
+        assert options_flow.get("type") == FlowResultType.FORM
+        assert options_flow.get("step_id") == "account_dashboard"
+        
+        # Click "Add New Account" to proceed to protocol selection
+        dashboard_result = await hass.config_entries.options.async_configure(
+            options_flow["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        # Should show protocol selection step
+        assert dashboard_result.get("type") == FlowResultType.FORM
+        assert dashboard_result.get("step_id") == "select_protocol"
+        
         # Select Matrix protocol
         protocol_result = await hass.config_entries.options.async_configure(
-            options_flow["flow_id"],
+            dashboard_result["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "Invalid Matrix Account",
@@ -397,9 +425,21 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        # Should show protocol selection with Matrix available
+        # Should show account dashboard first
         assert options_flow.get("type") == FlowResultType.FORM
-        assert options_flow.get("step_id") == "select_protocol"
+        assert options_flow.get("step_id") == "account_dashboard"
+        
+        # Click "Add New Account" to proceed to protocol selection
+        dashboard_result = await hass.config_entries.options.async_configure(
+            options_flow["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        # Should show protocol selection with Matrix available
+        assert dashboard_result.get("type") == FlowResultType.FORM
+        assert dashboard_result.get("step_id") == "select_protocol"
         
         # Check that Matrix is available in the protocol choices
         data_schema = options_flow.get("data_schema")
@@ -408,7 +448,7 @@ class TestMatrixAccountConfigFlow:
         # The schema should have a protocol field with Matrix as an option
         # This is tested by successfully selecting Matrix protocol
         protocol_result = await hass.config_entries.options.async_configure(
-            options_flow["flow_id"],
+            dashboard_result["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "Schema Test Account",
@@ -449,8 +489,16 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        protocol_result = await hass.config_entries.options.async_configure(
+        # Navigate through dashboard to add account
+        dashboard_result = await hass.config_entries.options.async_configure(
             options_flow["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        protocol_result = await hass.config_entries.options.async_configure(
+            dashboard_result["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "Original Matrix Account",
@@ -503,8 +551,16 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        protocol_result = await hass.config_entries.options.async_configure(
+        # Navigate through dashboard to add account
+        dashboard_result = await hass.config_entries.options.async_configure(
             options_flow["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        protocol_result = await hass.config_entries.options.async_configure(
+            dashboard_result["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "Account To Remove",
@@ -557,8 +613,16 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        protocol_result1 = await hass.config_entries.options.async_configure(
+        # Navigate through dashboard to add first account
+        dashboard_result1 = await hass.config_entries.options.async_configure(
             options_flow1["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        protocol_result1 = await hass.config_entries.options.async_configure(
+            dashboard_result1["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "First Matrix Account",
@@ -581,8 +645,16 @@ class TestMatrixAccountConfigFlow:
             config_entry.entry_id
         )
         
-        protocol_result2 = await hass.config_entries.options.async_configure(
+        # Navigate through dashboard to add second account
+        dashboard_result2 = await hass.config_entries.options.async_configure(
             options_flow2["flow_id"],
+            {
+                "action": "add_account",
+            },
+        )
+        
+        protocol_result2 = await hass.config_entries.options.async_configure(
+            dashboard_result2["flow_id"],
             {
                 "protocol": "matrix",
                 "display_name": "Second Matrix Account",

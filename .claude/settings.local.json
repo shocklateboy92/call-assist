@@ -29,7 +29,8 @@
       "Bash(./call-assist/scripts/run-integration-tests.sh:*)",
       "Bash(curl:*)",
       "Bash(./scripts/build-proto.sh:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

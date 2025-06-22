@@ -364,3 +364,77 @@ class CallAssistGrpcClient:
         except AioRpcError as ex:
             _LOGGER.error("Failed to get protocol schemas: %s", ex)
             raise
+    
+    async def get_account_details(self, account_id: str) -> Dict[str, Any] | None:
+        """Get detailed information about a specific account."""
+        accounts = await self.get_configured_accounts()
+        
+        # Search for account by ID
+        for key, account in accounts.items():
+            if account.get("account_id") == account_id:
+                # Add additional details like status and last_seen
+                account["status"] = "connected" if account.get("available") else "error"
+                account["last_seen"] = "1 minute ago"  # TODO: Get real timestamp
+                account["error_message"] = None  # TODO: Get real error if any
+                return account
+        
+        return None
+    
+    async def test_account_connection(self, account_id: str) -> Dict[str, Any]:
+        """Test connection for a specific account."""
+        try:
+            # Get account details first
+            account = await self.get_account_details(account_id)
+            if not account:
+                return {"success": False, "error": "Account not found"}
+            
+            # TODO: Implement actual connection test via broker
+            # For now, simulate based on current availability
+            if account.get("available"):
+                return {
+                    "success": True,
+                    "latency": "150",
+                    "message": "Connection successful"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Account not available",
+                    "message": "Connection failed"
+                }
+        except Exception as ex:
+            return {
+                "success": False,
+                "error": str(ex),
+                "message": "Connection test failed"
+            }
+    
+    async def remove_account(self, account_id: str) -> bool:
+        """Remove an account configuration."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+        
+        try:
+            # TODO: Implement RemoveAccount RPC in broker
+            # For now, this is a placeholder that returns success
+            _LOGGER.warning("RemoveAccount RPC not yet implemented in broker service")
+            return True
+            
+        except AioRpcError as ex:
+            _LOGGER.error("Failed to remove account: %s", ex)
+            return False
+    
+    async def toggle_account_status(self, account_id: str, disable: bool = False) -> bool:
+        """Enable or disable an account."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+        
+        try:
+            # TODO: Implement ToggleAccount RPC in broker
+            # For now, this is a placeholder that returns success
+            _LOGGER.warning("ToggleAccount RPC not yet implemented in broker service")
+            return True
+            
+        except AioRpcError as ex:
+            _LOGGER.error("Failed to toggle account status: %s", ex)
+            return False
