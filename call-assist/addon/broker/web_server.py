@@ -3,12 +3,8 @@
 import asyncio
 import logging
 from typing import Optional
-import uvicorn
-from fastapi import FastAPI
-from nicegui import ui, app
-from contextlib import asynccontextmanager
+from nicegui import ui
 
-from web_api import app as fastapi_app
 from web_ui import set_broker_reference, setup_ui_routes
 from database import init_database, get_setting
 from models import get_setting
@@ -17,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class WebUIServer:
-    """Manages the web UI server (NiceGUI + FastAPI)"""
+    """Manages the web UI server (NiceGUI)"""
     
     def __init__(self, broker_ref=None):
         self.broker_ref = broker_ref
@@ -54,8 +50,7 @@ class WebUIServer:
             await self.initialize()
             
             # Configure NiceGUI
-            ui.run_with(
-                fastapi_app,
+            ui.run(
                 host=self.host,
                 port=self.port,
                 show=False,  # Don't open browser automatically
@@ -79,21 +74,9 @@ class WebUIServer:
             logger.error(f"Error stopping web UI server: {e}")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """FastAPI lifespan manager"""
-    # Startup
-    logger.info("FastAPI application starting up")
-    yield
-    # Shutdown
-    logger.info("FastAPI application shutting down")
 
 
-# Configure FastAPI app with lifespan
-fastapi_app.router.lifespan_context = lifespan
-
-
-def create_combined_server(broker_ref=None) -> WebUIServer:
+def create_web_server(broker_ref=None) -> WebUIServer:
     """Create web UI server with broker reference"""
     return WebUIServer(broker_ref)
 

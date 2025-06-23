@@ -872,8 +872,8 @@ async def serve():
         logger.info(f"gRPC server started on {listen_addr}:{listen_port}")
         
         # Initialize and start web UI server
-        from web_server import create_combined_server
-        web_server = create_combined_server(broker)
+        from web_server import create_web_server
+        web_server = create_web_server(broker)
         
         # Start web server in background task
         web_server_task = asyncio.create_task(web_server.start())
