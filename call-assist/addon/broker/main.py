@@ -1003,7 +1003,7 @@ async def serve(
     grpc_port: int = 50051,
     web_host: str = "0.0.0.0",
     web_port: int = 8080,
-    db_path: str = None,
+    db_path: Optional[str] = None,
 ):
     """Start the broker gRPC server and web UI server using grpclib
 

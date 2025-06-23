@@ -5,6 +5,7 @@ from typing import Optional, Dict, Any
 from datetime import datetime
 import json
 
+from addon.broker.database import db_manager
 
 class Account(SQLModel, table=True):
     """SQLModel for account credentials storage"""
@@ -102,21 +103,9 @@ class CallLog(SQLModel, table=True):
         return None
 
 
-# Database connection and session management
-DATABASE_PATH = "broker_data.db"
-DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
-
-engine = create_engine(DATABASE_URL, echo=False)
-
-
-def create_db_and_tables():
-    """Create database and all tables"""
-    SQLModel.metadata.create_all(engine)
-
-
 def get_session() -> Session:
-    """Get database session"""
-    return Session(engine)
+    """Get database session using the global database manager"""
+    return db_manager.get_session()
 
 
 # Helper functions for common database operations
