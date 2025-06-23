@@ -53,7 +53,7 @@ class WebUIServer:
             await self.initialize()
 
             app = FastAPI()
-            
+
             # Add redirect from index to /ui
             @app.get("/")
             async def redirect_to_ui():

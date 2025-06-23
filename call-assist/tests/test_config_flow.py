@@ -265,7 +265,7 @@ class TestLegacyAccountConfigFlow:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
-        
+
         config_result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {
@@ -273,20 +273,20 @@ class TestLegacyAccountConfigFlow:
                 CONF_PORT: 50051,
             },
         )
-        
+
         assert config_result.get("type") == FlowResultType.CREATE_ENTRY
         assert "result" in config_result
         config_entry = config_result["result"]
-        
+
         # Test that options flow shows account dashboard
         options_flow = await hass.config_entries.options.async_init(
             config_entry.entry_id
         )
-        
+
         # Should show account dashboard
         assert options_flow.get("type") == FlowResultType.FORM
         assert options_flow.get("step_id") == "account_dashboard"
-        
+
         # Dashboard should have add_account action available
         data_schema = options_flow.get("data_schema")
         assert data_schema is not None
@@ -305,7 +305,7 @@ class TestLegacyAccountConfigFlow:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
-        
+
         config_result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {
@@ -313,28 +313,31 @@ class TestLegacyAccountConfigFlow:
                 CONF_PORT: 50051,
             },
         )
-        
+
         assert config_result.get("type") == FlowResultType.CREATE_ENTRY
         config_entry = config_result["result"]
-        
+
         # Wait for setup to complete
         await hass.async_block_till_done()
-        
+
         # Check that devices were registered
         from homeassistant.helpers import device_registry as dr
+
         device_registry = dr.async_get(hass)
-        devices = dr.async_entries_for_config_entry(device_registry, config_entry.entry_id)
-        
+        devices = dr.async_entries_for_config_entry(
+            device_registry, config_entry.entry_id
+        )
+
         # Should have at least the broker device
         assert len(devices) >= 1
-        
+
         # Verify broker device exists
         broker_device = None
         for device in devices:
             if "Broker" in device.name:
                 broker_device = device
                 break
-        
+
         assert broker_device is not None
         assert broker_device.manufacturer == "Call Assist"
 
@@ -352,7 +355,7 @@ class TestLegacyAccountConfigFlow:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
-        
+
         config_result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {
@@ -360,19 +363,19 @@ class TestLegacyAccountConfigFlow:
                 CONF_PORT: 50051,
             },
         )
-        
+
         assert "result" in config_result
         config_entry = config_result["result"]
-        
+
         # Start options flow
         options_flow = await hass.config_entries.options.async_init(
             config_entry.entry_id
         )
-        
+
         # Should show account dashboard first
         assert options_flow.get("type") == FlowResultType.FORM
         assert options_flow.get("step_id") == "account_dashboard"
-        
+
         # Click "Add New Account" to proceed to protocol selection
         dashboard_result = await hass.config_entries.options.async_configure(
             options_flow["flow_id"],
@@ -380,15 +383,15 @@ class TestLegacyAccountConfigFlow:
                 "action": "add_account",
             },
         )
-        
+
         # Should show protocol selection with Matrix available
         assert dashboard_result.get("type") == FlowResultType.FORM
         assert dashboard_result.get("step_id") == "select_protocol"
-        
+
         # Check that protocol selection is available
         data_schema = dashboard_result.get("data_schema")
         assert data_schema is not None
-        
+
         # Note: Detailed account management (add, update, remove) is now
         # tested in test_device_management.py using device actions rather
         # than config flows. This provides a better user experience.

@@ -47,14 +47,18 @@ class TestDataMismatchBug:
         logger.info(f"Expected keys: {expected_keys}")
 
         # Test shows the bug is now FIXED
-        assert "call_stations" in status_data, "call_stations key should now be present (bug is fixed!)"
-        assert "contacts" in status_data, "contacts key should now be present (bug is fixed!)"
+        assert (
+            "call_stations" in status_data
+        ), "call_stations key should now be present (bug is fixed!)"
+        assert (
+            "contacts" in status_data
+        ), "contacts key should now be present (bug is fixed!)"
 
         # These should also still be present
         assert "version" in status_data
         assert "broker_capabilities" in status_data
         assert "available_plugins" in status_data
-        
+
         # Verify the data structure is correct
         assert isinstance(status_data["call_stations"], list)
         assert isinstance(status_data["contacts"], list)
@@ -115,28 +119,29 @@ class TestDataMismatchBug:
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}
         )
-        
+
         # Complete config flow
         result2 = await hass.config_entries.flow.async_configure(
             result["flow_id"],
             {
-                CONF_HOST: "localhost", 
+                CONF_HOST: "localhost",
                 CONF_PORT: 50051,
             },
         )
-        
+
         # Should create entry successfully
         from homeassistant.data_entry_flow import FlowResultType
+
         assert result2.get("type") == FlowResultType.CREATE_ENTRY
-        
+
         # Get the created config entry
         config_entries = hass.config_entries.async_entries(DOMAIN)
         assert len(config_entries) == 1
         config_entry = config_entries[0]
-        
+
         # Wait for integration to fully load
         await hass.async_block_till_done()
-        
+
         # Verify integration loaded successfully
         assert config_entry.state.name == "LOADED"
 
@@ -151,7 +156,7 @@ class TestDataMismatchBug:
             # The sensor platform setup has already been called during integration setup
             # We can see from the logs that it completed without the old "NoneType: None" error
             # Instead we get the expected warning: "No Call Assist entities found from broker"
-            
+
             # Bug is fixed - the data structure is now correct and entities can be created
             # The number depends on broker configuration (0 is valid for unconfigured broker)
 
@@ -160,7 +165,9 @@ class TestDataMismatchBug:
             raise
         finally:
             # Clean up
-            unload_result = await hass.config_entries.async_unload(config_entry.entry_id)
+            unload_result = await hass.config_entries.async_unload(
+                config_entry.entry_id
+            )
             assert unload_result is True
 
 
