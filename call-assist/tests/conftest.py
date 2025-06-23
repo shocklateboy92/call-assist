@@ -29,9 +29,11 @@ logger = logging.getLogger(__name__)
 @pytest.fixture()
 def enable_socket():
     """Work-around pytest-socket to allow network requests in E2E tests"""
+    _enable_socket()
+
+def _enable_socket():
     socket.socket = pytest_socket._true_socket
     socket.socket.connect = pytest_socket._true_connect
-
 
 def is_port_available(port: int) -> bool:
     """Check if a port is available for binding"""
@@ -112,9 +114,11 @@ def _stream_broker_logs(process, logger):
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker subprocess"""
-    # Enable sockets for broker operations
-    socket.socket = pytest_socket._true_socket
-    socket.socket.connect = pytest_socket._true_connect
+
+    # Ensure sockets are enabled for broker operations
+    # Calling this manually because a session-scoped fixture
+    # can not depend on a function-scoped fixture directly.
+    _enable_socket()
     
     broker_port = 50051
     
@@ -182,8 +186,8 @@ async def broker_server(broker_process):
     # Ensure sockets are enabled for broker operations
     # Calling this manually because a session-scoped fixture
     # can not depend on a function-scoped fixture directly.
-    enable_socket()  
-    
+    _enable_socket()
+
     broker_port = 50051
     
     # Create client connection to the session-scoped broker
