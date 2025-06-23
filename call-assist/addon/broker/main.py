@@ -34,7 +34,7 @@ from proto_gen.callassist.plugin import (
     CallStartRequest, CallStartResponse,
     CallEndRequest, CallEndResponse
 )
-from .plugin_manager import PluginManager, PluginConfiguration, PluginState
+from plugin_manager import PluginManager, PluginConfiguration, PluginState
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 
 # Set up logging
@@ -797,7 +797,7 @@ async def serve():
     try:
         server = Server([broker])  # grpclib server
         
-        listen_addr = "127.0.0.1"
+        listen_addr = "0.0.0.0"
         listen_port = 50051
         
         logger.info(f"Starting Call Assist Broker on {listen_addr}:{listen_port}")
