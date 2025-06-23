@@ -1,9 +1,8 @@
-grpcio>=1.72.1
-grpcio-tools>=1.72.1
+betterproto[compiler]==2.0.0b7
+grpclib>=0.4.7
+pydantic>=2.0.0
 asyncio
 logging
 pyyaml>=6.0.2
-mypy-protobuf>=3.6.0
-types-protobuf>=6.30.2.20250516
 dacite>=1.9.2
 dataclasses_jsonschema>=2.16.0

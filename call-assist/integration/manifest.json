@@ -7,9 +7,9 @@
   "dependencies": [],
   "codeowners": ["@shocklateboy92"],
   "requirements": [
-    "grpcio>=1.72.1",
-    "grpcio-tools>=1.72.1",
-    "protobuf>=6.30.0"
+    "betterproto==2.0.0b7",
+    "grpclib>=0.4.7",
+    "pydantic>=2.0.0"
   ],
   "config_flow": true,
   "iot_class": "local_push",
