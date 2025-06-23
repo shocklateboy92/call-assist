@@ -8,9 +8,9 @@ from fastapi.responses import RedirectResponse
 import uvicorn
 from nicegui import ui
 
-from web_ui import set_broker_reference, setup_ui_routes
-from database import init_database, get_setting
-from models import get_setting
+from addon.broker.web_ui import set_broker_reference, setup_ui_routes
+from addon.broker.database import init_database, get_setting
+from addon.broker.models import get_setting
 
 logger = logging.getLogger(__name__)
 

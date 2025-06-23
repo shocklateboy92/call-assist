@@ -36,7 +36,7 @@ where = ["."]
 include = ["proto_gen*", "addon*", "integration*"]
 
 [project.scripts]
-call-assist-broker = "call_assist.broker.main:main"
+call-assist-broker = "addon.broker.main:main"
 
 [tool.mypy]
 python_version = "3.11"

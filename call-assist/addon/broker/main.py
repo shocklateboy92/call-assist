@@ -34,10 +34,10 @@ from proto_gen.callassist.plugin import (
     CallStartRequest, CallStartResponse,
     CallEndRequest, CallEndResponse
 )
-from plugin_manager import PluginManager, PluginConfiguration, PluginState
+from addon.broker.plugin_manager import PluginManager, PluginConfiguration, PluginState
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-from database import init_database, db_manager
-from models import (
+from addon.broker.database import init_database, db_manager
+from addon.broker.models import (
     Account, get_all_accounts, get_accounts_by_protocol, 
     get_account_by_protocol_and_id, save_account, delete_account,
     log_call_start, log_call_end
@@ -853,27 +853,39 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
         logger.info(f"Plugin {protocol} health: {'healthy' if healthy else 'unhealthy'} - {message}")
         # Note: Health status is reported via StreamHealthStatus when requested
 
-async def serve():
-    """Start the broker gRPC server and web UI server using grpclib"""
+async def serve(grpc_host: str = "0.0.0.0", grpc_port: int = 50051, web_host: str = "0.0.0.0", web_port: int = 8080, db_path: str = None):
+    """Start the broker gRPC server and web UI server using grpclib
+    
+    Args:
+        grpc_host: Host for gRPC server
+        grpc_port: Port for gRPC server
+        web_host: Host for web UI server
+        web_port: Port for web UI server
+        db_path: Path for SQLite database (optional)
+    """
     broker = CallAssistBroker()
     
     try:
+        # Set database path if provided
+        if db_path:
+            from addon.broker.database import set_database_path
+            set_database_path(db_path)
+        
         # Initialize gRPC server
         server = Server([broker])  # grpclib server
         
-        listen_addr = "0.0.0.0"
-        listen_port = 50051
-        
-        logger.info(f"Starting Call Assist Broker on {listen_addr}:{listen_port}")
+        logger.info(f"Starting Call Assist Broker on {grpc_host}:{grpc_port}")
         logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
         
         # Start gRPC server
-        await server.start(listen_addr, listen_port)
-        logger.info(f"gRPC server started on {listen_addr}:{listen_port}")
+        await server.start(grpc_host, grpc_port)
+        logger.info(f"gRPC server started on {grpc_host}:{grpc_port}")
         
         # Initialize and start web UI server
-        from web_server import create_web_server
+        from addon.broker.web_server import create_web_server
         web_server = create_web_server(broker)
+        web_server.host = web_host
+        web_server.port = web_port
         
         # Start web server in background task
         web_server_task = asyncio.create_task(web_server.start())

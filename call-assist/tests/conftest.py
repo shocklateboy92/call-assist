@@ -6,11 +6,10 @@ This module contains broker-related fixtures that are used across multiple test 
 """
 
 import os
-import time
 import socket
 import logging
-import subprocess
-import threading
+import asyncio
+import tempfile
 
 import pytest
 import pytest_asyncio
@@ -49,134 +48,90 @@ def is_port_available(port: int) -> bool:
             return False
 
 
-def _stream_broker_logs(process, logger):
-    """Stream broker subprocess logs to the test logger"""
-    try:
-        for line in iter(process.stdout.readline, ''):
-            if not line:
-                break
-            
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Try to parse structured log line: "2025-06-18 05:23:57 [    INFO] main: Starting..."
-            # Extract log level and message for proper forwarding
-            if '[' in line and ']' in line:
-                try:
-                    # Find the last occurrence of [ ] pattern (in case there are multiple)
-                    bracket_pairs = []
-                    start = 0
-                    while True:
-                        start_bracket = line.find('[', start)
-                        if start_bracket == -1:
-                            break
-                        end_bracket = line.find(']', start_bracket)
-                        if end_bracket == -1:
-                            break
-                        bracket_pairs.append((start_bracket, end_bracket))
-                        start = end_bracket + 1
-                    
-                    if bracket_pairs:
-                        # Use the last bracket pair (should be the log level)
-                        start_bracket, end_bracket = bracket_pairs[-1]
-                        level_part = line[start_bracket+1:end_bracket].strip()
-                        
-                        # Map broker log levels to our logger
-                        level_map = {
-                            'DEBUG': logging.DEBUG,
-                            'INFO': logging.INFO,
-                            'WARNING': logging.WARNING,
-                            'WARN': logging.WARNING,
-                            'ERROR': logging.ERROR,
-                            'CRITICAL': logging.CRITICAL
-                        }
-                        
-                        # Check if this looks like a log level
-                        if level_part in level_map:
-                            message_part = line[end_bracket+1:].strip()
-                            log_level = level_map[level_part]
-                            logger.log(log_level, "[BROKER] %s", message_part)
-                            continue
-                            
-                except (ValueError, IndexError):
-                    pass
-            
-            # Fallback: log the entire line as INFO
-            logger.info("[BROKER] %s", line)
-            
-    except Exception as e:
-        logger.error("Error streaming broker logs: %s", e)
-    finally:
-        logger.debug("Broker log streaming thread ended")
+def find_available_port() -> int:
+    """Find an available port for binding"""
+    # Work-around pytest-socket to allow network requests
+    socket.socket = pytest_socket._true_socket
+    socket.socket.connect = pytest_socket._true_connect
+    
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(('localhost', 0))
+        return sock.getsockname()[1]
 
 
-@pytest.fixture(scope="session")
-def broker_process():
-    """Session-scoped broker subprocess"""
-
+@pytest_asyncio.fixture(scope="session")
+async def broker_process():
+    """Session-scoped in-process broker"""
+    
     # Ensure sockets are enabled for broker operations
-    # Calling this manually because a session-scoped fixture
-    # can not depend on a function-scoped fixture directly.
     _enable_socket()
     
-    broker_port = 50051
+    # Create temporary database for testing
+    temp_db = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+    temp_db.close()
+    db_path = temp_db.name
     
-    # Check if broker is already running
-    if not is_port_available(broker_port):
-        logger.info("Using existing broker server on port %d", broker_port)
-        yield None  # External broker
-        return
+    # Find available ports
+    grpc_port = find_available_port()
+    web_port = find_available_port()
     
-    # Start broker as subprocess
-    logger.info("Starting broker subprocess on port %d", broker_port)
-    broker_script = os.path.join(os.path.dirname(__file__), "..", "addon", "broker", "main.py")
-    broker_dir = os.path.join(os.path.dirname(__file__), "..", "addon", "broker")
-    process = subprocess.Popen([
-        "python", broker_script
-    ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, cwd=broker_dir)
+    logger.info(f"Starting in-process broker: gRPC={grpc_port}, Web={web_port}, DB={db_path}")
     
-    # Start log streaming thread
-    log_thread = threading.Thread(
-        target=_stream_broker_logs,
-        args=(process, logger),
-        daemon=True,
-        name="BrokerLogStreamer"
+    # Import broker serve function directly
+    from addon.broker.main import serve
+    
+    # Start broker in background task
+    server_task = asyncio.create_task(
+        serve(
+            grpc_host="localhost",
+            grpc_port=grpc_port,
+            web_host="localhost", 
+            web_port=web_port,
+            db_path=db_path
+        )
     )
-    log_thread.start()
-    logger.debug("Started broker log streaming thread")
     
     # Wait for server to start
     max_retries = 20
     for _ in range(max_retries):
-        if not is_port_available(broker_port):
+        if not is_port_available(grpc_port):
             break
-        time.sleep(0.5)
+        await asyncio.sleep(0.1)
     else:
-        if process:
-            process.terminate()
-            process.wait()
+        server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
         raise RuntimeError("Broker server failed to start within timeout")
     
-    logger.info("Broker subprocess started (PID: %d)", process.pid)
+    logger.info(f"In-process broker started on ports gRPC={grpc_port}, Web={web_port}")
     
-    yield process
+    # Return broker info instead of process
+    broker_info = {
+        'grpc_port': grpc_port,
+        'web_port': web_port,
+        'db_path': db_path,
+        'task': server_task
+    }
+    
+    yield broker_info
     
     # Cleanup
-    if process:
-        logger.info("Shutting down broker subprocess...")
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
-        logger.info("Broker subprocess shutdown complete")
+    logger.info("Shutting down in-process broker...")
+    server_task.cancel()
+    try:
+        await server_task
+    except asyncio.CancelledError:
+        pass
+    
+    # Clean up temporary database
+    try:
+        os.unlink(db_path)
+    except OSError:
+        pass
         
-    # Log thread will automatically end when process terminates (daemon=True)
-    if log_thread and log_thread.is_alive():
-        logger.debug("Waiting for broker log streaming thread to finish...")
-        log_thread.join(timeout=2)
+    logger.info("In-process broker shutdown complete")
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -184,11 +139,10 @@ async def broker_server(broker_process):
     """Get broker connection for each test"""
 
     # Ensure sockets are enabled for broker operations
-    # Calling this manually because a session-scoped fixture
-    # can not depend on a function-scoped fixture directly.
     _enable_socket()
 
-    broker_port = 50051
+    # Get port from broker process info
+    broker_port = broker_process['grpc_port']
     
     # Create client connection to the session-scoped broker
     channel = Channel(host='localhost', port=broker_port)
@@ -208,5 +162,5 @@ def call_assist_integration(monkeypatch) -> None:
     monkeypatch.setattr(
         pytest_homeassistant_custom_component.common,
         "get_test_config_dir",
-        lambda _add_path="": "/workspaces/universal/call-assist/config/homeassistant",
+        lambda: "/workspaces/universal/call-assist/config/homeassistant",
     )

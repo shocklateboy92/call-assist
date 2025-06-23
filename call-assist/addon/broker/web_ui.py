@@ -3,12 +3,12 @@
 from nicegui import ui
 import logging
 
-from models import (
+from addon.broker.models import (
     Account, get_all_accounts,
     get_account_by_protocol_and_id, save_account, delete_account,
     get_setting, save_setting, get_call_history
 )
-from database import get_db_stats
+from addon.broker.database import get_db_stats
 
 logger = logging.getLogger(__name__)
 

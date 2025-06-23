@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 from sqlmodel import create_engine, Session, select
-from models import (
+from addon.broker.models import (
     SQLModel, Account, BrokerSettings, CallLog,
     get_session, save_setting, get_setting
 )
@@ -195,6 +195,12 @@ class DatabaseManager:
 
 # Global database manager instance
 db_manager = DatabaseManager()
+
+
+def set_database_path(path: str):
+    """Set the database path for the global database manager"""
+    global db_manager
+    db_manager = DatabaseManager(path)
 
 
 async def init_database():

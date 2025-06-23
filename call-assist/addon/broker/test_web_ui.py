@@ -6,8 +6,8 @@ from sqlmodel import create_engine, Session, SQLModel
 import tempfile
 import os
 
-from models import Account, BrokerSettings, CallLog
-from database import DatabaseManager
+from addon.broker.models import Account, BrokerSettings, CallLog
+from addon.broker.database import DatabaseManager
 
 
 @pytest.fixture
@@ -21,7 +21,7 @@ def temp_db():
     SQLModel.metadata.create_all(engine)
     
     # Patch the global database functions to use test database
-    import models
+    import addon.broker.models as models
     original_engine = models.engine
     models.engine = engine
     
@@ -37,7 +37,7 @@ def temp_db():
 @pytest.fixture
 def sample_account(temp_db):
     """Create a sample account for testing"""
-    from models import save_account
+    from addon.broker.models import save_account
     
     account = Account(
         protocol="matrix",
@@ -56,7 +56,7 @@ class TestDatabaseModels:
     
     def test_account_model(self, temp_db):
         """Test Account model functionality"""
-        from models import save_account, get_account_by_protocol_and_id
+        from addon.broker.models import save_account, get_account_by_protocol_and_id
         
         # Create account
         account = Account(
@@ -82,7 +82,7 @@ class TestDatabaseModels:
     
     def test_call_log_model(self, temp_db):
         """Test CallLog model functionality"""
-        from models import log_call_start, log_call_end, get_call_history
+        from addon.broker.models import log_call_start, log_call_end, get_call_history
         
         # Log call start
         call_log = log_call_start(
@@ -114,7 +114,7 @@ class TestFormGeneration:
     
     def test_form_field_creation(self):
         """Test FormField creation and validation"""
-        from form_generator import FormField
+        from addon.broker.form_generator import FormField
         from nicegui import ui
         
         field_config = {
@@ -146,7 +146,7 @@ class TestFormGeneration:
     
     def test_broker_settings_schema(self):
         """Test predefined broker settings schema"""
-        from form_generator import BROKER_SETTINGS_SCHEMA
+        from addon.broker.form_generator import BROKER_SETTINGS_SCHEMA
         
         assert "display_name" in BROKER_SETTINGS_SCHEMA
         assert "setting_fields" in BROKER_SETTINGS_SCHEMA
@@ -166,7 +166,7 @@ async def test_database_manager():
         db_path = f.name
     
     try:
-        from database import DatabaseManager
+        from addon.broker.database import DatabaseManager
         
         db_manager = DatabaseManager(db_path)
         await db_manager.initialize()
