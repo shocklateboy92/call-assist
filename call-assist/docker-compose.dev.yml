@@ -1,7 +1,6 @@
 services:
   devcontainer:
     image: mcr.microsoft.com/devcontainers/base:ubuntu
-    container_name: call-assist-dev
     volumes:
       - ..:/workspaces/universal:cached
       - /var/run/docker.sock:/var/run/docker-host.sock
@@ -14,7 +13,6 @@ services:
 
   homeassistant:
     image: homeassistant/home-assistant:stable
-    container_name: call-assist-ha
     volumes:
       - ./integration:/config/custom_components/call_assist
       - ../runtime/ha_config:/config
@@ -26,7 +24,6 @@ services:
 
   synapse:
     image: matrixdotorg/synapse:latest
-    container_name: call-assist-synapse
     volumes:
       - ../runtime/synapse_data:/data
       - ./config/synapse/homeserver.yaml:/data/homeserver.yaml
@@ -44,7 +41,6 @@ services:
 
   coturn:
     image: coturn/coturn:latest
-    container_name: call-assist-coturn
     volumes:
       - ./config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
     ports:
