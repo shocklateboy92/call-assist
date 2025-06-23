@@ -28,6 +28,7 @@ class TestDataMismatchBug:
         self,
         broker_process,
         hass: HomeAssistant,
+        enable_socket,
     ):
         """Test what the grpc client actually returns vs what sensor platform expects."""
 
@@ -65,6 +66,7 @@ class TestDataMismatchBug:
         self,
         broker_process,
         hass: HomeAssistant,
+        enable_socket,
     ):
         """Test coordinator data vs what sensor platform expects."""
 
@@ -105,6 +107,7 @@ class TestDataMismatchBug:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test sensor platform setup with correct data structure (bug is fixed)."""
 
@@ -140,7 +143,8 @@ class TestDataMismatchBug:
         # This should not crash - the data structure bug is fixed
         try:
             # Get coordinator
-            coordinator = hass.data[DOMAIN][config_entry.entry_id]
+            entry_data = hass.data[DOMAIN][config_entry.entry_id]
+            coordinator = entry_data["coordinator"]
 
             logger.info(f"Coordinator data after setup: {coordinator.data}")
 

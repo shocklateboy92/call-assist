@@ -26,6 +26,7 @@ class TestDeviceBasedAccountManagement:
     @pytest.mark.asyncio
     async def test_broker_device_registration(
         self,
+        enable_socket,
         call_assist_integration: None,
         broker_process,
         hass: HomeAssistant,
@@ -78,6 +79,7 @@ class TestDeviceBasedAccountManagement:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that account devices are created when accounts are added via config flow."""
         # Set up integration
@@ -155,6 +157,7 @@ class TestDeviceBasedAccountManagement:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that account status sensors are created with devices."""
         # Set up integration and add account

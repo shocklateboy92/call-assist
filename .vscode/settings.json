@@ -12,5 +12,6 @@
     "python.analysis.autoImportCompletions": true,
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
-    }
+    },
+    "chat.agent.maxRequests": 2500
 }

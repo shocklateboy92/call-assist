@@ -75,10 +75,20 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: Dict[str, str] = {}
         
         if user_input is not None:
+            # Set unique ID based on broker connection first, regardless of validation
+            unique_id = f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
+            await self.async_set_unique_id(unique_id)
+            self._abort_if_unique_id_configured()
+            
             try:
                 info = await validate_input(self.hass, user_input)
-                self._broker_data = user_input
-                return await self.async_step_account()
+                
+                # Create entry with just broker configuration
+                # Accounts can be added later through services or UI
+                return self.async_create_entry(
+                    title=info["title"],
+                    data=user_input
+                )
             except CannotConnect:
                 errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
@@ -135,6 +145,11 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        """Get the options flow."""
+        return CallAssistOptionsFlow(config_entry)
+
     async def _validate_account(self, account_data: Dict[str, Any]) -> None:
         """Validate account credentials with the broker."""
         client = CallAssistGrpcClient(self._broker_data[CONF_HOST], self._broker_data[CONF_PORT])
@@ -159,3 +174,92 @@ class CallAssistConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 
         finally:
             await client.async_disconnect()
+
+
+class CallAssistOptionsFlow(config_entries.OptionsFlow):
+    """Handle Call Assist options flow."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry):
+        """Initialize options flow."""
+        self.config_entry = config_entry
+        self._protocol_data = {}
+
+    async def async_step_init(
+        self, user_input: Dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Manage the options."""
+        return await self.async_step_account_dashboard(user_input)
+
+    async def async_step_account_dashboard(
+        self, user_input: Dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Show account dashboard."""
+        if user_input is not None:
+            action = user_input.get("action")
+            if action == "add_account":
+                return await self.async_step_select_protocol()
+
+        # Simple dashboard schema for testing
+        data_schema = vol.Schema({
+            vol.Optional("action"): vol.In(["add_account", "manage_accounts"])
+        })
+
+        return self.async_show_form(
+            step_id="account_dashboard",
+            data_schema=data_schema,
+        )
+
+    async def async_step_select_protocol(
+        self, user_input: Dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Select protocol for new account."""
+        if user_input is not None:
+            # Store protocol data and move to credentials step
+            self._protocol_data = user_input
+            return await self.async_step_enter_credentials()
+
+        data_schema = vol.Schema({
+            vol.Required("protocol"): vol.In(["matrix", "xmpp"]),
+            vol.Optional("display_name"): str,
+        })
+
+        return self.async_show_form(
+            step_id="select_protocol",
+            data_schema=data_schema,
+        )
+    
+    async def async_step_enter_credentials(
+        self, user_input: Dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Enter credentials for the account."""
+        if user_input is not None:
+            # Create account device
+            from homeassistant.helpers import device_registry as dr
+            device_registry = dr.async_get(self.hass)
+            
+            protocol = self._protocol_data.get("protocol", "unknown")
+            display_name = self._protocol_data.get("display_name", f"Account ({protocol})")
+            user_id = user_input.get("user_id", "unknown")
+            
+            device_registry.async_get_or_create(
+                config_entry_id=self.config_entry.entry_id,
+                identifiers={(DOMAIN, f"account_{protocol}_{user_id}")},
+                name=f"Call Assist {protocol.title()} Account - {display_name}",
+                manufacturer="Call Assist",
+                model=f"{protocol.title()} Account",
+                via_device=(DOMAIN, f"broker_{self.config_entry.data[CONF_HOST]}:{self.config_entry.data[CONF_PORT]}"),
+            )
+            
+            return self.async_create_entry(title="Account added", data={})
+
+        # Simple credentials schema for testing
+        data_schema = vol.Schema({
+            vol.Required("homeserver"): str,
+            vol.Required("access_token"): str,
+            vol.Required("user_id"): str,
+        })
+
+        return self.async_show_form(
+            step_id="enter_credentials",
+            data_schema=data_schema,
+        )

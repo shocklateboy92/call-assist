@@ -30,11 +30,16 @@ class CallAssistCoordinator(DataUpdateCoordinator[Dict[str, Any]]):
         self._streaming_task: asyncio.Task | None = None
         self._shutdown_event = asyncio.Event()
         self._config_entry = config_entry
+        self.broker_version = "unknown"
         
     async def async_setup(self) -> None:
         """Setup coordinator and start streaming."""
         try:
             await self.client.async_connect()
+            
+            # Get broker status to extract version
+            status = await self.client.async_get_status()
+            self.broker_version = status.get("version", "unknown")
             
             # Push account configuration to broker if available
             await self._push_account_to_broker()

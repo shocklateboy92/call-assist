@@ -16,9 +16,15 @@ from typing import Dict, Any, Optional
 from aiohttp import ClientSession
 
 # Test imports
-import proto_gen.broker_integration_pb2 as bi_pb2
-import proto_gen.common_pb2 as common_pb2
-from google.protobuf import empty_pb2
+from proto_gen.callassist.broker import (
+    BrokerIntegrationStub,
+    ConfigurationRequest,
+    CallRequest,
+    CallTerminateRequest,
+    CredentialsRequest
+)
+from proto_gen.callassist.common import CallState, ContactPresence, MediaCapabilities
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -216,8 +222,10 @@ async def matrix_test_room(broker_server, matrix_test_users):
     caller = matrix_test_users['caller']
     
     # Setup receiver credentials in broker
-    creds_request = bi_pb2.CredentialsRequest(
+    creds_request = CredentialsRequest(
         protocol='matrix',
+        account_id=receiver['user_id'],
+        display_name=receiver['user_id'],
         credentials={
             'access_token': receiver['access_token'],
             'user_id': receiver['user_id'],
@@ -225,7 +233,7 @@ async def matrix_test_room(broker_server, matrix_test_users):
         }
     )
     
-    await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+    await broker_server.update_credentials(creds_request, timeout=10.0)
     
     # Check if a direct chat room already exists
     test_room_id = None
@@ -298,8 +306,8 @@ class TestMatrixPluginIntegration:
         """Test that broker starts up correctly"""
         # Use the broker_server fixture which automatically manages broker lifecycle
         # Test system capabilities (health check equivalent)
-        request = empty_pb2.Empty()
-        response = await broker_server.GetSystemCapabilities(request, timeout=5.0)
+        request = betterproto_lib_pydantic_google_protobuf.Empty()
+        response = await broker_server.get_system_capabilities(request, timeout=5.0)
         
         assert response.broker_capabilities is not None
     
@@ -312,8 +320,10 @@ class TestMatrixPluginIntegration:
         caller = matrix_test_users['caller']
         
         # Send credentials to broker for matrix protocol
-        creds_request = bi_pb2.CredentialsRequest(
+        creds_request = CredentialsRequest(
             protocol='matrix',
+            account_id=caller['user_id'],
+            display_name=caller['user_id'],
             credentials={
                 'access_token': caller['access_token'],
                 'user_id': caller['user_id'],
@@ -321,7 +331,7 @@ class TestMatrixPluginIntegration:
             }
         )
         
-        response = await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        response = await broker_server.update_credentials(creds_request, timeout=10.0)
         
         assert response.success is True
         assert "matrix" in response.message.lower()
@@ -335,7 +345,7 @@ class TestMatrixPluginIntegration:
         caller = matrix_test_users['caller']
         
         # Setup credentials first
-        creds_request = bi_pb2.CredentialsRequest(
+        creds_request = CredentialsRequest(
             protocol='matrix',
             credentials={
                 'access_token': caller['access_token'],
@@ -344,23 +354,23 @@ class TestMatrixPluginIntegration:
             }
         )
         
-        creds_response = await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        creds_response = await broker_server.update_credentials(creds_request, timeout=10.0)
         assert creds_response.success is True
         
         # Initiate a call through broker
-        call_request = bi_pb2.CallRequest(
+        call_request = CallRequest(
             camera_entity_id='camera.test_camera',
             media_player_entity_id='media_player.test_chromecast',
             target_address=matrix_test_room,
             protocol='matrix',
-            preferred_capabilities=common_pb2.MediaCapabilities(
+            preferred_capabilities=MediaCapabilities(
                 video_codecs=['H264'],
                 audio_codecs=['OPUS'],
                 webrtc_support=True
             )
         )
         
-        call_response = await broker_server.InitiateCall(call_request, timeout=10.0)
+        call_response = await broker_server.initiate_call(call_request, timeout=10.0)
         
         assert call_response.success is True
         assert call_response.call_id is not None
@@ -393,11 +403,11 @@ class TestMatrixPluginIntegration:
             assert call_message_found, "No call message or Matrix call event found in room"
         
         # Terminate the call
-        term_request = bi_pb2.CallTerminateRequest(
+        term_request = CallTerminateRequest(
             call_id=call_id
         )
         
-        term_response = await broker_server.TerminateCall(term_request, timeout=10.0)
+        term_response = await broker_server.terminate_call(term_request, timeout=10.0)
         assert term_response.success is True
     
     @pytest.mark.asyncio
@@ -409,7 +419,7 @@ class TestMatrixPluginIntegration:
         caller = matrix_test_users['caller']
         
         # Setup credentials first
-        creds_request = bi_pb2.CredentialsRequest(
+        creds_request = CredentialsRequest(
             protocol='matrix',
             credentials={
                 'access_token': caller['access_token'],
@@ -418,27 +428,27 @@ class TestMatrixPluginIntegration:
             }
         )
         
-        await broker_server.UpdateCredentials(creds_request, timeout=10.0)
+        await broker_server.update_credentials(creds_request, timeout=10.0)
         
         # Try to initiate call to invalid room
-        call_request = bi_pb2.CallRequest(
+        call_request = CallRequest(
             camera_entity_id='camera.test_camera',
             media_player_entity_id='media_player.test_chromecast',
             target_address='!nonexistent:localhost',
             protocol='matrix',
-            preferred_capabilities=common_pb2.MediaCapabilities()
+            preferred_capabilities=MediaCapabilities()
         )
         
-        call_response = await broker_server.InitiateCall(call_request, timeout=10.0)
+        call_response = await broker_server.initiate_call(call_request, timeout=10.0)
         
         # Should fail gracefully - either broker rejects it or plugin reports failure
         # Since broker starts plugin on demand, this may succeed initially but fail later
         if call_response.success:
             # If broker accepts the call, terminate it to clean up
-            term_request = bi_pb2.CallTerminateRequest(
+            term_request = CallTerminateRequest(
                 call_id=call_response.call_id
             )
-            await broker_server.TerminateCall(term_request, timeout=5.0)
+            await broker_server.terminate_call(term_request, timeout=5.0)
 
 
 class TestMatrixPluginStandalone:
@@ -460,8 +470,8 @@ class TestMatrixPluginStandalone:
         # This test validates that the broker can discover and potentially start plugins
         
         # Check system capabilities to see if matrix plugin is available
-        request = empty_pb2.Empty()
-        response = await broker_server.GetSystemCapabilities(request, timeout=5.0)
+        request = betterproto_lib_pydantic_google_protobuf.Empty()
+        response = await broker_server.get_system_capabilities(request, timeout=5.0)
         
         # Look for matrix plugin in available plugins
         matrix_plugin_found = False

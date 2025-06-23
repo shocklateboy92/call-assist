@@ -2,8 +2,6 @@
 
 import asyncio
 import logging
-import grpc
-import grpc.aio
 import subprocess
 import os
 import yaml
@@ -13,11 +11,20 @@ from enum import Enum
 from dataclasses_jsonschema import JsonSchemaMixin
 from dacite import from_dict
 from datetime import datetime
-from google.protobuf import empty_pb2
 
-import proto_gen.call_plugin_pb2 as cp_pb2
-import proto_gen.call_plugin_pb2_grpc as cp_grpc
-import proto_gen.common_pb2 as common_pb2
+from grpclib.client import Channel
+
+from proto_gen.callassist.plugin import (
+    CallPluginStub,
+    CallStartRequest,
+    CallStartResponse,
+    CallEndRequest,
+    CallEndResponse,
+    PluginConfig,
+    PluginStatus
+)
+from proto_gen.callassist.common import CallState
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 logger = logging.getLogger(__name__)
 
@@ -92,8 +99,8 @@ class PluginInstance:
     metadata: PluginMetadata
     plugin_dir: str
     process: Optional[subprocess.Popen] = None
-    channel: Optional[grpc.aio.Channel] = None
-    stub: Optional[cp_grpc.CallPluginStub] = None
+    channel: Optional[Channel] = None
+    stub: Optional[CallPluginStub] = None
     state: PluginState = PluginState.STOPPED
     last_error: Optional[str] = None
     configuration: Optional[PluginConfiguration] = None
@@ -212,19 +219,19 @@ class PluginManager:
             
             # Establish gRPC connection
             port = plugin.metadata.grpc.port
-            plugin.channel = grpc.aio.insecure_channel(f'localhost:{port}')
-            plugin.stub = cp_grpc.CallPluginStub(plugin.channel)
+            plugin.channel = Channel(host='localhost', port=port)
+            plugin.stub = CallPluginStub(plugin.channel)
             
             # Wait for gRPC server to be ready
             health_timeout = plugin.metadata.grpc.health_check_timeout
             for attempt in range(health_timeout * 2):  # 0.5s intervals
                 try:
                     await asyncio.wait_for(
-                        plugin.stub.GetHealth(empty_pb2.Empty()),
+                        plugin.stub.get_health(betterproto_lib_pydantic_google_protobuf.Empty()),
                         timeout=1.0
                     )
                     break
-                except (grpc.aio.AioRpcError, asyncio.TimeoutError):
+                except (Exception, asyncio.TimeoutError):
                     if attempt == (health_timeout * 2 - 1):
                         raise
                     await asyncio.sleep(0.5)
@@ -253,10 +260,10 @@ class PluginManager:
             if plugin.stub:
                 try:
                     await asyncio.wait_for(
-                        plugin.stub.Shutdown(empty_pb2.Empty()),
+                        plugin.stub.shutdown(betterproto_lib_pydantic_google_protobuf.Empty()),
                         timeout=5.0
                     )
-                except (grpc.aio.AioRpcError, asyncio.TimeoutError):
+                except (Exception, asyncio.TimeoutError):
                     logger.warning(f"Graceful shutdown failed for {plugin.metadata.protocol}")
             
             # Terminate process
@@ -280,7 +287,7 @@ class PluginManager:
         """Clean up plugin resources"""
         if plugin.channel:
             try:
-                await plugin.channel.close()
+                plugin.channel.close()
             except Exception as e:
                 logger.warning(f"Error closing channel for {plugin.metadata.protocol}: {e}")
             plugin.channel = None
@@ -295,7 +302,7 @@ class PluginManager:
         
         try:
             health = await asyncio.wait_for(
-                plugin.stub.GetHealth(empty_pb2.Empty()),
+                plugin.stub.get_health(betterproto_lib_pydantic_google_protobuf.Empty()),
                 timeout=2.0
             )
             return health.healthy
@@ -322,7 +329,7 @@ class PluginManager:
             return False
         
         try:
-            config = cp_pb2.PluginConfig(
+            config = PluginConfig(
                 protocol=protocol,
                 account_id="", # TODO: Add account_id parameter to initialize_plugin
                 display_name="", # TODO: Add display_name parameter to initialize_plugin
@@ -330,7 +337,7 @@ class PluginManager:
                 settings=settings or {}
             )
             
-            response = await plugin.stub.Initialize(config)
+            response = await plugin.stub.initialize(config)
             
             if response.initialized:
                 plugin.configuration = PluginConfiguration(
@@ -349,7 +356,7 @@ class PluginManager:
             logger.error(f"Failed to initialize plugin {protocol}: {e}")
             return False
     
-    async def start_call(self, protocol: str, call_request: cp_pb2.CallStartRequest) -> Optional[cp_pb2.CallStartResponse]:
+    async def start_call(self, protocol: str, call_request: CallStartRequest) -> Optional[CallStartResponse]:
         """Start a call using the specified protocol plugin"""
         if not await self.ensure_plugin_running(protocol):
             return None
@@ -359,13 +366,13 @@ class PluginManager:
             return None
         
         try:
-            response = await plugin.stub.StartCall(call_request)
+            response = await plugin.stub.start_call(call_request)
             return response
         except Exception as e:
             logger.error(f"Failed to start call on {protocol}: {e}")
             return None
     
-    async def end_call(self, protocol: str, call_request: cp_pb2.CallEndRequest) -> Optional[cp_pb2.CallEndResponse]:
+    async def end_call(self, protocol: str, call_request: CallEndRequest) -> Optional[CallEndResponse]:
         """End a call using the specified protocol plugin"""
         if protocol not in self.plugins:
             return None
@@ -375,7 +382,7 @@ class PluginManager:
             return None
         
         try:
-            response = await plugin.stub.EndCall(call_request)
+            response = await plugin.stub.end_call(call_request)
             return response
         except Exception as e:
             logger.error(f"Failed to end call on {protocol}: {e}")
@@ -424,7 +431,7 @@ class PluginManager:
             return False
         
         try:
-            config = cp_pb2.PluginConfig(
+            config = PluginConfig(
                 protocol=protocol,
                 account_id=account_id,
                 display_name=display_name,
@@ -432,7 +439,7 @@ class PluginManager:
                 settings={}
             )
             
-            response = await plugin.stub.Initialize(config)
+            response = await plugin.stub.initialize(config)
             
             if response.initialized:
                 plugin.configuration = PluginConfiguration(
@@ -459,12 +466,12 @@ class PluginManager:
             return self.plugins[protocol]
         return None
     
-    async def start_call_on_account(self, protocol: str, account_id: str, call_request: cp_pb2.CallStartRequest) -> Optional[cp_pb2.CallStartResponse]:
+    async def start_call_on_account(self, protocol: str, account_id: str, call_request: CallStartRequest) -> Optional[CallStartResponse]:
         """Start a call on a specific account"""
         # For now, just use the main plugin instance
         return await self.start_call(protocol, call_request)
     
-    async def end_call_on_account(self, protocol: str, account_id: str, call_request: cp_pb2.CallEndRequest) -> Optional[cp_pb2.CallEndResponse]:
+    async def end_call_on_account(self, protocol: str, account_id: str, call_request: CallEndRequest) -> Optional[CallEndResponse]:
         """End a call on a specific account"""
         # For now, just use the main plugin instance
         return await self.end_call(protocol, call_request)

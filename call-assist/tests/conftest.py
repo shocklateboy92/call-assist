@@ -16,12 +16,11 @@ import pytest
 import pytest_asyncio
 import pytest_homeassistant_custom_component.common
 import pytest_socket
-import grpc
-import grpc.aio
-from google.protobuf import empty_pb2
+from grpclib.client import Channel
 
-# Test imports
-import proto_gen.broker_integration_pb2_grpc as bi_grpc
+# Test imports - updated for betterproto
+from proto_gen.callassist.broker import BrokerIntegrationStub
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -113,6 +112,10 @@ def _stream_broker_logs(process, logger):
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker subprocess"""
+    # Enable sockets for broker operations
+    socket.socket = pytest_socket._true_socket
+    socket.socket.connect = pytest_socket._true_connect
+    
     broker_port = 50051
     
     # Check if broker is already running
@@ -175,20 +178,25 @@ def broker_process():
 @pytest_asyncio.fixture(scope="function")
 async def broker_server(broker_process):
     """Get broker connection for each test"""
+
+    # Ensure sockets are enabled for broker operations
+    # Calling this manually because a session-scoped fixture
+    # can not depend on a function-scoped fixture directly.
+    enable_socket()  
+    
     broker_port = 50051
     
     # Create client connection to the session-scoped broker
-    channel = grpc.aio.insecure_channel(f'localhost:{broker_port}')
-    stub = bi_grpc.BrokerIntegrationStub(channel)
+    channel = Channel(host='localhost', port=broker_port)
+    stub = BrokerIntegrationStub(channel)
     
     # Verify server is responsive
-    from google.protobuf import empty_pb2
-    await stub.GetSystemCapabilities(empty_pb2.Empty(), timeout=5.0)
+    await stub.get_system_capabilities(betterproto_lib_pydantic_google_protobuf.Empty(), timeout=5.0)
     
     yield stub
     
     # Cleanup just the channel
-    await channel.close()
+    channel.close()
 
 @pytest.fixture
 def call_assist_integration(monkeypatch) -> None:

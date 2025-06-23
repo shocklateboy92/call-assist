@@ -4,20 +4,19 @@ import asyncio
 import logging
 from typing import AsyncIterator, Dict, Any
 
-import grpc
-from grpc import aio as grpc_aio
-from grpc.aio import AioRpcError
+from grpclib.client import Channel
 
-# Import protobuf generated files
-from .proto_gen.broker_integration_pb2_grpc import BrokerIntegrationStub
-from .proto_gen.broker_integration_pb2 import (
+# Import betterproto generated files
+from .proto_gen.callassist.broker import (
+    BrokerIntegrationStub,
     ConfigurationRequest,
     CallRequest,
     CallResponse,
     CallTerminateRequest,
     CredentialsRequest,
 )
-from .proto_gen.common_pb2 import CallState, ContactPresence, CallEvent
+from .proto_gen.callassist.common import CallState, ContactPresence, CallEvent
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 _LOGGER = logging.getLogger(__name__)
 class CallAssistGrpcClient:
@@ -28,21 +27,10 @@ class CallAssistGrpcClient:
         self.host = host
         self.port = port
         self.target = f"{host}:{port}"
-        self.channel: grpc_aio.Channel | None = None
+        self.channel: Channel | None = None
         self.stub: BrokerIntegrationStub | None = None
         self._connected = False
         self._max_retries = 5
-    
-    def _get_channel_options(self) -> list:
-        """Get channel options for long-lived connections."""
-        return [
-            ('grpc.keepalive_time_ms', 30000),
-            ('grpc.keepalive_timeout_ms', 5000),
-            ('grpc.keepalive_permit_without_calls', True),
-            ('grpc.http2.max_pings_without_data', 0),
-            ('grpc.max_receive_message_length', 100 * 1024 * 1024),  # 100MB
-            ('grpc.max_send_message_length', 100 * 1024 * 1024),     # 100MB
-        ]
     
     async def async_connect(self) -> None:
         """Connect to the gRPC server."""
@@ -50,15 +38,9 @@ class CallAssistGrpcClient:
             return
             
         try:
-            self.channel = grpc_aio.insecure_channel(
-                self.target,
-                options=self._get_channel_options()
-            )
-            
-            # Wait for channel to be ready
-            await asyncio.wait_for(
-                self.channel.channel_ready(),
-                timeout=10.0
+            self.channel = Channel(
+                host=self.host,
+                port=self.port
             )
             
             self.stub = BrokerIntegrationStub(self.channel)
@@ -81,7 +63,7 @@ class CallAssistGrpcClient:
         self.stub = None
         
         if self.channel:
-            await self.channel.close()
+            self.channel.close()
             self.channel = None
     
     async def ensure_connection(self) -> bool:
@@ -122,13 +104,12 @@ class CallAssistGrpcClient:
         
         try:
             # Get entities from broker - this is the new primary data source
-            from google.protobuf import empty_pb2
-            entities_request = empty_pb2.Empty()
-            entities_response = await self.stub.GetEntities(entities_request)
+            entities_request = betterproto_lib_pydantic_google_protobuf.Empty()
+            entities_response = await self.stub.get_entities(entities_request)
             
             # Get system capabilities for additional context
-            capabilities_request = empty_pb2.Empty()
-            capabilities_response = await self.stub.GetSystemCapabilities(capabilities_request)
+            capabilities_request = betterproto_lib_pydantic_google_protobuf.Empty()
+            capabilities_response = await self.stub.get_system_capabilities(capabilities_request)
             
             # Transform entities into the format the integration expects
             call_stations = []
@@ -184,7 +165,7 @@ class CallAssistGrpcClient:
                 ]
             }
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to get status: %s", ex)
             raise
     
@@ -195,17 +176,13 @@ class CallAssistGrpcClient:
         
         try:
             # Status call - use empty request for now
-            from google.protobuf import empty_pb2
-            request = empty_pb2.Empty()  # Empty request for streaming
-            async for event in self.stub.StreamCallEvents(request):
+            request = betterproto_lib_pydantic_google_protobuf.Empty()  # Empty request for streaming
+            async for event in self.stub.stream_call_events(request):
                 yield event
                 
-        except AioRpcError as ex:
-            if ex.code() == grpc.StatusCode.UNAVAILABLE:
-                _LOGGER.warning("Broker connection lost during streaming")
-                self._connected = False
-            else:
-                _LOGGER.error("Streaming error: %s", ex)
+        except Exception as ex:
+            _LOGGER.warning("Broker connection lost during streaming")
+            self._connected = False
             raise
     
     async def make_call(
@@ -228,10 +205,10 @@ class CallAssistGrpcClient:
                 account_id=""  # TODO: Add account selection to make_call
             )
             
-            response = await self.stub.InitiateCall(request)
+            response = await self.stub.initiate_call(request)
             return response.call_id
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to make call: %s", ex)
             raise
     
@@ -242,10 +219,10 @@ class CallAssistGrpcClient:
         
         try:
             request = CallTerminateRequest(call_id=station_id)
-            response = await self.stub.TerminateCall(request)
+            response = await self.stub.terminate_call(request)
             return response.success
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to end call: %s", ex)
             raise
     
@@ -269,10 +246,10 @@ class CallAssistGrpcClient:
                 credentials=credentials
             )
             
-            response = await self.stub.UpdateCredentials(request)
+            response = await self.stub.update_credentials(request)
             return response.success
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to add account: %s", ex)
             raise
     
@@ -287,9 +264,8 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
         
         try:
-            from google.protobuf import empty_pb2
-            capabilities_request = empty_pb2.Empty()
-            capabilities_response = await self.stub.GetSystemCapabilities(capabilities_request)
+            capabilities_request = betterproto_lib_pydantic_google_protobuf.Empty()
+            capabilities_response = await self.stub.get_system_capabilities(capabilities_request)
             
             accounts = {}
             for plugin in capabilities_response.available_plugins:
@@ -309,7 +285,7 @@ class CallAssistGrpcClient:
             
             return accounts
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to get configured accounts: %s", ex)
             raise
     
@@ -319,9 +295,8 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
         
         try:
-            from google.protobuf import empty_pb2
-            request = empty_pb2.Empty()
-            response = await self.stub.GetProtocolSchemas(request)
+            request = betterproto_lib_pydantic_google_protobuf.Empty()
+            response = await self.stub.get_protocol_schemas(request)
             
             schemas = {}
             for schema in response.schemas:
@@ -361,7 +336,7 @@ class CallAssistGrpcClient:
             
             return schemas
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to get protocol schemas: %s", ex)
             raise
     
@@ -420,7 +395,7 @@ class CallAssistGrpcClient:
             _LOGGER.warning("RemoveAccount RPC not yet implemented in broker service")
             return True
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to remove account: %s", ex)
             return False
     
@@ -435,6 +410,6 @@ class CallAssistGrpcClient:
             _LOGGER.warning("ToggleAccount RPC not yet implemented in broker service")
             return True
             
-        except AioRpcError as ex:
+        except Exception as ex:
             _LOGGER.error("Failed to toggle account status: %s", ex)
             return False

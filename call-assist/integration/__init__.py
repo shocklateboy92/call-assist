@@ -34,6 +34,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Failed to connect to Call Assist broker: %s", ex)
         raise ConfigEntryNotReady("Cannot connect to broker") from ex
     
+    # Register broker device
+    device_registry = dr.async_get(hass)
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"broker_{entry.data[CONF_HOST]}:{entry.data[CONF_PORT]}")},
+        name="Call Assist Broker",
+        manufacturer="Call Assist",
+        model="Broker",
+        sw_version=coordinator.broker_version,
+    )
+    
     # Store coordinator
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator

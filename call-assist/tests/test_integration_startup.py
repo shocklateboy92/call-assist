@@ -33,6 +33,7 @@ class TestIntegrationStartup:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test integration startup with a running broker - should succeed."""
         
@@ -50,26 +51,10 @@ class TestIntegrationStartup:
             },
         )
         
-        # Should move to account step
+        # Should create entry after broker validation (new behavior)
         from homeassistant.data_entry_flow import FlowResultType
-        assert result2.get("type") == FlowResultType.FORM
-        assert result2.get("step_id") == "account"
-        
-        # Complete account configuration step
-        result3 = await hass.config_entries.flow.async_configure(
-            result2["flow_id"],
-            {
-                "protocol": "matrix",
-                "account_id": "@test:example.com",
-                "display_name": "Test Account",
-                "homeserver": "https://matrix.example.com",
-                "access_token": "test_access_token_12345",
-                "user_id": "@test:example.com",
-            },
-        )
-        
-        # Should create entry successfully
-        assert result3.get("type") == FlowResultType.CREATE_ENTRY
+        assert result2.get("type") == FlowResultType.CREATE_ENTRY
+        assert result2.get("title") == "Call Assist (localhost)"
         
         # Get the created config entry
         config_entries = hass.config_entries.async_entries(DOMAIN)
@@ -150,6 +135,7 @@ class TestIntegrationStartup:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that sensor platform startup works correctly even with empty data."""
         
@@ -217,6 +203,7 @@ class TestIntegrationStartup:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test the full integration lifecycle using HA's public API."""
         
@@ -290,6 +277,7 @@ class TestIntegrationStartup:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that coordinator handles empty/None data responses correctly."""
         

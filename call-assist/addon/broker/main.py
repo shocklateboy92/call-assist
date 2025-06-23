@@ -2,19 +2,40 @@
 
 import asyncio
 import logging
-import grpc
-import grpc.aio
+import grpclib
+from grpclib.server import Server
 from concurrent import futures
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime
 
-from proto_gen.broker_integration_pb2_grpc import BrokerIntegrationServicer, add_BrokerIntegrationServicer_to_server
-from proto_gen.call_plugin_pb2_grpc import CallPluginServicer
-import proto_gen.broker_integration_pb2 as bi_pb2
-import proto_gen.call_plugin_pb2 as cp_pb2  
-import proto_gen.common_pb2 as common_pb2
-from plugin_manager import PluginManager, PluginConfiguration, PluginState
+# Import betterproto generated classes
+from proto_gen.callassist.broker import (
+    BrokerIntegrationBase,
+    ConfigurationRequest, ConfigurationResponse,
+    CredentialsRequest, CredentialsResponse,
+    CallRequest, CallResponse,
+    CallTerminateRequest, CallTerminateResponse,
+    SystemCapabilities, PluginCapabilities,
+    EntitiesResponse, EntityDefinition, EntityType,
+    ProtocolSchemasResponse, ProtocolSchema,
+    CredentialField, SettingField, FieldType
+)
+from proto_gen.callassist.common import (
+    CallState, CallEvent, CallEventType,
+    ContactUpdate, HealthStatus,
+    EntityUpdate, EntityUpdateType,
+    MediaCapabilities, Resolution,
+    Contact, ContactPresence,
+    ContactUpdateType
+)
+from proto_gen.callassist.plugin import (
+    CallPluginBase, PluginConfig, PluginStatus,
+    CallStartRequest, CallStartResponse,
+    CallEndRequest, CallEndResponse
+)
+from .plugin_manager import PluginManager, PluginConfiguration, PluginState
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -51,10 +72,10 @@ class CallInfo:
     target_address: str
     protocol: str
     account_id: str  # Which account is used for this call
-    state: 'common_pb2.CallState.ValueType'  # common_pb2.CallState enum value
-    preferred_capabilities: Optional['common_pb2.MediaCapabilities'] = None
+    state: CallState  # CallState enum value
+    preferred_capabilities: Optional[MediaCapabilities] = None
 
-class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
+class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     """
     Main broker service that implements both BrokerIntegration (for HA) 
     and CallPlugin (for managing plugins) services.
@@ -68,39 +89,39 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         self.plugin_manager = PluginManager()
         
         # Contact management
-        self.contacts: Dict[str, 'common_pb2.Contact'] = {}  # contact_id -> Contact
+        self.contacts: Dict[str, Contact] = {}  # contact_id -> Contact
         
         # Active event listeners - plugins can register callbacks here
         self.event_listeners: List = []  # For future extensibility
         
-    async def UpdateConfiguration(self, request: bi_pb2.ConfigurationRequest, context) -> bi_pb2.ConfigurationResponse:
+    async def update_configuration(self, configuration_request: ConfigurationRequest) -> ConfigurationResponse:
         """Update system configuration from Home Assistant"""
         try:
-            logger.info(f"Updating configuration: {len(request.camera_entities)} cameras, {len(request.media_player_entities)} media players")
+            logger.info(f"Updating configuration: {len(configuration_request.camera_entities)} cameras, {len(configuration_request.media_player_entities)} media players")
             
             self.configuration = BrokerConfiguration(
-                camera_entities=dict(request.camera_entities),
-                media_player_entities=dict(request.media_player_entities),
-                enabled_protocols=list(request.enabled_protocols)
+                camera_entities=dict(configuration_request.camera_entities),
+                media_player_entities=dict(configuration_request.media_player_entities),
+                enabled_protocols=list(configuration_request.enabled_protocols)
             )
             
-            return bi_pb2.ConfigurationResponse(success=True, message="Configuration updated successfully")
+            return ConfigurationResponse(success=True, message="Configuration updated successfully")
             
         except Exception as e:
             logger.error(f"Configuration update failed: {e}")
-            return bi_pb2.ConfigurationResponse(success=False, message=str(e))
+            return ConfigurationResponse(success=False, message=str(e))
     
-    async def UpdateCredentials(self, request: bi_pb2.CredentialsRequest, context) -> bi_pb2.CredentialsResponse:
+    async def update_credentials(self, credentials_request: CredentialsRequest) -> CredentialsResponse:
         """Update credentials for a specific account"""
         try:
-            logger.info(f"Updating credentials for account: {request.account_id} ({request.protocol})")
-            logger.info(f"Received credentials: {list(request.credentials.keys())}")
+            logger.info(f"Updating credentials for account: {credentials_request.account_id} ({credentials_request.protocol})")
+            logger.info(f"Received credentials: {list(credentials_request.credentials.keys())}")
             
             account_creds = AccountCredentials(
-                protocol=request.protocol,
-                account_id=request.account_id,
-                display_name=request.display_name,
-                credentials=dict(request.credentials),
+                protocol=credentials_request.protocol,
+                account_id=credentials_request.account_id,
+                display_name=credentials_request.display_name,
+                credentials=dict(credentials_request.credentials),
                 last_updated=datetime.now().isoformat()
             )
             
@@ -110,40 +131,40 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             success = await self._notify_plugin_credentials(account_creds)
             
             if success:
-                return bi_pb2.CredentialsResponse(success=True, message=f"Credentials updated for {request.account_id} ({request.protocol})")
+                return CredentialsResponse(success=True, message=f"Credentials updated for {credentials_request.account_id} ({credentials_request.protocol})")
             else:
-                return bi_pb2.CredentialsResponse(success=False, message=f"Plugin initialization failed for {request.account_id} ({request.protocol})")
+                return CredentialsResponse(success=False, message=f"Plugin initialization failed for {credentials_request.account_id} ({credentials_request.protocol})")
             
         except Exception as e:
-            logger.error(f"Credentials update failed for {request.account_id} ({request.protocol}): {e}")
-            return bi_pb2.CredentialsResponse(success=False, message=str(e))
+            logger.error(f"Credentials update failed for {credentials_request.account_id} ({credentials_request.protocol}): {e}")
+            return CredentialsResponse(success=False, message=str(e))
     
-    async def InitiateCall(self, request: bi_pb2.CallRequest, context) -> bi_pb2.CallResponse:
+    async def initiate_call(self, call_request: CallRequest) -> CallResponse:
         """Initiate a new call"""
         try:
             # Validate protocol exists
-            if request.protocol not in self.plugin_manager.plugins:
-                return bi_pb2.CallResponse(
+            if call_request.protocol not in self.plugin_manager.plugins:
+                return CallResponse(
                     success=False, 
                     call_id="", 
-                    message=f"Unknown protocol: {request.protocol}"
+                    message=f"Unknown protocol: {call_request.protocol}"
                 )
             
             self.call_counter += 1
             call_id = f"call_{self.call_counter}"
             
-            logger.info(f"Initiating call {call_id}: {request.protocol} to {request.target_address}")
+            logger.info(f"Initiating call {call_id}: {call_request.protocol} to {call_request.target_address}")
             
             # Store call information
             call_info = CallInfo(
                 call_id=call_id,
-                camera_entity_id=request.camera_entity_id,
-                media_player_entity_id=request.media_player_entity_id,
-                target_address=request.target_address,
-                protocol=request.protocol,
-                account_id=request.account_id,  # Store which account to use
-                state=common_pb2.CallState.CALL_STATE_INITIATING,
-                preferred_capabilities=request.preferred_capabilities
+                camera_entity_id=call_request.camera_entity_id,
+                media_player_entity_id=call_request.media_player_entity_id,
+                target_address=call_request.target_address,
+                protocol=call_request.protocol,
+                account_id=call_request.account_id,  # Store which account to use
+                state=CallState.INITIATING,
+                preferred_capabilities=call_request.preferred_capabilities
             )
             
             self.active_calls[call_id] = call_info
@@ -151,25 +172,25 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             # Forward to appropriate plugin
             await self._forward_call_to_plugin(call_info)
             
-            return bi_pb2.CallResponse(
+            return CallResponse(
                 success=True,
                 call_id=call_id,
                 message=f"Call {call_id} initiated",
-                initial_state=common_pb2.CallState.CALL_STATE_INITIATING
+                initial_state=CallState.INITIATING
             )
             
         except Exception as e:
             logger.error(f"Call initiation failed: {e}")
-            return bi_pb2.CallResponse(success=False, call_id="", message=str(e))
+            return CallResponse(success=False, call_id="", message=str(e))
     
-    async def TerminateCall(self, request: bi_pb2.CallTerminateRequest, context) -> bi_pb2.CallTerminateResponse:
+    async def terminate_call(self, call_terminate_request: CallTerminateRequest) -> CallTerminateResponse:
         """Terminate an active call"""
         try:
-            call_id = request.call_id
+            call_id = call_terminate_request.call_id
             logger.info(f"Terminating call {call_id}")
             
             if call_id not in self.active_calls:
-                return bi_pb2.CallTerminateResponse(success=False, message=f"Call {call_id} not found")
+                return CallTerminateResponse(success=False, message=f"Call {call_id} not found")
             
             call_info = self.active_calls[call_id]
             
@@ -179,21 +200,21 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             # Remove from active calls
             del self.active_calls[call_id]
             
-            return bi_pb2.CallTerminateResponse(success=True, message=f"Call {call_id} terminated")
+            return CallTerminateResponse(success=True, message=f"Call {call_id} terminated")
             
         except Exception as e:
             logger.error(f"Call termination failed: {e}")
-            return bi_pb2.CallTerminateResponse(success=False, message=str(e))
+            return CallTerminateResponse(success=False, message=str(e))
     
-    async def StreamCallEvents(self, request, context):
+    async def stream_call_events(self, betterproto_lib_pydantic_google_protobuf_empty) -> AsyncIterator[CallEvent]:
         """Stream current call events and close"""
         logger.info("Sending current call events")
         
         try:
             # Send current active calls
             for call_id, call_info in self.active_calls.items():
-                call_event = common_pb2.CallEvent(
-                    type=common_pb2.CallEventType.CALL_EVENT_INITIATED,
+                call_event = CallEvent(
+                    type=CallEventType.CALL_EVENT_INITIATED,
                     call_id=call_id,
                     state=call_info.state,
                     metadata={"status": f"Call {call_id} active"}
@@ -205,15 +226,15 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         except Exception as e:
             logger.error(f"Call event streaming failed: {e}")
     
-    async def StreamContactUpdates(self, request, context):
+    async def stream_contact_updates(self, betterproto_lib_pydantic_google_protobuf_empty) -> AsyncIterator[ContactUpdate]:
         """Stream current contacts and close"""
         logger.info("Sending current contacts")
         
         try:
             # Send current contact list
             for contact in self.contacts.values():
-                contact_update = common_pb2.ContactUpdate(
-                    type=common_pb2.ContactUpdateType.CONTACT_UPDATE_INITIAL_LIST,
+                contact_update = ContactUpdate(
+                    type=ContactUpdateType.CONTACT_UPDATE_INITIAL_LIST,
                     contact=contact
                 )
                 yield contact_update
@@ -223,13 +244,13 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         except Exception as e:
             logger.error(f"Contact update streaming failed: {e}")
     
-    async def StreamHealthStatus(self, request, context):
+    async def stream_health_status(self, betterproto_lib_pydantic_google_protobuf_empty) -> AsyncIterator[HealthStatus]:
         """Stream current health status and close"""
         logger.info("Sending current health status")
         
         try:
             # Send current health status
-            health = common_pb2.HealthStatus(
+            health = HealthStatus(
                 healthy=True,
                 component="broker",
                 message="Broker running normally"
@@ -241,7 +262,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         except Exception as e:
             logger.error(f"Health status streaming failed: {e}")
     
-    async def GetEntities(self, request, context) -> bi_pb2.EntitiesResponse:
+    async def get_entities(self, betterproto_lib_pydantic_google_protobuf_empty) -> EntitiesResponse:
         """Get all entities that should be exposed to Home Assistant"""
         try:
             entities = []
@@ -263,10 +284,10 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                                 break
                         
                         # Create call station entity
-                        station_entity = bi_pb2.EntityDefinition(
+                        station_entity = EntityDefinition(
                             entity_id=station_id,
                             name=f"{camera_name} + {media_player_name}",
-                            entity_type=bi_pb2.EntityType.ENTITY_TYPE_CALL_STATION,
+                            entity_type=EntityType.CALL_STATION,
                             state=current_state,
                             attributes={
                                 "camera_entity": camera_entity_id,
@@ -282,10 +303,10 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             
             # Create contact entities from discovered contacts
             for contact_id, contact in self.contacts.items():
-                contact_entity = bi_pb2.EntityDefinition(
+                contact_entity = EntityDefinition(
                     entity_id=contact_id,
                     name=contact.display_name,
-                    entity_type=bi_pb2.EntityType.ENTITY_TYPE_CONTACT,
+                    entity_type=EntityType.CONTACT,
                     state=self._presence_to_availability(contact.presence),
                     attributes={
                         "protocol": contact.protocol,
@@ -305,10 +326,10 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 configured_accounts = self.get_configured_accounts(protocol)
                 is_configured = len(configured_accounts) > 0
                 
-                status_entity = bi_pb2.EntityDefinition(
+                status_entity = EntityDefinition(
                     entity_id=f"plugin_{protocol}",
                     name=f"{protocol.title()} Plugin",
-                    entity_type=bi_pb2.EntityType.ENTITY_TYPE_PLUGIN_STATUS,
+                    entity_type=EntityType.PLUGIN_STATUS,
                     state=self._plugin_state_to_entity_state(plugin_state, is_configured),
                     attributes={
                         "protocol": protocol,
@@ -322,10 +343,10 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 entities.append(status_entity)
             
             # Create broker status entity
-            broker_entity = bi_pb2.EntityDefinition(
+            broker_entity = EntityDefinition(
                 entity_id="broker_status",
                 name="Call Assist Broker",
-                entity_type=bi_pb2.EntityType.ENTITY_TYPE_BROKER_STATUS,
+                entity_type=EntityType.BROKER_STATUS,
                 state="online",
                 attributes={
                     "active_calls": str(len(self.active_calls)),
@@ -342,30 +363,30 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             entities.append(broker_entity)
             
             logger.info(f"Returning {len(entities)} entities to Home Assistant")
-            return bi_pb2.EntitiesResponse(entities=entities)
+            return EntitiesResponse(entities=entities)
             
         except Exception as e:
             logger.error(f"Entity query failed: {e}")
-            return bi_pb2.EntitiesResponse(entities=[])
+            return EntitiesResponse(entities=[])
     
-    def _call_state_to_entity_state(self, call_state: 'common_pb2.CallState.ValueType') -> str:
-        """Convert protobuf CallState to entity state string"""
-        if call_state == common_pb2.CallState.CALL_STATE_ACTIVE:
+    def _call_state_to_entity_state(self, call_state: CallState) -> str:
+        """Convert CallState to entity state string"""
+        if call_state == CallState.ACTIVE:
             return "in_call"
-        elif call_state in [common_pb2.CallState.CALL_STATE_INITIATING, common_pb2.CallState.CALL_STATE_RINGING]:
+        elif call_state in [CallState.INITIATING, CallState.RINGING]:
             return "ringing"
-        elif call_state == common_pb2.CallState.CALL_STATE_FAILED:
+        elif call_state == CallState.FAILED:
             return "unavailable"
         else:
             return "idle"
     
-    def _presence_to_availability(self, presence: 'common_pb2.ContactPresence.ValueType') -> str:
-        """Convert protobuf ContactPresence to availability string"""
-        if presence == common_pb2.ContactPresence.PRESENCE_ONLINE:
+    def _presence_to_availability(self, presence: ContactPresence) -> str:
+        """Convert ContactPresence to availability string"""
+        if presence == ContactPresence.PRESENCE_ONLINE:
             return "online"
-        elif presence == common_pb2.ContactPresence.PRESENCE_BUSY:
+        elif presence == ContactPresence.PRESENCE_BUSY:
             return "busy"
-        elif presence == common_pb2.ContactPresence.PRESENCE_AWAY:
+        elif presence == ContactPresence.PRESENCE_AWAY:
             return "away"
         else:
             return "offline"
@@ -396,13 +417,13 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         else:
             return "mdi:video-account"
     
-    def _get_contact_icon(self, presence: 'common_pb2.ContactPresence.ValueType') -> str:
+    def _get_contact_icon(self, presence: ContactPresence) -> str:
         """Get icon for contact based on presence"""
-        if presence == common_pb2.ContactPresence.PRESENCE_ONLINE:
+        if presence == ContactPresence.PRESENCE_ONLINE:
             return "mdi:account-voice"
-        elif presence == common_pb2.ContactPresence.PRESENCE_BUSY:
+        elif presence == ContactPresence.PRESENCE_BUSY:
             return "mdi:account-cancel"
-        elif presence == common_pb2.ContactPresence.PRESENCE_OFFLINE:
+        elif presence == ContactPresence.PRESENCE_OFFLINE:
             return "mdi:account-off"
         else:
             return "mdi:account-question"
@@ -418,14 +439,14 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         else:
             return "mdi:lan-disconnect"
 
-    async def GetSystemCapabilities(self, request, context) -> bi_pb2.SystemCapabilities:
+    async def get_system_capabilities(self, betterproto_lib_pydantic_google_protobuf_empty) -> SystemCapabilities:
         """Get current system capabilities"""
         try:
             # Basic broker capabilities
-            broker_caps = common_pb2.MediaCapabilities(
+            broker_caps = MediaCapabilities(
                 video_codecs=["H264", "VP8"],
                 audio_codecs=["OPUS", "G711"],
-                supported_resolutions=[common_pb2.Resolution(width=1920, height=1080, framerate=30)],
+                supported_resolutions=[Resolution(width=1920, height=1080, framerate=30)],
                 webrtc_support=True
             )
             
@@ -442,7 +463,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 if caps:
                     # Plugin capabilities already have ResolutionConfig objects, convert to protobuf
                     resolutions = [
-                        common_pb2.Resolution(
+                        Resolution(
                             width=res.width, 
                             height=res.height, 
                             framerate=res.framerate
@@ -450,7 +471,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         for res in caps.supported_resolutions
                     ]
                     
-                    plugin_media_caps = common_pb2.MediaCapabilities(
+                    plugin_media_caps = MediaCapabilities(
                         video_codecs=caps.video_codecs,
                         audio_codecs=caps.audio_codecs,
                         supported_resolutions=resolutions,
@@ -458,10 +479,10 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                     )
                 else:
                     # Default fallback resolution
-                    plugin_media_caps = common_pb2.MediaCapabilities(
+                    plugin_media_caps = MediaCapabilities(
                         video_codecs=[],
                         audio_codecs=[],
-                        supported_resolutions=[common_pb2.Resolution(width=1280, height=720, framerate=30)],
+                        supported_resolutions=[Resolution(width=1280, height=720, framerate=30)],
                         webrtc_support=False
                     )
                 
@@ -469,7 +490,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 configured_accounts = self.get_configured_accounts(protocol)
                 if configured_accounts:
                     for account_creds in configured_accounts:
-                        plugin_caps.append(bi_pb2.PluginCapabilities(
+                        plugin_caps.append(PluginCapabilities(
                             protocol=protocol,
                             account_id=account_creds.account_id,
                             display_name=account_creds.display_name,
@@ -479,7 +500,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         ))
                 else:
                     # No accounts configured, show protocol as unavailable
-                    plugin_caps.append(bi_pb2.PluginCapabilities(
+                    plugin_caps.append(PluginCapabilities(
                         protocol=protocol,
                         account_id="",
                         display_name=f"{protocol.title()} (Not Configured)",
@@ -487,16 +508,16 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         capabilities=plugin_media_caps
                     ))
             
-            return bi_pb2.SystemCapabilities(
+            return SystemCapabilities(
                 broker_capabilities=broker_caps,
                 available_plugins=plugin_caps
             )
             
         except Exception as e:
             logger.error(f"Capability query failed: {e}")
-            return bi_pb2.SystemCapabilities()
+            return SystemCapabilities()
     
-    async def GetProtocolSchemas(self, request, context) -> bi_pb2.ProtocolSchemasResponse:
+    async def get_protocol_schemas(self, betterproto_lib_pydantic_google_protobuf_empty) -> ProtocolSchemasResponse:
         """Get configuration schemas for all available protocols"""
         try:
             schemas = []
@@ -510,13 +531,13 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                 schema = self._generate_protocol_schema(protocol, plugin_metadata)
                 schemas.append(schema)
             
-            return bi_pb2.ProtocolSchemasResponse(schemas=schemas)
+            return ProtocolSchemasResponse(schemas=schemas)
             
         except Exception as e:
             logger.error(f"Protocol schema query failed: {e}")
-            return bi_pb2.ProtocolSchemasResponse(schemas=[])
+            return ProtocolSchemasResponse(schemas=[])
     
-    def _generate_protocol_schema(self, protocol: str, metadata) -> bi_pb2.ProtocolSchema:
+    def _generate_protocol_schema(self, protocol: str, metadata) -> ProtocolSchema:
         """Generate protocol schema from plugin metadata"""
         # Protocol-specific schema definitions
         schema_definitions = {
@@ -528,7 +549,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "homeserver",
                         "display_name": "Homeserver URL",
                         "description": "The Matrix homeserver URL (e.g., https://matrix.org)",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_URL,
+                        "type": FieldType.URL,
                         "required": True,
                         "default_value": "https://matrix.org",
                         "sensitive": False
@@ -537,7 +558,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "access_token",
                         "display_name": "Access Token",
                         "description": "Your Matrix access token. Get this from Element > Settings > Help & About > Advanced.",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_PASSWORD,
+                        "type": FieldType.PASSWORD,
                         "required": True,
                         "default_value": "",
                         "sensitive": True
@@ -546,7 +567,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "user_id",
                         "display_name": "User ID",
                         "description": "Your Matrix user ID (e.g., @username:matrix.org)",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "type": FieldType.STRING,
                         "required": True,
                         "default_value": "",
                         "sensitive": False
@@ -563,7 +584,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "username",
                         "display_name": "Username",
                         "description": "Your XMPP username (without the @domain part)",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "type": FieldType.STRING,
                         "required": True,
                         "default_value": "",
                         "sensitive": False
@@ -572,7 +593,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "password",
                         "display_name": "Password",
                         "description": "Your XMPP account password",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_PASSWORD,
+                        "type": FieldType.PASSWORD,
                         "required": True,
                         "default_value": "",
                         "sensitive": True
@@ -581,7 +602,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "server",
                         "display_name": "Server",
                         "description": "Your XMPP server domain (e.g., jabber.org)",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_STRING,
+                        "type": FieldType.STRING,
                         "required": True,
                         "default_value": "",
                         "sensitive": False
@@ -590,7 +611,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "port",
                         "display_name": "Port",
                         "description": "XMPP server port (usually 5222 for client connections)",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_INTEGER,
+                        "type": FieldType.INTEGER,
                         "required": False,
                         "default_value": "5222",
                         "sensitive": False
@@ -601,7 +622,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
                         "key": "encryption",
                         "display_name": "Encryption",
                         "description": "Connection encryption method",
-                        "type": bi_pb2.FieldType.FIELD_TYPE_SELECT,
+                        "type": FieldType.SELECT,
                         "required": False,
                         "default_value": "starttls",
                         "allowed_values": ["starttls", "direct_tls", "plain"]
@@ -623,7 +644,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         # Convert to protobuf fields
         credential_fields = []
         for field_def in schema_def["credential_fields"]:
-            field = bi_pb2.CredentialField(
+            field = CredentialField(
                 key=field_def["key"],
                 display_name=field_def["display_name"],
                 description=field_def["description"],
@@ -637,7 +658,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         
         setting_fields = []
         for field_def in schema_def.get("setting_fields", []):
-            field = bi_pb2.SettingField(
+            field = SettingField(
                 key=field_def["key"],
                 display_name=field_def["display_name"],
                 description=field_def["description"],
@@ -648,7 +669,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             )
             setting_fields.append(field)
         
-        return bi_pb2.ProtocolSchema(
+        return ProtocolSchema(
             protocol=protocol,
             display_name=schema_def["display_name"],
             description=schema_def["description"],
@@ -700,12 +721,12 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
     async def _forward_call_to_plugin(self, call_info: CallInfo):
         """Forward call request to the appropriate plugin instance"""
         # Create call start request
-        call_request = cp_pb2.CallStartRequest(
+        call_request = CallStartRequest(
             call_id=call_info.call_id,
             target_address=call_info.target_address,
             camera_stream_url="",  # TODO: Get actual camera stream URL
-            camera_capabilities=call_info.preferred_capabilities or common_pb2.MediaCapabilities(),
-            player_capabilities=common_pb2.MediaCapabilities()  # TODO: Get actual player capabilities
+            camera_capabilities=call_info.preferred_capabilities or MediaCapabilities(),
+            player_capabilities=MediaCapabilities()  # TODO: Get actual player capabilities
         )
         
         response = await self.plugin_manager.start_call_on_account(
@@ -718,12 +739,12 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             call_info.state = response.state
             logger.info(f"Call {call_info.call_id} forwarded to {call_info.protocol} plugin (account: {call_info.account_id})")
         else:
-            call_info.state = common_pb2.CallState.CALL_STATE_FAILED
+            call_info.state = CallState.FAILED
             logger.error(f"Failed to forward call {call_info.call_id} to {call_info.protocol} plugin (account: {call_info.account_id})")
     
     async def _terminate_call_on_plugin(self, call_info: CallInfo):
         """Request call termination from plugin instance"""
-        call_request = cp_pb2.CallEndRequest(
+        call_request = CallEndRequest(
             call_id=call_info.call_id,
             reason="User requested termination"
         )
@@ -739,13 +760,13 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
             logger.error(f"Failed to terminate call {call_info.call_id} on {call_info.protocol} plugin (account: {call_info.account_id})")
     
     # Direct callback methods for plugins to call
-    def on_contact_added(self, contact: 'common_pb2.Contact'):
+    def on_contact_added(self, contact: Contact):
         """Called by plugins when a new contact is discovered"""
         logger.info(f"Contact added: {contact.display_name} ({contact.protocol})")
         self.contacts[contact.id] = contact
         # Note: Home Assistant will call StreamContactUpdates to get updated state
     
-    def on_contact_updated(self, contact: 'common_pb2.Contact'):
+    def on_contact_updated(self, contact: Contact):
         """Called by plugins when a contact's info changes"""
         logger.info(f"Contact updated: {contact.display_name} ({contact.protocol})")
         self.contacts[contact.id] = contact
@@ -757,7 +778,7 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         self.contacts.pop(contact_id, None)
         # Note: Home Assistant will call StreamContactUpdates to get updated state
     
-    def on_call_state_changed(self, call_id: str, new_state: 'common_pb2.CallState.ValueType', metadata: Optional[Dict[str, str]] = None):
+    def on_call_state_changed(self, call_id: str, new_state: CallState, metadata: Optional[Dict[str, str]] = None):
         """Called by plugins when a call's state changes"""
         if call_id in self.active_calls:
             self.active_calls[call_id].state = new_state
@@ -770,23 +791,22 @@ class CallAssistBroker(BrokerIntegrationServicer, CallPluginServicer):
         # Note: Health status is reported via StreamHealthStatus when requested
 
 async def serve():
-    """Start the broker gRPC server"""
-    server = grpc.aio.server(futures.ThreadPoolExecutor(max_workers=10))
+    """Start the broker gRPC server using grpclib"""
     broker = CallAssistBroker()
     
     try:
-        add_BrokerIntegrationServicer_to_server(broker, server)
-        # Note: CallPlugin service will be added when we implement plugin communication
+        server = Server([broker])  # grpclib server
         
-        listen_addr = '[::]:50051'
-        server.add_insecure_port(listen_addr)
+        listen_addr = "127.0.0.1"
+        listen_port = 50051
         
-        logger.info(f"Starting Call Assist Broker on {listen_addr}")
+        logger.info(f"Starting Call Assist Broker on {listen_addr}:{listen_port}")
         logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
-        await server.start()
+        
+        await server.start(listen_addr, listen_port)
         
         # Wait for termination
-        await server.wait_for_termination()
+        await server.wait_closed()
         
     except asyncio.CancelledError:
         # Handle graceful shutdown
@@ -795,7 +815,6 @@ async def serve():
         # Ensure cleanup always happens
         logger.info("Shutting down broker...")
         await broker.plugin_manager.shutdown_all()
-        await server.stop(5)
 
 async def main():
     """Main entry point with proper signal handling"""

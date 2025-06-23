@@ -29,6 +29,7 @@ class TestCallAssistConfigFlow:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test config flow with a real running broker."""
 
@@ -122,6 +123,7 @@ class TestCallAssistConfigFlow:
         enable_custom_integrations: None,
         broker_process,
         hass: HomeAssistant,
+        enable_socket,
     ):
         """Test that duplicate configurations are rejected."""
         # First successful configuration
@@ -184,7 +186,7 @@ class TestCallAssistConfigFlow:
 
     @pytest.mark.asyncio
     async def test_config_flow_validation_logic(
-        self, broker_process, hass: HomeAssistant
+        self, enable_socket, broker_process, hass: HomeAssistant
     ):
         """Test that the validation logic properly connects to broker."""
         from integration.config_flow import validate_input
@@ -256,6 +258,7 @@ class TestLegacyAccountConfigFlow:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that options flow shows account dashboard."""
         # First create the integration entry
@@ -295,6 +298,7 @@ class TestLegacyAccountConfigFlow:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that config flow works with new device management system."""
         # Create integration entry
@@ -341,6 +345,7 @@ class TestLegacyAccountConfigFlow:
         broker_process,
         hass: HomeAssistant,
         enable_custom_integrations: None,
+        enable_socket,
     ):
         """Test that Matrix protocol schema is loaded correctly from broker."""
         # First create the integration entry
