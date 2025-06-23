@@ -32,7 +32,8 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.python",
-				"ms-vscode.vscode-typescript-next"
+				"ms-vscode.vscode-typescript-next",
+				"ms-python.black-formatter"
 			]
 		}
 	}
