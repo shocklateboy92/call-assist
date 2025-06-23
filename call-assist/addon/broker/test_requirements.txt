@@ -6,3 +6,7 @@ aioresponses>=0.7.4
 fakeredis>=2.10.0
 grpclib>=0.4.7
 betterproto[compiler]==2.0.0b7
+
+# Web UI testing dependencies  
+httpx>=0.24.0
+sqlmodel>=0.0.14

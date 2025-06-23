@@ -157,6 +157,10 @@ class TestWebAPI:
     
     def test_settings_api(self, client, temp_db):
         """Test settings management"""
+        # Initialize database tables for the test
+        from models import create_db_and_tables
+        create_db_and_tables()
+        
         # Update a setting
         setting_data = {"key": "test_setting", "value": "test_value"}
         response = client.put("/api/settings", json=setting_data)
@@ -171,6 +175,10 @@ class TestWebAPI:
     
     def test_database_status(self, client, temp_db):
         """Test database status endpoint"""
+        # Initialize database tables for the test
+        from models import create_db_and_tables
+        create_db_and_tables()
+        
         response = client.get("/api/status/database")
         assert response.status_code == 200
         
@@ -237,7 +245,7 @@ class TestDatabaseModels:
         assert len(history) == 1
         assert history[0].call_id == "test_call_123"
         assert history[0].final_state == "COMPLETED"
-        assert history[0].metadata["duration"] == "120s"
+        assert history[0].get_metadata()["duration"] == "120s"
 
 
 class TestFormGeneration:

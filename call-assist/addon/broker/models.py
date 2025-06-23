@@ -17,18 +17,22 @@ class Account(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    # Unique constraint on protocol + account_id combination
-    __table_args__ = {"sqlite_autoincrement": True}
-    
-    @property
-    def credentials(self) -> Dict[str, str]:
+    def get_credentials(self) -> Dict[str, str]:
         """Get credentials as dictionary"""
         return json.loads(self.credentials_json) if self.credentials_json else {}
     
-    @credentials.setter
-    def credentials(self, value: Dict[str, str]):
+    def set_credentials(self, value: Dict[str, str]):
         """Set credentials from dictionary"""
         self.credentials_json = json.dumps(value)
+    
+    # Make credentials available as property for backward compatibility  
+    @property
+    def credentials(self) -> Dict[str, str]:
+        return self.get_credentials()
+    
+    @credentials.setter
+    def credentials(self, value: Dict[str, str]):
+        self.set_credentials(value)
     
     @property
     def unique_key(self) -> str:
@@ -44,15 +48,22 @@ class BrokerSettings(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    @property
-    def value(self) -> Any:
+    def get_value(self) -> Any:
         """Get value as Python object"""
         return json.loads(self.value_json) if self.value_json else None
     
-    @value.setter
-    def value(self, val: Any):
+    def set_value(self, val: Any):
         """Set value from Python object"""
         self.value_json = json.dumps(val)
+    
+    # Make value available as property for backward compatibility
+    @property
+    def value(self) -> Any:
+        return self.get_value()
+    
+    @value.setter
+    def value(self, val: Any):
+        self.set_value(val)
 
 
 class CallLog(SQLModel, table=True):
@@ -69,15 +80,16 @@ class CallLog(SQLModel, table=True):
     final_state: str  # CallState as string
     metadata_json: Optional[str] = None  # Additional call metadata
     
-    @property
-    def metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> Dict[str, Any]:
         """Get metadata as dictionary"""
         return json.loads(self.metadata_json) if self.metadata_json else {}
     
-    @metadata.setter
-    def metadata(self, value: Dict[str, Any]):
+    def set_metadata(self, value: Dict[str, Any]):
         """Set metadata from dictionary"""
         self.metadata_json = json.dumps(value) if value else None
+    
+    # Note: Removed metadata property due to SQLAlchemy conflict
+    # Use get_metadata() and set_metadata() methods instead
     
     @property
     def duration_seconds(self) -> Optional[int]:
@@ -181,10 +193,13 @@ def save_setting(key: str, value: Any):
         existing = session.query(BrokerSettings).filter(BrokerSettings.key == key).first()
         
         if existing:
-            existing.value = value
+            existing.set_value(value)
             existing.updated_at = datetime.utcnow()
         else:
-            setting = BrokerSettings(key=key, value=value)
+            setting = BrokerSettings(
+                key=key, 
+                value_json=json.dumps(value)  # Set value_json directly
+            )
             session.add(setting)
         
         session.commit()
@@ -218,7 +233,7 @@ def log_call_end(call_id: str, final_state: str, metadata: Optional[Dict[str, An
             call_log.end_time = datetime.utcnow()
             call_log.final_state = final_state
             if metadata:
-                call_log.metadata = metadata
+                call_log.set_metadata(metadata)
             session.commit()
 
 
