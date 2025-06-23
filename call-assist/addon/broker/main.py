@@ -36,6 +36,12 @@ from proto_gen.callassist.plugin import (
 )
 from plugin_manager import PluginManager, PluginConfiguration, PluginState
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+from database import init_database, db_manager
+from models import (
+    Account, get_all_accounts, get_accounts_by_protocol, 
+    get_account_by_protocol_and_id, save_account, delete_account,
+    log_call_start, log_call_end
+)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -83,7 +89,6 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     
     def __init__(self):
         self.configuration: Optional[BrokerConfiguration] = None
-        self.account_credentials: Dict[str, AccountCredentials] = {}  # account_key -> credentials
         self.active_calls: Dict[str, CallInfo] = {}  # call_id -> call_info
         self.call_counter = 0
         self.plugin_manager = PluginManager()
@@ -93,6 +98,15 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
         
         # Active event listeners - plugins can register callbacks here
         self.event_listeners: List = []  # For future extensibility
+        
+        # Database initialization flag
+        self._db_initialized = False
+    
+    async def _ensure_db_initialized(self):
+        """Ensure database is initialized"""
+        if not self._db_initialized:
+            await init_database()
+            self._db_initialized = True
         
     async def update_configuration(self, configuration_request: ConfigurationRequest) -> ConfigurationResponse:
         """Update system configuration from Home Assistant"""
@@ -114,18 +128,41 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     async def update_credentials(self, credentials_request: CredentialsRequest) -> CredentialsResponse:
         """Update credentials for a specific account"""
         try:
+            await self._ensure_db_initialized()
+            
             logger.info(f"Updating credentials for account: {credentials_request.account_id} ({credentials_request.protocol})")
             logger.info(f"Received credentials: {list(credentials_request.credentials.keys())}")
             
-            account_creds = AccountCredentials(
-                protocol=credentials_request.protocol,
-                account_id=credentials_request.account_id,
-                display_name=credentials_request.display_name,
-                credentials=dict(credentials_request.credentials),
-                last_updated=datetime.now().isoformat()
-            )
+            # Create or update account in database
+            existing_account = get_account_by_protocol_and_id(credentials_request.protocol, credentials_request.account_id)
             
-            self.account_credentials[account_creds.unique_key] = account_creds
+            if existing_account:
+                # Update existing account
+                existing_account.display_name = credentials_request.display_name
+                existing_account.credentials = dict(credentials_request.credentials)
+                existing_account.is_valid = True
+                account = save_account(existing_account)
+            else:
+                # Create new account
+                account = Account(
+                    protocol=credentials_request.protocol,
+                    account_id=credentials_request.account_id,
+                    display_name=credentials_request.display_name,
+                    credentials_json="",  # Will be set via property
+                    is_valid=True
+                )
+                account.credentials = dict(credentials_request.credentials)
+                account = save_account(account)
+            
+            # Convert to legacy format for plugin compatibility
+            account_creds = AccountCredentials(
+                protocol=account.protocol,
+                account_id=account.account_id,
+                display_name=account.display_name,
+                credentials=account.credentials,
+                is_valid=account.is_valid,
+                last_updated=account.updated_at.isoformat()
+            )
             
             # Send credentials to the relevant plugin instance
             success = await self._notify_plugin_credentials(account_creds)
@@ -133,6 +170,9 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
             if success:
                 return CredentialsResponse(success=True, message=f"Credentials updated for {credentials_request.account_id} ({credentials_request.protocol})")
             else:
+                # Mark account as invalid if plugin fails
+                account.is_valid = False
+                save_account(account)
                 return CredentialsResponse(success=False, message=f"Plugin initialization failed for {credentials_request.account_id} ({credentials_request.protocol})")
             
         except Exception as e:
@@ -142,6 +182,8 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     async def initiate_call(self, call_request: CallRequest) -> CallResponse:
         """Initiate a new call"""
         try:
+            await self._ensure_db_initialized()
+            
             # Validate protocol exists
             if call_request.protocol not in self.plugin_manager.plugins:
                 return CallResponse(
@@ -169,6 +211,13 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
             
             self.active_calls[call_id] = call_info
             
+            # Log call start to database
+            log_call_start(
+                call_id, call_request.protocol, call_request.account_id,
+                call_request.target_address, call_request.camera_entity_id,
+                call_request.media_player_entity_id
+            )
+            
             # Forward to appropriate plugin
             await self._forward_call_to_plugin(call_info)
             
@@ -194,8 +243,11 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
             
             call_info = self.active_calls[call_id]
             
-            # TODO: Forward termination to plugin
+            # Forward termination to plugin
             await self._terminate_call_on_plugin(call_info)
+            
+            # Log call end to database
+            log_call_end(call_id, "TERMINATED", {"reason": "User requested termination"})
             
             # Remove from active calls
             del self.active_calls[call_id]
@@ -353,7 +405,7 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
                     "configured_cameras": str(len(self.configuration.camera_entities)) if self.configuration else "0",
                     "configured_players": str(len(self.configuration.media_player_entities)) if self.configuration else "0",
                     "available_protocols": ",".join(self.plugin_manager.get_available_protocols()),
-                    "configured_accounts": str(len(self.account_credentials)),
+                    "configured_accounts": str(len(get_all_accounts())),
                     "active_instances": str(len(self.plugin_manager.plugins)),
                 },
                 icon="mdi:video-switch",
@@ -681,8 +733,8 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     # Helper methods for plugin communication
     def get_account_configuration(self, protocol: str, account_id: str) -> Optional[PluginConfiguration]:
         """Get the configuration for a specific account plugin instance"""
-        account_key = f"{protocol}_{hash(account_id)}"
-        if account_key in self.account_credentials:
+        account = get_account_by_protocol_and_id(protocol, account_id)
+        if account and account.is_valid:
             plugin_instance = self.plugin_manager.get_plugin_instance(protocol, account_id)
             if plugin_instance and plugin_instance.configuration:
                 return plugin_instance.configuration
@@ -690,15 +742,26 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
     
     def is_account_configured(self, protocol: str, account_id: str) -> bool:
         """Check if an account is properly configured with valid credentials"""
-        account_key = f"{protocol}_{hash(account_id)}"
-        return (account_key in self.account_credentials and 
-                self.account_credentials[account_key].is_valid and 
+        account = get_account_by_protocol_and_id(protocol, account_id)
+        return (account is not None and 
+                account.is_valid and 
                 self.get_account_configuration(protocol, account_id) is not None)
     
     def get_configured_accounts(self, protocol: str) -> List[AccountCredentials]:
         """Get all configured accounts for a protocol"""
-        return [creds for creds in self.account_credentials.values() 
-                if creds.protocol == protocol and creds.is_valid]
+        db_accounts = get_accounts_by_protocol(protocol)
+        # Convert to legacy format for backward compatibility
+        return [
+            AccountCredentials(
+                protocol=acc.protocol,
+                account_id=acc.account_id,
+                display_name=acc.display_name,
+                credentials=acc.credentials,
+                is_valid=acc.is_valid,
+                last_updated=acc.updated_at.isoformat()
+            )
+            for acc in db_accounts if acc.is_valid
+        ]
 
     async def _notify_plugin_credentials(self, account_creds: AccountCredentials) -> bool:
         """Send credentials to the appropriate plugin instance"""
@@ -791,10 +854,11 @@ class CallAssistBroker(BrokerIntegrationBase, CallPluginBase):
         # Note: Health status is reported via StreamHealthStatus when requested
 
 async def serve():
-    """Start the broker gRPC server using grpclib"""
+    """Start the broker gRPC server and web UI server using grpclib"""
     broker = CallAssistBroker()
     
     try:
+        # Initialize gRPC server
         server = Server([broker])  # grpclib server
         
         listen_addr = "0.0.0.0"
@@ -803,10 +867,27 @@ async def serve():
         logger.info(f"Starting Call Assist Broker on {listen_addr}:{listen_port}")
         logger.info(f"Available plugins: {broker.plugin_manager.get_available_protocols()}")
         
+        # Start gRPC server
         await server.start(listen_addr, listen_port)
+        logger.info(f"gRPC server started on {listen_addr}:{listen_port}")
         
-        # Wait for termination
-        await server.wait_closed()
+        # Initialize and start web UI server
+        from web_server import create_combined_server
+        web_server = create_combined_server(broker)
+        
+        # Start web server in background task
+        web_server_task = asyncio.create_task(web_server.start())
+        
+        try:
+            # Wait for termination
+            await server.wait_closed()
+        finally:
+            # Cancel web server task
+            web_server_task.cancel()
+            try:
+                await web_server_task
+            except asyncio.CancelledError:
+                pass
         
     except asyncio.CancelledError:
         # Handle graceful shutdown

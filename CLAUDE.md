@@ -88,6 +88,7 @@ Call Assist: Like Music Assistant, but for making video calls. Tightly integrate
 
 2. **Home Assistant Add-on** - Published on GitHub
    - **Broker**: Orchestrates plugins and exposes business-logic-driven entities
+   - **Web UI**: Standalone account management interface (NiceGUI + FastAPI)
    - **Matrix Plugin**: NodeJS/TypeScript using matrix-js-sdk
    - **XMPP Plugin**: C++ using QXMPP library
 
@@ -123,7 +124,13 @@ Camera (RTSP) → Broker (Capability Detection) → Call Plugin (Matrix/XMPP) �
 call-assist/
 ├── integration/           # Home Assistant custom integration (Python)
 ├── addon/
-│   ├── broker/           # Main orchestrator 
+│   ├── broker/           # Main orchestrator with web UI
+│   │   ├── main.py       # gRPC server + account management
+│   │   ├── web_ui.py     # NiceGUI web interface
+│   │   ├── web_api.py    # FastAPI REST endpoints
+│   │   ├── models.py     # SQLModel database schemas
+│   │   ├── database.py   # SQLite database management
+│   │   └── form_generator.py # Dynamic form generation
 │   ├── plugins/
 │   │   ├── matrix/       # TypeScript
 │   │   └── xmpp/         # C++
@@ -140,6 +147,8 @@ call-assist/
 3. **Media Player Support**: Chromecast primary, DLNA/UPnP/Miracast stretch goals
 4. **WebRTC Integration**: Leverage Matrix's native WebRTC support for direct streaming
 5. **Entity Architecture**: Broker-controlled, domain-agnostic entity system
+6. **Account Management**: Standalone web UI (NiceGUI + FastAPI) with SQLite persistence
+7. **Form Generation**: Schema-driven dynamic forms for protocol-specific configuration
 
 ### gRPC Service Definitions
 **Completed**: Three core service contracts defined in `/proto/`
@@ -203,6 +212,9 @@ Broker (Business Logic) → Generic Entities → HA Integration (Presentation)
 - **devcontainer** - Development environment with Python/TypeScript support
 - **homeassistant** - Available at `localhost:8123` with integration mounted
 - **call-assist-addon** - Broker and plugins running, accessible via service name
+  - **Web UI**: `http://localhost:8080/ui` - Account management interface
+  - **REST API**: `http://localhost:8080/api/` - Programmatic access
+  - **gRPC Server**: `localhost:50051` - Integration communication
 - **synapse** - Matrix homeserver at `localhost:8008` for testing Matrix plugin
 - **coturn** - TURN server on port 3478 for WebRTC relay support
 - **Runtime state** stored in `runtime/` directory (gitignored) for easy debugging
@@ -402,6 +414,65 @@ Home Assistant Integration Instance = One Broker Connection + One Account
 - ✅ **Simplified**: Config flow, coordinator, and integration setup
 - ✅ **Updated**: All tests to use one-account-per-instance pattern
 
+## Standalone Web UI Architecture ✅
+
+### **Implementation Complete**
+Replaced Home Assistant-only UI limitations with a standalone web interface:
+
+### **New Architecture:**
+```
+Broker (gRPC + Web Server) ↔ Home Assistant Integration (Simplified)
+                           ↔ Web UI (Full Management)
+```
+
+**Philosophy**: Decouple account management from Home Assistant constraints while maintaining integration functionality.
+
+### **Key Components:**
+
+#### **1. SQLite Database** (`models.py`, `database.py`)
+- **Account Storage**: Protocol credentials with encryption support
+- **Settings Management**: Configurable broker behavior
+- **Call History**: Persistent logging with metadata
+- **Database Migration**: Seamless transition from in-memory storage
+
+#### **2. FastAPI REST API** (`web_api.py`)
+- **Account CRUD**: Full account lifecycle management
+- **Settings API**: Runtime configuration updates
+- **Call History**: Query and analytics endpoints
+- **Health Monitoring**: System status and diagnostics
+
+#### **3. NiceGUI Web Interface** (`web_ui.py`)
+- **Account Dashboard**: Visual account management with status indicators
+- **Dynamic Forms**: Protocol-specific configuration forms
+- **Status Monitoring**: Real-time system health and statistics
+- **Call History**: Searchable call logs with duration tracking
+
+#### **4. Schema-Driven Forms** (`form_generator.py`)
+- **Protocol Schemas**: Matrix and XMPP configuration templates
+- **Dynamic Generation**: Automatic form creation from field definitions
+- **Validation**: Type checking, required fields, URL validation
+- **Extensibility**: Easy addition of new protocols
+
+### **Benefits:**
+- ✅ **No HA Limitations**: Full UI control without Home Assistant constraints
+- ✅ **Persistent Storage**: SQLite database for configuration and history
+- ✅ **Data-Driven**: Schema-based forms for easy protocol addition
+- ✅ **RESTful API**: Programmatic access for automation
+- ✅ **Server-Side Rendering**: Simple testing via HTTP requests
+- ✅ **Standalone**: Independent of Home Assistant for management
+
+### **Access Points:**
+- **Web UI**: `http://localhost:8080/ui` - Complete management interface
+- **REST API**: `http://localhost:8080/api/` - Programmatic access
+- **API Docs**: `http://localhost:8080/docs` - Interactive documentation
+- **gRPC Server**: `localhost:50051` - Home Assistant integration
+
+### **Migration Impact:**
+- **Database Persistence**: Automatic migration from in-memory account storage
+- **HA Integration**: Simplified to focus on entity presentation only
+- **Account Management**: Moved entirely to standalone web UI
+- **Testing**: Comprehensive test suite for all web components
+
 ## Next Steps
 1. ✅ Design specific gRPC service definitions
 2. ✅ Create project scaffolding
@@ -409,7 +480,8 @@ Home Assistant Integration Instance = One Broker Connection + One Account
 4. ✅ **Implement generic entity architecture** (domain-agnostic integration)
 5. ✅ **Fix integration startup issues** (NoneType errors resolved)
 6. ✅ **Simplify account management** (one account per integration instance)
-7. 🔄 Implement real WebRTC peer connections in Matrix plugin
-8. Implement broker capability detection logic
-9. Add configuration flow for camera/media player selection
-10. Implement contact discovery from Matrix plugin
+7. ✅ **Implement standalone web UI** (NiceGUI + FastAPI + SQLite)
+8. 🔄 Implement real WebRTC peer connections in Matrix plugin
+9. Implement broker capability detection logic
+10. Add configuration flow for camera/media player selection
+11. Implement contact discovery from Matrix plugin

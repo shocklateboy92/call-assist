@@ -6,3 +6,9 @@ logging
 pyyaml>=6.0.2
 dacite>=1.9.2
 dataclasses_jsonschema>=2.16.0
+
+# Web UI dependencies
+fastapi>=0.104.0
+nicegui>=1.4.0
+sqlmodel>=0.0.14
+uvicorn>=0.24.0

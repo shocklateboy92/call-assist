@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+
+import asyncio
+import logging
+from typing import Optional
+import uvicorn
+from fastapi import FastAPI
+from nicegui import ui, app
+from contextlib import asynccontextmanager
+
+from web_api import app as fastapi_app
+from web_ui import set_broker_reference, setup_ui_routes
+from database import init_database, get_setting
+from models import get_setting
+
+logger = logging.getLogger(__name__)
+
+
+class WebUIServer:
+    """Manages the web UI server (NiceGUI + FastAPI)"""
+    
+    def __init__(self, broker_ref=None):
+        self.broker_ref = broker_ref
+        self.server_task: Optional[asyncio.Task] = None
+        self.host = "0.0.0.0"
+        self.port = 8080
+        
+    async def initialize(self):
+        """Initialize web server settings"""
+        try:
+            # Initialize database first
+            await init_database()
+            
+            # Load settings from database
+            self.host = get_setting('web_ui_host') or "0.0.0.0"
+            self.port = get_setting('web_ui_port') or 8080
+            
+            # Set broker reference for UI
+            if self.broker_ref:
+                set_broker_reference(self.broker_ref)
+            
+            # Setup UI routes
+            setup_ui_routes()
+            
+            logger.info(f"Web UI server initialized on {self.host}:{self.port}")
+            
+        except Exception as e:
+            logger.error(f"Web UI server initialization failed: {e}")
+            raise
+    
+    async def start(self):
+        """Start the web UI server"""
+        try:
+            await self.initialize()
+            
+            # Configure NiceGUI
+            ui.run_with(
+                fastapi_app,
+                host=self.host,
+                port=self.port,
+                show=False,  # Don't open browser automatically
+                reload=False,  # Disable auto-reload in production
+                title="Call Assist Broker",
+                favicon="🎥"
+            )
+            
+            logger.info(f"Web UI server started on http://{self.host}:{self.port}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start web UI server: {e}")
+            raise
+    
+    async def stop(self):
+        """Stop the web UI server"""
+        try:
+            # NiceGUI handles server shutdown automatically
+            logger.info("Web UI server stopped")
+        except Exception as e:
+            logger.error(f"Error stopping web UI server: {e}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan manager"""
+    # Startup
+    logger.info("FastAPI application starting up")
+    yield
+    # Shutdown
+    logger.info("FastAPI application shutting down")
+
+
+# Configure FastAPI app with lifespan
+fastapi_app.router.lifespan_context = lifespan
+
+
+def create_combined_server(broker_ref=None) -> WebUIServer:
+    """Create web UI server with broker reference"""
+    return WebUIServer(broker_ref)
+
+
+# For standalone testing
+if __name__ == '__main__':
+    async def test_server():
+        server = WebUIServer()
+        await server.start()
+    
+    asyncio.run(test_server())
