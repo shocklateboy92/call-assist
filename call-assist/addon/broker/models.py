@@ -2,7 +2,7 @@
 
 from sqlmodel import SQLModel, Field, create_engine, Session
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 from addon.broker.database import db_manager
@@ -16,8 +16,8 @@ class Account(SQLModel, table=True):
     display_name: str
     credentials_json: str  # JSON serialized credentials
     is_valid: bool = Field(default=True)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def get_credentials(self) -> Dict[str, str]:
         """Get credentials as dictionary"""
@@ -48,8 +48,8 @@ class BrokerSettings(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     key: str = Field(unique=True, index=True)
     value_json: str  # JSON serialized value
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     def get_value(self) -> Any:
         """Get value as Python object"""
@@ -79,7 +79,7 @@ class CallLog(SQLModel, table=True):
     target_address: str
     camera_entity_id: str
     media_player_entity_id: str
-    start_time: datetime = Field(default_factory=datetime.utcnow)
+    start_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     end_time: Optional[datetime] = None
     final_state: str  # CallState as string
     metadata_json: Optional[str] = None  # Additional call metadata

@@ -1,7 +1,6 @@
 """Call Assist integration for Home Assistant."""
 
 import logging
-from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
@@ -14,13 +13,13 @@ from .coordinator import CallAssistCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]  # Custom platform for our entities
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Call Assist from a config entry."""
 
-    # Setup gRPC coordinator
+    # Setup coordinator to manage broker communication and HA entity monitoring
     coordinator = CallAssistCoordinator(
         hass, entry.data[CONF_HOST], entry.data[CONF_PORT], entry
     )
@@ -28,8 +27,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         await coordinator.async_setup()
     except Exception as ex:
-        _LOGGER.error("Failed to connect to Call Assist broker: %s", ex)
-        raise ConfigEntryNotReady("Cannot connect to broker") from ex
+        _LOGGER.error("Failed to setup Call Assist coordinator: %s", ex)
+        raise ConfigEntryNotReady("Cannot setup coordinator") from ex
 
     # Register broker device
     device_registry = dr.async_get(hass)
@@ -47,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Store coordinator
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {"coordinator": coordinator}
 
-    # Setup platform for entities
+    # Setup platform for broker entities
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _LOGGER.info("Call Assist integration setup complete")
