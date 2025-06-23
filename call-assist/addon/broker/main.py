@@ -877,12 +877,13 @@ async def serve():
         
         # Start web server in background task
         web_server_task = asyncio.create_task(web_server.start())
-        
+
         try:
             # Wait for termination
             await server.wait_closed()
         finally:
-            # Cancel web server task
+            # Stop web server properly
+            await web_server.stop()
             web_server_task.cancel()
             try:
                 await web_server_task
