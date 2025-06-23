@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Optional
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse
 import uvicorn
 from nicegui import ui
 
@@ -52,6 +53,11 @@ class WebUIServer:
             await self.initialize()
 
             app = FastAPI()
+            
+            # Add redirect from index to /ui
+            @app.get("/")
+            async def redirect_to_ui():
+                return RedirectResponse(url="/ui", status_code=302)
 
             ui.run_with(app, title="Call Assist Web UI", favicon="🎥")
 
