@@ -3,8 +3,8 @@
 from nicegui import ui
 import logging
 
-from addon.broker.models import (
-    Account,
+from addon.broker.models import Account
+from addon.broker.queries import (
     get_all_accounts,
     get_account_by_protocol_and_id,
     save_account,

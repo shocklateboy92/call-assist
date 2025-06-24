@@ -3,15 +3,7 @@
 import logging
 from pathlib import Path
 from sqlmodel import create_engine, Session, select
-from addon.broker.models import (
-    SQLModel,
-    Account,
-    BrokerSettings,
-    CallLog,
-    get_session,
-    save_setting,
-    get_setting,
-)
+from addon.broker.models import SQLModel, Account, BrokerSettings, CallLog
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +36,8 @@ class DatabaseManager:
     async def _setup_default_settings(self):
         """Set up default broker settings if they don't exist"""
         try:
+            from addon.broker.queries import get_setting, save_setting
+            
             # Default settings
             default_settings = {
                 "web_ui_port": 8080,
@@ -224,6 +218,8 @@ async def get_db_stats():
 
 async def cleanup_old_logs():
     """Clean up old call logs based on settings"""
+    from addon.broker.queries import get_setting
+    
     max_days = get_setting("max_call_history_days") or 30
     auto_cleanup = get_setting("auto_cleanup_logs")
 

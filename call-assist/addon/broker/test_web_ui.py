@@ -36,7 +36,7 @@ def temp_db():
 @pytest.fixture
 def sample_account(temp_db):
     """Create a sample account for testing"""
-    from addon.broker.models import save_account
+    from addon.broker.queries import save_account
 
     account = Account(
         protocol="matrix",
@@ -53,7 +53,7 @@ class TestDatabaseModels:
 
     def test_account_model(self, temp_db):
         """Test Account model functionality"""
-        from addon.broker.models import save_account, get_account_by_protocol_and_id
+        from addon.broker.queries import save_account, get_account_by_protocol_and_id
 
         # Create account
         account = Account(
@@ -83,7 +83,7 @@ class TestDatabaseModels:
 
     def test_call_log_model(self, temp_db):
         """Test CallLog model functionality"""
-        from addon.broker.models import log_call_start, log_call_end, get_call_history
+        from addon.broker.queries import log_call_start, log_call_end, get_call_history
 
         # Log call start
         call_log = log_call_start(
