@@ -33,6 +33,7 @@
       "WebFetch(domain:github.com)",
       "Bash(rm:*)",
       "Bash(rg:*)",
+      "Bash(*)",
       "Bash(pip install:*)"
     ],
     "deny": []

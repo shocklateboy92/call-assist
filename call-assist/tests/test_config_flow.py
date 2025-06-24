@@ -1,17 +1,15 @@
 """Test the Call Assist config flow."""
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
 from integration.const import DOMAIN, CONF_HOST, CONF_PORT, DEFAULT_HOST, DEFAULT_PORT
-from integration.config_flow import CannotConnect
 
 
-async def test_form(hass: HomeAssistant) -> None:
+async def test_form(broker_process, hass: HomeAssistant) -> None:
     """Test we get the form."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -20,145 +18,80 @@ async def test_form(hass: HomeAssistant) -> None:
     assert result["errors"] == {}
 
 
-async def test_form_valid_connection(hass: HomeAssistant) -> None:
+async def test_form_valid_connection(broker_process, hass: HomeAssistant) -> None:
     """Test we can successfully connect to broker."""
-    with patch(
-        "integration.config_flow.CallAssistGrpcClient"
-    ) as mock_client_class:
-        # Mock the client
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        # Mock health check response
-        mock_health_response = MagicMock()
-        mock_health_response.healthy = True
-        mock_health_response.message = "OK"
-        mock_client.health_check.return_value = mock_health_response
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_USER}
-        )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "localhost",
+            CONF_PORT: broker_process["grpc_port"],
+        },
+    )
+    await hass.async_block_till_done()
 
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {
-                CONF_HOST: "test-host",
-                CONF_PORT: 50051,
-            },
-        )
-        await hass.async_block_till_done()
-
-        assert result2["type"] == FlowResultType.CREATE_ENTRY
-        assert result2["title"] == "Call Assist (test-host)"
-        assert result2["data"] == {
-            CONF_HOST: "test-host",
-            CONF_PORT: 50051,
-        }
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
+    assert result2["title"] == "Call Assist (localhost)"
+    assert result2["data"] == {
+        CONF_HOST: "localhost",
+        CONF_PORT: broker_process["grpc_port"],
+    }
 
 
 async def test_form_cannot_connect(hass: HomeAssistant) -> None:
     """Test we handle cannot connect error."""
-    with patch(
-        "integration.config_flow.CallAssistGrpcClient"
-    ) as mock_client_class:
-        # Mock the client to raise exception
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        mock_client.async_connect.side_effect = Exception("Connection failed")
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_USER}
-        )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "localhost",
+            CONF_PORT: 99999,  # Invalid port that should fail to connect
+        },
+    )
 
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {
-                CONF_HOST: "test-host",
-                CONF_PORT: 50051,
-            },
-        )
-
-        assert result2["type"] == FlowResultType.FORM
-        assert result2["errors"] == {"base": "cannot_connect"}
+    assert result2["type"] == FlowResultType.FORM
+    assert result2["errors"] == {"base": "cannot_connect"}
 
 
-async def test_form_unhealthy_broker(hass: HomeAssistant) -> None:
-    """Test we handle unhealthy broker response."""
-    with patch(
-        "integration.config_flow.CallAssistGrpcClient"
-    ) as mock_client_class:
-        # Mock the client
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        # Mock unhealthy response
-        mock_health_response = MagicMock()
-        mock_health_response.healthy = False
-        mock_health_response.message = "Service unavailable"
-        mock_client.health_check.return_value = mock_health_response
-
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_USER}
-        )
-
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {
-                CONF_HOST: "test-host",
-                CONF_PORT: 50051,
-            },
-        )
-
-        assert result2["type"] == FlowResultType.FORM
-        assert result2["errors"] == {"base": "cannot_connect"}
-
-
-async def test_form_duplicate_connection(hass: HomeAssistant) -> None:
+async def test_form_duplicate_connection(broker_process, hass: HomeAssistant) -> None:
     """Test we handle duplicate connections."""
-    with patch(
-        "integration.config_flow.CallAssistGrpcClient"
-    ) as mock_client_class:
-        # Mock the client
-        mock_client = AsyncMock()
-        mock_client_class.return_value = mock_client
-        
-        # Mock health check response
-        mock_health_response = MagicMock()
-        mock_health_response.healthy = True
-        mock_health_response.message = "OK"
-        mock_client.health_check.return_value = mock_health_response
+    # Create the first entry
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
-        # Create the first entry
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_USER}
-        )
+    result2 = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            CONF_HOST: "localhost",
+            CONF_PORT: broker_process["grpc_port"],
+        },
+    )
+    await hass.async_block_till_done()
 
-        result2 = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            {
-                CONF_HOST: "test-host",
-                CONF_PORT: 50051,
-            },
-        )
-        await hass.async_block_till_done()
+    assert result2["type"] == FlowResultType.CREATE_ENTRY
 
-        assert result2["type"] == FlowResultType.CREATE_ENTRY
+    # Try to create a duplicate entry
+    result3 = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": config_entries.SOURCE_USER}
+    )
 
-        # Try to create a duplicate entry
-        result3 = await hass.config_entries.flow.async_init(
-            DOMAIN, context={"source": config_entries.SOURCE_USER}
-        )
+    result4 = await hass.config_entries.flow.async_configure(
+        result3["flow_id"],
+        {
+            CONF_HOST: "localhost",
+            CONF_PORT: broker_process["grpc_port"],
+        },
+    )
 
-        result4 = await hass.config_entries.flow.async_configure(
-            result3["flow_id"],
-            {
-                CONF_HOST: "test-host",
-                CONF_PORT: 50051,
-            },
-        )
-
-        assert result4["type"] == FlowResultType.ABORT
-        assert result4["reason"] == "already_configured"
+    assert result4["type"] == FlowResultType.ABORT
+    assert result4["reason"] == "already_configured"
 
 
 async def test_default_values(hass: HomeAssistant) -> None:

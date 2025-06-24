@@ -153,7 +153,7 @@ async def broker_server(broker_process):
     stub = BrokerIntegrationStub(channel)
 
     # Verify server is responsive
-    await stub.get_system_capabilities(
+    await stub.health_check(
         betterproto_lib_pydantic_google_protobuf.Empty(), timeout=5.0
     )
 
@@ -163,11 +163,42 @@ async def broker_server(broker_process):
     channel.close()
 
 
-@pytest.fixture
-def call_assist_integration(monkeypatch) -> None:
-    """Update the Home Assistant configuration directory so the integration can be loaded."""
-    monkeypatch.setattr(
-        pytest_homeassistant_custom_component.common,
-        "get_test_config_dir",
-        lambda: "/workspaces/universal/call-assist/config/homeassistant",
-    )
+@pytest.fixture(autouse=True, scope="session")
+def setup_integration_path():
+    """Set up the integration path for testing."""
+    import os
+    import sys
+    
+    # Set environment variable for custom components path
+    os.environ["CUSTOM_COMPONENTS_PATH"] = "/workspaces/universal/call-assist/config/homeassistant/custom_components"
+    
+    # Add to Python path
+    config_path = "/workspaces/universal/call-assist/config/homeassistant"
+    if config_path not in sys.path:
+        sys.path.insert(0, config_path)
+    
+    # Patch the common module at session level
+    import pytest_homeassistant_custom_component.common as common
+    original_get_test_config_dir = common.get_test_config_dir
+    
+    def patched_get_test_config_dir(*add_path):
+        return os.path.join("/workspaces/universal/call-assist/config/homeassistant", *add_path)
+    
+    common.get_test_config_dir = patched_get_test_config_dir
+    
+    yield
+    
+    # Cleanup
+    common.get_test_config_dir = original_get_test_config_dir
+    if config_path in sys.path:
+        sys.path.remove(config_path)
+    if "CUSTOM_COMPONENTS_PATH" in os.environ:
+        del os.environ["CUSTOM_COMPONENTS_PATH"]
+
+
+@pytest.fixture(autouse=True)
+def enable_custom_integrations_fixture(enable_custom_integrations):
+    """Enable custom integrations for each test."""
+    # Enable sockets for tests that need to connect to broker
+    _enable_socket()
+    yield

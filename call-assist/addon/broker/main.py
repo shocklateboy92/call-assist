@@ -238,6 +238,9 @@ class CallAssistBroker(BrokerIntegrationBase):
 async def serve(
     grpc_host: str = "0.0.0.0",
     grpc_port: int = 50051,
+    web_host: str = "0.0.0.0",
+    web_port: int = 8080,
+    db_path: str = "broker_data.db",
 ):
     """Start the simplified broker gRPC server"""
     broker = CallAssistBroker()

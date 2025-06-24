@@ -24,11 +24,14 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 
 async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str, Any]:
     """Validate the user input allows us to connect."""
+    import asyncio
+    
     client = CallAssistGrpcClient(data[CONF_HOST], data[CONF_PORT])
 
     try:
-        await client.async_connect()
-        response = await client.health_check()
+        # Add timeout to prevent hanging
+        await asyncio.wait_for(client.async_connect(), timeout=5.0)
+        response = await asyncio.wait_for(client.health_check(), timeout=5.0)
         await client.async_disconnect()
 
         if not response.healthy:
@@ -39,7 +42,9 @@ async def validate_input(hass: HomeAssistant, data: Dict[str, Any]) -> Dict[str,
             "broker_version": "1.0.0",  # TODO: Get from health check
         }
     except Exception as ex:
-        _LOGGER.error("Connection test failed: %s", ex)
+        _LOGGER.error("Connection test failed: %s (type: %s)", ex, type(ex).__name__)
+        import traceback
+        _LOGGER.error("Traceback: %s", traceback.format_exc())
         raise CannotConnect from ex
 
 
