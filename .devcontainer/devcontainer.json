@@ -23,7 +23,11 @@
 	},
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [
-		8123
+		"homeassistant:8123",      // Home Assistant
+		"synapse:8008",            // Synapse HTTP
+		"synapse:8448",            // Synapse HTTPS
+		"coturn:3478",             // COTURN STUN/TURN
+		"coturn:5349"              // COTURN STUN/TURN over TLS
 	],
 	// Run setup script after container creation
 	"postCreateCommand": "call-assist/scripts/setup-dev-env.sh",

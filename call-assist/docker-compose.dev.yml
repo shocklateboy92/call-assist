@@ -16,8 +16,6 @@ services:
     volumes:
       - ./integration:/config/custom_components/call_assist
       - ../runtime/ha_config:/config
-    ports:
-      - "8123:8123"
     environment:
       - TZ=UTC
     restart: unless-stopped
@@ -27,9 +25,6 @@ services:
     volumes:
       - ../runtime/synapse_data:/data
       - ./config/synapse/homeserver.yaml:/data/homeserver.yaml
-    ports:
-      - "8008:8008"
-      - "8448:8448"
     environment:
       - SYNAPSE_SERVER_NAME=localhost
       - SYNAPSE_REPORT_STATS=no
@@ -43,12 +38,6 @@ services:
     image: coturn/coturn:latest
     volumes:
       - ./config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
-    ports:
-      - "3478:3478/udp"
-      - "3478:3478/tcp"
-      - "5349:5349/udp"
-      - "5349:5349/tcp"
-      - "49152-49252:49152-49252/udp"
     command: ["-c", "/etc/coturn/turnserver.conf"]
     restart: unless-stopped
 
