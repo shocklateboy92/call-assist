@@ -635,3 +635,91 @@ class TestMatrixPluginWebUIE2E:
             logger.info(f"Form submission failed with status {status} - this is acceptable for invalid credentials")
             # We can still check that the error handling works properly
             assert status in [400, 422, 500], f"Unexpected status code for invalid credentials: {status}"
+
+    @pytest.mark.asyncio
+    async def test_valid_matrix_account_status_checking(self, web_ui_client: WebUITestClient, matrix_test_users):
+        """Test that valid Matrix account credentials show as valid status in the UI"""
+        if "caller" not in matrix_test_users:
+            pytest.skip("Matrix test user not available")
+
+        await web_ui_client.wait_for_server()
+        test_user = matrix_test_users["caller"]
+        
+        # Add an account with valid Matrix credentials from the fixture
+        valid_form_data = {
+            "protocol": "matrix",
+            "account_id": test_user["user_id"],
+            "display_name": f"Valid Matrix Account - {test_user['username']}",
+            "homeserver": "http://synapse:8008",
+            "user_id": test_user["user_id"],
+            "access_token": test_user["access_token"]
+        }
+        
+        # First trigger the HTMX request to load Matrix form fields
+        protocol_fields_response = await web_ui_client.get_page("/ui/api/protocol-fields?protocol=matrix")
+        matrix_fields_html, matrix_fields_soup = protocol_fields_response
+        
+        # Verify Matrix-specific fields are loaded
+        assert "homeserver" in matrix_fields_html.lower() or "access_token" in matrix_fields_html.lower()
+        
+        # Submit the form with valid credentials
+        status, response_html, response_soup = await web_ui_client.post_form("/ui/add-account", valid_form_data)
+        
+        # The form submission should succeed
+        if status == 302:  # Successful redirect
+            logger.info("Valid account form submission successful - checking status display")
+            
+            # Navigate to main page to check account status
+            html, soup = await web_ui_client.get_page("/ui")
+            accounts = web_ui_client.extract_accounts_from_table(soup)
+            
+            # Find the valid account we just added
+            valid_account = None
+            for account in accounts:
+                if account.get("account_id") == test_user["user_id"]:
+                    valid_account = account
+                    break
+            
+            assert valid_account is not None, f"Valid Matrix account not found in accounts list: {accounts}"
+            
+            # Check that the status shows as valid
+            # The status should be checked real-time from the plugin
+            status_text = valid_account.get("status", "")
+            
+            # The account should show as valid since the credentials are real and working
+            status_is_valid = "valid" in status_text.lower() or "✅" in status_text
+            assert status_is_valid, f"Status text should indicate valid status. Got: '{status_text}'. Account: {valid_account}"
+            
+            logger.info(f"Successfully verified valid Matrix account shows valid status: {valid_account}")
+            
+        elif status == 200:
+            # Form submission succeeded but might not redirect (some forms work this way)
+            logger.info("Form submission returned 200 - checking if account was added")
+            
+            # Navigate to main page to check account status
+            html, soup = await web_ui_client.get_page("/ui")
+            accounts = web_ui_client.extract_accounts_from_table(soup)
+            
+            # Find the valid account
+            valid_account = None
+            for account in accounts:
+                if account.get("account_id") == test_user["user_id"]:
+                    valid_account = account
+                    break
+            
+            if valid_account is not None:
+                # Account was added, check that status shows as valid
+                status_text = valid_account.get("status", "")
+                
+                # Check that the status indicates valid
+                status_is_valid = "valid" in status_text.lower() or "✅" in status_text
+                assert status_is_valid, f"Status text should indicate valid status. Got: '{status_text}'. Account: {valid_account}"
+                
+                logger.info(f"Successfully verified valid Matrix account shows valid status: {valid_account}")
+            else:
+                # If account wasn't added, that's unexpected for valid credentials
+                pytest.fail(f"Valid Matrix account was not added to the system. Form data: {valid_form_data}")
+            
+        else:
+            # Form submission failed - this is unexpected for valid credentials
+            pytest.fail(f"Form submission failed with status {status} for valid credentials. Form data: {valid_form_data}")
