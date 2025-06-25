@@ -19,6 +19,55 @@ from ludic import Component
 from ludic.types import AnyChildren
 
 
+class ErrorPage(Component[None, GlobalAttrs]):
+    """Error page component for displaying exceptions"""
+    
+    def __init__(
+        self,
+        error_title: str = "An Error Occurred",
+        error_message: str = "Something went wrong",
+        error_code: int = 500,
+        show_details: bool = False,
+        error_details: Optional[str] = None,
+        **attrs: Any
+    ):
+        self.error_title = error_title
+        self.error_message = error_message
+        self.error_code = error_code
+        self.show_details = show_details
+        self.error_details = error_details
+        super().__init__(**attrs)
+    
+    def render(self) -> div:
+        content = [
+            h1(f"❌ {self.error_title}"),
+            p(self.error_message, style="font-size: 1.1rem; margin-bottom: 1rem;"),
+            p(f"Error Code: {self.error_code}", style="color: #6b7280; font-size: 0.9rem;")
+        ]
+        
+        if self.show_details and self.error_details:
+            content.extend([
+                details(
+                    summary("Technical Details"),
+                    p(self.error_details, style="font-family: monospace; background: #f3f4f6; padding: 1rem; border-radius: 0.375rem; font-size: 0.875rem;")
+                )
+            ])
+        
+        content.extend([
+            div(
+                a("← Back to Home", href="/ui", style="text-decoration: none;"),
+                " | ",
+                a("Status Page", href="/ui/status", style="text-decoration: none;"),
+                style="margin-top: 2rem;"
+            )
+        ])
+        
+        return div(
+            *content,
+            style="max-width: 32rem; margin: 2rem auto; padding: 1rem; text-align: center;"
+        )
+
+
 class PageLayout(Component[AnyChildren, GlobalAttrs]):
     """Base page layout with andreasphil design system CSS"""
     
