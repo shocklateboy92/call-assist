@@ -80,12 +80,13 @@ class FormGenerator:
         self.container = None
 
     def generate_form(
-        self, schema: Dict[str, Any], container: Optional[ui.column] = None
+        self, schema: Dict[str, Any], container: Optional[ui.column] = None, existing_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, FormField]:
         """Generate form fields from schema definition"""
         if container is None:
             container = ui.column().classes("w-full gap-2")
-
+        
+        existing_data = existing_data or {}
         self.container = container
         self.fields.clear()
 
@@ -95,26 +96,27 @@ class FormGenerator:
             if credential_fields:
                 ui.label("Credentials").classes("text-subtitle1 q-mt-md")
                 for field_config in credential_fields:
-                    self._create_form_field(field_config)
+                    self._create_form_field(field_config, existing_data)
 
             # Generate setting fields
             setting_fields = schema.get("setting_fields", [])
             if setting_fields:
                 ui.label("Settings").classes("text-subtitle1 q-mt-md")
                 for field_config in setting_fields:
-                    self._create_form_field(field_config)
+                    self._create_form_field(field_config, existing_data)
 
         return self.fields
 
-    def _create_form_field(self, field_config: Dict[str, Any]) -> FormField:
+    def _create_form_field(self, field_config: Dict[str, Any], existing_data: Optional[Dict[str, Any]] = None) -> FormField:
         """Create a single form field based on configuration"""
+        existing_data = existing_data or {}
         key = field_config["key"]
         field_type = field_config.get("type", "STRING")
 
         # Common properties
         label = field_config.get("display_name", key.title())
         placeholder = field_config.get("description", "")
-        default_value = field_config.get("default_value", "")
+        default_value = existing_data.get(key, field_config.get("default_value", ""))
         required = field_config.get("required", False)
         sensitive = field_config.get("sensitive", False)
 
@@ -209,9 +211,10 @@ class FormGenerator:
             ui.notify(error, type="negative")
 
 
-def create_account_form(protocol_schema: Dict[str, Any]) -> FormGenerator:
+def create_account_form(protocol_schema: Dict[str, Any], existing_data: Optional[Dict[str, Any]] = None) -> FormGenerator:
     """Create a complete account form for a specific protocol"""
     form_gen = FormGenerator()
+    existing_data = existing_data or {}
 
     # Add protocol info
     with ui.column().classes("w-full gap-2") as container:
@@ -228,17 +231,19 @@ def create_account_form(protocol_schema: Dict[str, Any]) -> FormGenerator:
         placeholder = f"e.g., {example_ids[0]}" if example_ids else "Account identifier"
 
         account_id_field = ui.input(
-            label="Account ID *", placeholder=placeholder, value=""
+            label="Account ID *", 
+            placeholder=placeholder, 
+            value=existing_data.get("account_id", "")
         ).classes("w-full")
 
         display_name_field = ui.input(
             label="Display Name *",
             placeholder="Friendly name for this account",
-            value="",
+            value=existing_data.get("display_name", ""),
         ).classes("w-full")
 
         # Generate schema-based fields
-        form_gen.generate_form(protocol_schema, container)
+        form_gen.generate_form(protocol_schema, container, existing_data)
 
         # Add account ID and display name to fields
         form_gen.fields["account_id"] = FormField(

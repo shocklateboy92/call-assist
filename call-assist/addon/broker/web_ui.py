@@ -398,6 +398,102 @@ async def add_account_page():
         protocol_select.on("change", on_protocol_change)
 
 
+@ui.page("/ui/edit-account/{protocol}/{account_id}")
+async def edit_account_page(protocol: str, account_id: str):
+    """Edit existing account page"""
+    ui.page_title("Edit Account - Call Assist Broker")
+
+    with ui.header():
+        ui.label("Edit Account").classes("text-h6")
+        ui.button(
+            "Back", icon="arrow_back", on_click=lambda: ui.navigate.to("/ui")
+        ).classes("q-ml-auto")
+
+    await get_protocol_schemas()  # Load schemas
+
+    with ui.column().classes("w-full max-w-lg mx-auto gap-4"):
+        ui.label(f"Edit {protocol.title()} Account").classes("text-h5")
+
+        # Load existing account
+        try:
+            existing_account = await get_account_by_protocol_and_id(protocol, account_id)
+            if not existing_account:
+                ui.label("Account not found").classes("text-negative")
+                ui.button("Back to Accounts", on_click=lambda: ui.navigate.to("/ui"))
+                return
+        except Exception as e:
+            logger.error(f"Failed to load account: {e}")
+            ui.label(f"Error loading account: {e}").classes("text-negative")
+            ui.button("Back to Accounts", on_click=lambda: ui.navigate.to("/ui"))
+            return
+
+        # Check if protocol schema exists
+        if protocol not in ui_state["protocol_schemas"]:
+            ui.label(f"Protocol '{protocol}' not found").classes("text-negative")
+            ui.button("Back to Accounts", on_click=lambda: ui.navigate.to("/ui"))
+            return
+
+        # Import form generator here to avoid circular imports
+        from addon.broker.form_generator import create_account_form
+        
+        schema = ui_state["protocol_schemas"][protocol]
+        
+        # Create form with existing data
+        form = create_account_form(schema, existing_data={
+            "account_id": existing_account.account_id,
+            "display_name": existing_account.display_name,
+            **existing_account.credentials
+        })
+
+        async def submit_edit():
+            """Submit account changes"""
+            try:
+                # Validate form
+                is_valid, errors = form.validate_form()
+                if not is_valid:
+                    form.show_validation_errors(errors)
+                    return
+
+                # Get form data
+                form_data = form.get_form_data()
+                new_account_id = form_data.get("account_id")
+                new_display_name = form_data.get("display_name")
+
+                # Ensure we have required values
+                if not new_account_id or not new_display_name:
+                    ui.notify("Please fill in all required fields", type="negative")
+                    return
+
+                # Extract credentials (all fields except account_id and display_name)
+                credentials = {
+                    key: value for key, value in form_data.items()
+                    if key not in ["account_id", "display_name"]
+                }
+
+                # If account_id changed, check if new one already exists
+                if new_account_id != existing_account.account_id:
+                    existing_new = await get_account_by_protocol_and_id(protocol, new_account_id)
+                    if existing_new:
+                        ui.notify("Account with new ID already exists", type="negative")
+                        return
+
+                # Update existing account
+                existing_account.account_id = new_account_id
+                existing_account.display_name = new_display_name
+                existing_account.credentials = credentials
+
+                await save_account(existing_account)
+                ui.notify("Account updated successfully", type="positive")
+                ui.navigate.to("/ui")
+
+            except Exception as e:
+                logger.error(f"Failed to update account: {e}")
+                ui.notify(f"Failed to update account: {e}", type="negative")
+
+        # Submit button
+        ui.button("Update Account", on_click=submit_edit).classes("w-full q-mt-md")
+
+
 @ui.page("/ui/settings")
 async def settings_page():
     """Settings page"""
