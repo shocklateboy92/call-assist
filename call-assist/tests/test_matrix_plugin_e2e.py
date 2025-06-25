@@ -85,7 +85,7 @@ class WebUITestClient:
         accounts = []
         
         # Look for table rows in the accounts table
-        # NiceGUI likely generates tables with specific structure
+        # Look for table rows in the HTML
         table_rows = soup.find_all("tr")
         
         for row in table_rows:
@@ -352,7 +352,7 @@ class TestMatrixPluginWebUIE2E:
         matrix_fields_html, matrix_fields_soup = protocol_fields_response
         
         # Verify Matrix-specific fields are loaded
-        assert "homeserver" in matrix_fields_html.lower() or "username" in matrix_fields_html.lower()
+        assert "homeserver" in matrix_fields_html.lower() or "access_token" in matrix_fields_html.lower()
         
         # Step 4: Now attempt form submission with Matrix data
         form_data = {
@@ -360,8 +360,8 @@ class TestMatrixPluginWebUIE2E:
             "account_id": test_user["user_id"],
             "display_name": f"Test Matrix Account - {test_user['username']}",
             "homeserver": "http://synapse:8008",
-            "username": test_user["username"],
-            "password": "testpassword123"
+            "user_id": test_user["user_id"],
+            "access_token": test_user["access_token"]
         }
         
         # Submit the form
@@ -449,7 +449,7 @@ class TestMatrixPluginWebUIE2E:
         
         # Verify Matrix-specific fields are returned
         matrix_inputs = web_ui_client.find_form_inputs(matrix_fields_soup)
-        expected_fields = ["account_id", "display_name", "homeserver", "username", "password"]
+        expected_fields = ["account_id", "display_name", "homeserver", "access_token", "user_id"]
         
         for field in expected_fields:
             assert field in matrix_inputs, f"Expected field '{field}' not found in Matrix form: {list(matrix_inputs.keys())}"

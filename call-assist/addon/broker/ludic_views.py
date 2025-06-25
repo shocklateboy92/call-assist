@@ -7,7 +7,7 @@ import logging
 from typing import Dict, Any, Optional
 from fastapi import FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
-from ludic.html import div, fieldset, legend, label, input_, p
+from ludic.html import div, fieldset, legend, label, input, p
 
 from addon.broker.ludic_components import (
     PageLayout, AccountsTable, AccountForm, StatusCard, 
@@ -275,14 +275,14 @@ def create_routes(app: FastAPI, broker_ref=None):
                 fieldset(
                     legend("Account Information"),
                     label("Account ID", for_="account_id"),
-                    input_(
+                    input(
                         type="text",
                         name="account_id",
                         id="account_id",
                         required=True
                     ),
                     label("Display Name", for_="display_name"),
-                    input_(
+                    input(
                         type="text",
                         name="display_name",
                         id="display_name",
@@ -291,54 +291,130 @@ def create_routes(app: FastAPI, broker_ref=None):
                 )
             )
             
-            # Protocol-specific fields
-            if "fields" in schema:
-                credential_fields = []
-                for field_name, field_def in schema["fields"].items():
+            # Protocol-specific credential fields
+            credential_fields = []
+            if "credential_fields" in schema:
+                for field_config in schema["credential_fields"]:
+                    field_name = field_config.get("key")
                     if field_name in ["account_id", "display_name"]:
                         continue
                     
-                    field_type = field_def.get("type", "text")
-                    field_label = field_def.get("label", field_name.replace("_", " ").title())
-                    field_required = field_def.get("required", False)
+                    field_type = field_config.get("type", "STRING")
+                    field_label = field_config.get("display_name", field_name.replace("_", " ").title())
+                    field_required = field_config.get("required", False)
+                    field_placeholder = field_config.get("placeholder", "")
                     
                     credential_fields.append(label(field_label, for_=field_name))
                     
-                    if field_type == "password":
+                    if field_type == "PASSWORD":
                         credential_fields.append(
-                            input_(
+                            input(
                                 type="password",
                                 name=field_name,
                                 id=field_name,
+                                placeholder=field_placeholder,
                                 required=field_required
                             )
                         )
-                    elif field_type == "url":
+                    elif field_type == "URL":
                         credential_fields.append(
-                            input_(
+                            input(
                                 type="url",
                                 name=field_name,
                                 id=field_name,
+                                placeholder=field_placeholder,
                                 required=field_required
                             )
                         )
-                    else:
+                    elif field_type == "INTEGER":
                         credential_fields.append(
-                            input_(
+                            input(
+                                type="number",
+                                name=field_name,
+                                id=field_name,
+                                placeholder=field_placeholder,
+                                required=field_required
+                            )
+                        )
+                    else:  # STRING
+                        credential_fields.append(
+                            input(
                                 type="text",
                                 name=field_name,
                                 id=field_name,
+                                placeholder=field_placeholder,
                                 required=field_required
                             )
                         )
-                
-                if credential_fields:
-                    fields.append(
-                        fieldset(
-                            legend("Credentials"),
-                            *credential_fields
+            
+            # Protocol-specific setting fields  
+            setting_fields = []
+            if "setting_fields" in schema:
+                for field_config in schema["setting_fields"]:
+                    field_name = field_config.get("key")
+                    field_type = field_config.get("type", "STRING")
+                    field_label = field_config.get("display_name", field_name.replace("_", " ").title())
+                    field_required = field_config.get("required", False)
+                    field_placeholder = field_config.get("placeholder", "")
+                    
+                    setting_fields.append(label(field_label, for_=field_name))
+                    
+                    if field_type == "PASSWORD":
+                        setting_fields.append(
+                            input(
+                                type="password",
+                                name=field_name,
+                                id=field_name,
+                                placeholder=field_placeholder,
+                                required=field_required
+                            )
                         )
+                    elif field_type == "URL":
+                        setting_fields.append(
+                            input(
+                                type="url",
+                                name=field_name,
+                                id=field_name,
+                                placeholder=field_placeholder,
+                                required=field_required
+                            )
+                        )
+                    elif field_type == "INTEGER":
+                        setting_fields.append(
+                            input(
+                                type="number",
+                                name=field_name,
+                                id=field_name,
+                                placeholder=field_placeholder,
+                                required=field_required
+                            )
+                        )
+                    else:  # STRING
+                        setting_fields.append(
+                            input(
+                                type="text",
+                                name=field_name,
+                                id=field_name,
+                                placeholder=field_placeholder,
+                                required=field_required
+                            )
+                        )
+            
+            if credential_fields:
+                fields.append(
+                    fieldset(
+                        legend("Credentials"),
+                        *credential_fields
                     )
+                )
+            
+            if setting_fields:
+                fields.append(
+                    fieldset(
+                        legend("Settings"),
+                        *setting_fields
+                    )
+                )
             
             return HTMLResponse(content=str(div(*fields)))
             

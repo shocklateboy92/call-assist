@@ -9,13 +9,13 @@ from ludic.html import (
     html, head, body, title, meta, link, script, style,
     div, nav, main, header, footer, section, article,
     h1, h2, h3, h4, h5, h6, p, span, a, button,
-    form, input_, label, select, option, textarea, fieldset, legend,
+    form, input, label, select, option, textarea, fieldset, legend,
     table, thead, tbody, tr, th, td,
     ul, ol, li, dl, dt, dd,
     details, summary,
 )
 from ludic.attrs import GlobalAttrs
-from ludic.base import Component
+from ludic import Component
 from ludic.types import AnyChildren
 
 
@@ -42,7 +42,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                 # andreasphil design system CSS
                 link(
                     rel="stylesheet",
-                    href="https://cdn.jsdelivr.net/gh/andreasphil/design-system@main/dist/index.min.css"
+                    href="https://cdn.jsdelivr.net/gh/andreasphil/design-system@v0.47.0/dist/design-system.min.css"
                 ),
                 # HTMX for interactivity
                 script(src="https://unpkg.com/htmx.org@1.9.10"),
@@ -210,7 +210,7 @@ class AccountForm(Component[None, GlobalAttrs]):
         if self.is_edit:
             return fieldset(
                 legend("Protocol"),
-                input_(
+                input(
                     type="hidden",
                     name="protocol",
                     value=self.selected_protocol
@@ -249,7 +249,7 @@ class AccountForm(Component[None, GlobalAttrs]):
             fieldset(
                 legend("Account Information"),
                 label("Account ID", for_="account_id"),
-                input_(
+                input(
                     type="text",
                     name="account_id",
                     id="account_id",
@@ -257,7 +257,7 @@ class AccountForm(Component[None, GlobalAttrs]):
                     required=True
                 ),
                 label("Display Name", for_="display_name"),
-                input_(
+                input(
                     type="text",
                     name="display_name",
                     id="display_name",
@@ -282,7 +282,7 @@ class AccountForm(Component[None, GlobalAttrs]):
                 if field_type == "password":
                     credential_fields.append(label(field_label, for_=field_name))
                     credential_fields.append(
-                        input_(
+                        input(
                             type="password",
                             name=field_name,
                             id=field_name,
@@ -293,7 +293,7 @@ class AccountForm(Component[None, GlobalAttrs]):
                 elif field_type == "url":
                     credential_fields.append(label(field_label, for_=field_name))
                     credential_fields.append(
-                        input_(
+                        input(
                             type="url",
                             name=field_name,
                             id=field_name,
@@ -304,7 +304,7 @@ class AccountForm(Component[None, GlobalAttrs]):
                 else:
                     credential_fields.append(label(field_label, for_=field_name))
                     credential_fields.append(
-                        input_(
+                        input(
                             type="text",
                             name=field_name,
                             id=field_name,
@@ -423,14 +423,14 @@ class SettingsForm(Component[None, GlobalAttrs]):
                     fieldset(
                         legend("Web UI Configuration"),
                         label("Web UI Host", for_="web_ui_host"),
-                        input_(
+                        input(
                             type="text",
                             name="web_ui_host",
                             id="web_ui_host",
                             value=self.settings.get("web_ui_host", "0.0.0.0")
                         ),
                         label("Web UI Port", for_="web_ui_port"),
-                        input_(
+                        input(
                             type="number",
                             name="web_ui_port",
                             id="web_ui_port",
@@ -442,7 +442,7 @@ class SettingsForm(Component[None, GlobalAttrs]):
                     fieldset(
                         legend("Call History"),
                         label(
-                            input_(
+                            input(
                                 type="checkbox",
                                 name="enable_call_history",
                                 checked=self.settings.get("enable_call_history", True)
@@ -450,7 +450,7 @@ class SettingsForm(Component[None, GlobalAttrs]):
                             " Enable Call History"
                         ),
                         label("Max Call History (days)", for_="max_call_history_days"),
-                        input_(
+                        input(
                             type="number",
                             name="max_call_history_days",
                             id="max_call_history_days",
@@ -459,7 +459,7 @@ class SettingsForm(Component[None, GlobalAttrs]):
                             max="365"
                         ),
                         label(
-                            input_(
+                            input(
                                 type="checkbox",
                                 name="auto_cleanup_logs",
                                 checked=self.settings.get("auto_cleanup_logs", True)
