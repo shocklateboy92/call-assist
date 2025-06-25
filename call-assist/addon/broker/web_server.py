@@ -69,16 +69,13 @@ class WebUIServer:
 
     async def stop(self):
         """Stop the web UI server"""
-        try:
-            if self.server_task:
-                self.server_task.cancel()
-                try:
-                    await self.server_task
-                except asyncio.CancelledError:
-                    pass
-            logger.info("Web UI server stopped")
-        except Exception as e:
-            logger.error(f"Error stopping web UI server: {e}")
+        if self.server_task:
+            self.server_task.cancel()
+            try:
+                await self.server_task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Web UI server stopped")
 
 
 def create_web_server() -> WebUIServer:

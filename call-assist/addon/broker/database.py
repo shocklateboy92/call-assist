@@ -37,26 +37,21 @@ class DatabaseManager:
 
     async def _setup_default_settings(self):
         """Set up default broker settings if they don't exist"""
-        try:
+        # Default settings
+        default_settings = {
+            "web_ui_port": 8080,
+            "web_ui_host": "0.0.0.0",
+            "enable_call_history": True,
+            "max_call_history_days": 30,
+            "auto_cleanup_logs": True,
+        }
 
-            # Default settings
-            default_settings = {
-                "web_ui_port": 8080,
-                "web_ui_host": "0.0.0.0",
-                "enable_call_history": True,
-                "max_call_history_days": 30,
-                "auto_cleanup_logs": True,
-            }
-
-            with self.get_session() as session:
-                for key, value in default_settings.items():
-                    existing_value = get_setting_with_session(session, key)
-                    if existing_value is None:
-                        save_setting_with_session(session, key, value)
-                        logger.info(f"Set default setting: {key} = {value}")
-
-        except Exception as e:
-            logger.error(f"Failed to setup default settings: {e}")
+        with self.get_session() as session:
+            for key, value in default_settings.items():
+                existing_value = get_setting_with_session(session, key)
+                if existing_value is None:
+                    save_setting_with_session(session, key, value)
+                    logger.info(f"Set default setting: {key} = {value}")
 
     def get_session(self) -> Session:
         """Get database session"""
@@ -64,55 +59,46 @@ class DatabaseManager:
 
     async def cleanup_old_call_logs(self, days: int = 30):
         """Clean up call logs older than specified days"""
-        try:
-            from datetime import datetime, timedelta
+        from datetime import datetime, timedelta
 
-            cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-            with self.get_session() as session:
-                # Delete old call logs
-                old_logs = session.exec(
-                    select(CallLog).where(CallLog.start_time < cutoff_date)
-                ).all()
+        with self.get_session() as session:
+            # Delete old call logs
+            old_logs = session.exec(
+                select(CallLog).where(CallLog.start_time < cutoff_date)
+            ).all()
 
-                for log in old_logs:
-                    session.delete(log)
+            for log in old_logs:
+                session.delete(log)
 
-                session.commit()
+            session.commit()
 
-                if old_logs:
-                    logger.info(f"Cleaned up {len(old_logs)} old call logs")
-
-        except Exception as e:
-            logger.error(f"Failed to cleanup old call logs: {e}")
+            if old_logs:
+                logger.info(f"Cleaned up {len(old_logs)} old call logs")
 
     async def get_database_stats(self) -> dict:
         """Get database statistics"""
-        try:
-            with self.get_session() as session:
-                account_count = len(session.exec(select(Account)).all())
-                call_log_count = len(session.exec(select(CallLog)).all())
-                settings_count = len(session.exec(select(BrokerSettings)).all())
+        with self.get_session() as session:
+            account_count = len(session.exec(select(Account)).all())
+            call_log_count = len(session.exec(select(CallLog)).all())
+            settings_count = len(session.exec(select(BrokerSettings)).all())
 
-                # Database file size
-                db_size_bytes = (
-                    self.database_path.stat().st_size
-                    if self.database_path.exists()
-                    else 0
-                )
-                db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
+            # Database file size
+            db_size_bytes = (
+                self.database_path.stat().st_size
+                if self.database_path.exists()
+                else 0
+            )
+            db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
 
-                return {
-                    "accounts": account_count,
-                    "call_logs": call_log_count,
-                    "settings": settings_count,
-                    "database_size_mb": db_size_mb,
-                    "database_path": str(self.database_path.absolute()),
-                }
-
-        except Exception as e:
-            logger.error(f"Failed to get database stats: {e}")
-            return {}
+            return {
+                "accounts": account_count,
+                "call_logs": call_log_count,
+                "settings": settings_count,
+                "database_size_mb": db_size_mb,
+                "database_path": str(self.database_path.absolute()),
+            }
 
     async def backup_database(self, backup_path: str) -> bool:
         """Create a backup of the database"""

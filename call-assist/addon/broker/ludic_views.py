@@ -41,12 +41,8 @@ def get_protocol_schemas(
     plugin_manager: PluginManager = Depends(get_plugin_manager)
 ) -> Dict[str, Any]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
-    try:
-        schemas_dict = plugin_manager.get_protocol_schemas()
-        return schemas_dict
-    except Exception as e:
-        logger.error(f"Failed to get protocol schemas: {e}")
-        return {}
+    schemas_dict = plugin_manager.get_protocol_schemas()
+    return schemas_dict
 
 
 def create_routes(app: FastAPI):

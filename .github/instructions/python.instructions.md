@@ -16,3 +16,7 @@ applyTo: '**.py'
 
 - Check for type errors after making code changes
 - Run integration tests to validate after code changes
+
+- Avoid catching `Exception` or `BaseException` unless you have a very good reason.
+  - This is a server, with a global exception handler, so exceptions should bubble up to the top level.
+  - Only catch specific exceptions that you expect and can handle appropriately.

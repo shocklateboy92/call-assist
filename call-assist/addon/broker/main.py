@@ -96,29 +96,25 @@ class CallAssistBroker(BrokerIntegrationBase):
         """Receive HA entity updates from integration"""
         logger.info("Starting to receive HA entity updates")
 
-        try:
-            async for entity_update in ha_entity_update_iterator:
-                # Store the entity
-                ha_entity = HAEntity(
-                    entity_id=entity_update.entity_id,
-                    domain=entity_update.domain,
-                    name=entity_update.name,
-                    state=entity_update.state,
-                    attributes=dict(entity_update.attributes),
-                    available=entity_update.available,
-                    last_updated=entity_update.last_updated,
-                )
+        async for entity_update in ha_entity_update_iterator:
+            # Store the entity
+            ha_entity = HAEntity(
+                entity_id=entity_update.entity_id,
+                domain=entity_update.domain,
+                name=entity_update.name,
+                state=entity_update.state,
+                attributes=dict(entity_update.attributes),
+                available=entity_update.available,
+                last_updated=entity_update.last_updated,
+            )
 
-                self.ha_entities[entity_update.entity_id] = ha_entity
-                logger.info(
-                    f"Received HA entity update: {entity_update.entity_id} ({entity_update.domain}) - {entity_update.state}"
-                )
+            self.ha_entities[entity_update.entity_id] = ha_entity
+            logger.info(
+                f"Received HA entity update: {entity_update.entity_id} ({entity_update.domain}) - {entity_update.state}"
+            )
 
-                # Update call stations when we get new camera or media_player entities
-                await self._update_call_stations()
-
-        except Exception as e:
-            logger.error(f"Error processing HA entity stream: {e}")
+            # Update call stations when we get new camera or media_player entities
+            await self._update_call_stations()
 
         return betterproto_lib_google.Empty()
 
@@ -145,8 +141,6 @@ class CallAssistBroker(BrokerIntegrationBase):
                 except asyncio.CancelledError:
                     break
 
-        except Exception as e:
-            logger.error(f"Error in broker entity stream: {e}")
         finally:
             # Clean up subscriber
             if update_queue in self.broker_entity_subscribers:
@@ -276,8 +270,12 @@ class CallAssistBroker(BrokerIntegrationBase):
                     )
                     await update_queue.put(entity_update)
 
+            except asyncio.CancelledError:
+                # Re-raise cancellation to propagate properly
+                raise
             except Exception as e:
                 logger.error(f"Error notifying subscriber: {e}")
+                # Continue with next subscriber
 
 
 async def serve(
