@@ -43,36 +43,38 @@ class WebUITestClient:
     async def get_page(self, path: str) -> tuple[str, BeautifulSoup]:
         """Get a web page and return the HTML content and parsed DOM"""
         url = urljoin(self.base_url, path)
-        
+
         async with self.session.get(url) as resp:
             if resp.status != 200:
                 raise Exception(f"Failed to get {url}: {resp.status}")
-            
+
             html = await resp.text()
-            soup = BeautifulSoup(html, 'html.parser')
+            soup = BeautifulSoup(html, "html.parser")
             return html, soup
 
     async def post_form(self, path: str, form_data: Dict[str, Any]) -> tuple[int, str]:
         """Submit a form to the web UI"""
         url = urljoin(self.base_url, path)
-        
+
         async with self.session.post(url, data=form_data) as resp:
             text = await resp.text()
             return resp.status, text
 
-    async def wait_for_page_load(self, path: str, max_attempts: int = 10, delay: float = 1.0):
+    async def wait_for_page_load(
+        self, path: str, max_attempts: int = 10, delay: float = 1.0
+    ):
         """Wait for a page to load successfully"""
         for attempt in range(max_attempts):
             try:
                 _, soup = await self.get_page(path)
                 # Check if page loaded properly (has basic structure)
-                if soup.find('body'):
+                if soup.find("body"):
                     return soup
             except Exception as e:
                 if attempt == max_attempts - 1:
                     raise e
                 await asyncio.sleep(delay)
-        
+
         raise Exception(f"Page {path} failed to load after {max_attempts} attempts")
 
 
@@ -132,7 +134,9 @@ class MatrixTestClient:
                 self.user_id = result["user_id"]
             return result
 
-    async def create_room(self, name: Optional[str] = None, is_direct: bool = False) -> Dict[str, Any]:
+    async def create_room(
+        self, name: Optional[str] = None, is_direct: bool = False
+    ) -> Dict[str, Any]:
         """Create a Matrix room"""
         url = f"{self.homeserver_url}/_matrix/client/r0/createRoom"
         headers = {"Authorization": f"Bearer {self.access_token}"}
@@ -159,7 +163,9 @@ TEST_HOMESERVER = "http://synapse:8008"
 @pytest_asyncio.fixture
 async def web_ui_client(broker_process):
     """Create a web UI test client"""
-    async with WebUITestClient() as client:
+    async with WebUITestClient(
+        base_url=f"http://localhost:{broker_process['web_port']}"
+    ) as client:
         yield client
 
 
@@ -199,15 +205,15 @@ async def test_room(matrix_test_users):
         pytest.skip("Caller user required")
 
     caller = matrix_test_users["caller"]
-    
+
     async with MatrixTestClient() as client:
         client.access_token = caller["access_token"]
         client.user_id = caller["user_id"]
-        
+
         room_result = await client.create_room(name="Test Call Room")
         if "room_id" not in room_result:
             pytest.skip("Failed to create test room")
-        
+
         return room_result["room_id"]
 
 
@@ -218,16 +224,16 @@ class TestMatrixPluginE2E:
     async def test_web_ui_main_page_loads(self, web_ui_client):
         """Test that the main web UI page loads correctly"""
         html, soup = await web_ui_client.get_page("/ui")
-        
+
         # Check for key elements
         assert "Call Assist Broker" in html
         assert soup.find("body") is not None
-        
+
         # Check for main navigation tabs
         accounts_tab = soup.find(text="Accounts")
         status_tab = soup.find(text="Status")
         history_tab = soup.find(text="Call History")
-        
+
         assert accounts_tab is not None, "Accounts tab not found"
         assert status_tab is not None, "Status tab not found"
         assert history_tab is not None, "History tab not found"
@@ -236,13 +242,13 @@ class TestMatrixPluginE2E:
     async def test_add_account_page_loads(self, web_ui_client):
         """Test that the add account page loads and shows protocol options"""
         html, soup = await web_ui_client.get_page("/ui/add-account")
-        
+
         # Check page loaded
         assert "Add Account" in html
         assert soup.find("body") is not None
-        
+
         # Check for protocol selection (this tests that protocol schemas are loaded)
-        # Note: The actual protocol options are populated dynamically, 
+        # Note: The actual protocol options are populated dynamically,
         # so we look for the structure rather than specific options
         assert "Protocol" in html
 
@@ -250,7 +256,7 @@ class TestMatrixPluginE2E:
     async def test_settings_page_loads(self, web_ui_client):
         """Test that the settings page loads"""
         html, soup = await web_ui_client.get_page("/ui/settings")
-        
+
         # Check page loaded
         assert "Settings" in html or "Broker Settings" in html
         assert soup.find("body") is not None
@@ -262,55 +268,63 @@ class TestMatrixPluginE2E:
             pytest.skip("Caller user required for Matrix account test")
 
         caller = matrix_test_users["caller"]
-        
+
         # Step 1: Add Matrix account via web UI
         # Note: Since the web UI uses NiceGUI with dynamic forms and JavaScript,
         # we'll test the underlying API functionality instead of form submission
-        
+
         # First, verify the accounts page shows no Matrix accounts initially
         html, soup = await web_ui_client.get_page("/ui")
-        
+
         # The accounts table should exist but may be empty
         # (We can't easily test dynamic content without JavaScript execution)
-        
+
         # Step 2: Verify account management functionality through database
         # This tests the same code path the web UI uses
         from addon.broker.models import Account
         from addon.broker.queries import save_account, get_all_accounts, delete_account
-        
+
         # Create a test Matrix account (simulating what the web UI would do)
         test_account = Account(
             protocol="matrix",
             account_id=caller["user_id"],
             display_name=f"Test Matrix Account - {caller['username']}",
-            credentials_json=""  # Will be set via property
+            credentials_json="",  # Will be set via property
         )
         test_account.credentials = {
             "access_token": caller["access_token"],
             "user_id": caller["user_id"],
             "homeserver": TEST_HOMESERVER,
         }
-        
+
         # Save the account (this is what the web UI does)
         save_account(test_account)
-        
+
         # Step 3: Verify account appears in database
         all_accounts = get_all_accounts()
-        matrix_accounts = [acc for acc in all_accounts if acc.protocol == "matrix" and acc.account_id == caller["user_id"]]
+        matrix_accounts = [
+            acc
+            for acc in all_accounts
+            if acc.protocol == "matrix" and acc.account_id == caller["user_id"]
+        ]
         assert len(matrix_accounts) == 1, "Matrix account should be saved"
-        
+
         saved_account = matrix_accounts[0]
         assert saved_account.display_name == test_account.display_name
         assert saved_account.credentials["user_id"] == caller["user_id"]
         assert saved_account.credentials["access_token"] == caller["access_token"]
-        
+
         # Step 4: Clean up - delete the account
         success = delete_account("matrix", caller["user_id"])
         assert success, "Should be able to delete the account"
-        
+
         # Step 5: Verify account is deleted
         all_accounts_after = get_all_accounts()
-        matrix_accounts_after = [acc for acc in all_accounts_after if acc.protocol == "matrix" and acc.account_id == caller["user_id"]]
+        matrix_accounts_after = [
+            acc
+            for acc in all_accounts_after
+            if acc.protocol == "matrix" and acc.account_id == caller["user_id"]
+        ]
         assert len(matrix_accounts_after) == 0, "Matrix account should be deleted"
 
     @pytest.mark.asyncio
@@ -320,52 +334,55 @@ class TestMatrixPluginE2E:
             pytest.skip("Caller user required for validation test")
 
         caller = matrix_test_users["caller"]
-        
+
         from addon.broker.models import Account
         from addon.broker.queries import save_account, get_account_by_protocol_and_id
-        
+
         # Test valid credentials
         valid_account = Account(
             protocol="matrix",
             account_id=caller["user_id"],
             display_name="Valid Test Account",
-            credentials_json=""
+            credentials_json="",
         )
         valid_account.credentials = {
             "access_token": caller["access_token"],
             "user_id": caller["user_id"],
             "homeserver": TEST_HOMESERVER,
         }
-        
+
         save_account(valid_account)
-        
+
         # Retrieve and verify
         retrieved = get_account_by_protocol_and_id("matrix", caller["user_id"])
         assert retrieved is not None
         assert retrieved.credentials["access_token"] == caller["access_token"]
-        
+
         # Test invalid credentials
         invalid_account = Account(
             protocol="matrix",
             account_id="@invalid:example.com",
             display_name="Invalid Test Account",
-            credentials_json=""
+            credentials_json="",
         )
         invalid_account.credentials = {
             "access_token": "invalid_token",
             "user_id": "@invalid:example.com",
             "homeserver": "https://invalid.example.com",
         }
-        
+
         save_account(invalid_account)
-        
+
         # The account should be saved but marked as invalid during validation
-        invalid_retrieved = get_account_by_protocol_and_id("matrix", "@invalid:example.com")
+        invalid_retrieved = get_account_by_protocol_and_id(
+            "matrix", "@invalid:example.com"
+        )
         assert invalid_retrieved is not None
         # Note: Actual validation happens when the broker tries to use the credentials
-        
+
         # Clean up
         from addon.broker.queries import delete_account
+
         delete_account("matrix", caller["user_id"])
         delete_account("matrix", "@invalid:example.com")
 
@@ -376,29 +393,29 @@ class TestMatrixPluginE2E:
             pytest.skip("Caller user required for call simulation")
 
         caller = matrix_test_users["caller"]
-        
+
         # Set up Matrix account in the system
         from addon.broker.models import Account, CallLog
         from addon.broker.queries import save_account, save_call_log, get_call_history
-        
+
         matrix_account = Account(
             protocol="matrix",
             account_id=caller["user_id"],
             display_name="Test Caller Account",
-            credentials_json=""
+            credentials_json="",
         )
         matrix_account.credentials = {
             "access_token": caller["access_token"],
             "user_id": caller["user_id"],
             "homeserver": TEST_HOMESERVER,
         }
-        
+
         save_account(matrix_account)
-        
+
         # Simulate a call log entry (what would happen during a real call)
         from datetime import datetime, timezone
         import uuid
-        
+
         call_id = str(uuid.uuid4())
         call_log = CallLog(
             call_id=call_id,
@@ -408,19 +425,21 @@ class TestMatrixPluginE2E:
             start_time=datetime.now(timezone.utc),
             final_state="completed",
             duration_seconds=45,
-            metadata_json=json.dumps({
-                "room_name": "Test Call Room",
-                "call_type": "video",
-                "webrtc_used": True
-            })
+            metadata_json=json.dumps(
+                {
+                    "room_name": "Test Call Room",
+                    "call_type": "video",
+                    "webrtc_used": True,
+                }
+            ),
         )
-        
+
         save_call_log(call_log)
-        
+
         # Verify call appears in history
         call_history = get_call_history(10)
         assert len(call_history) > 0
-        
+
         # Find our call
         our_call = next((log for log in call_history if log.call_id == call_id), None)
         assert our_call is not None, "Call log should be saved"
@@ -429,17 +448,18 @@ class TestMatrixPluginE2E:
         assert our_call.target_address == test_room
         assert our_call.final_state == "completed"
         assert our_call.duration_seconds == 45
-        
+
         # Verify metadata
         metadata = json.loads(our_call.metadata_json)
         assert metadata["call_type"] == "video"
         assert metadata["webrtc_used"] is True
-        
+
         # Clean up
         from addon.broker.queries import delete_account
+
         delete_account("matrix", caller["user_id"])
 
-    @pytest.mark.asyncio 
+    @pytest.mark.asyncio
     async def test_web_ui_error_handling(self, web_ui_client):
         """Test web UI error handling for invalid pages"""
         # Test invalid page
@@ -457,34 +477,35 @@ class TestMatrixPluginE2E:
             pytest.skip("Caller user required for persistence test")
 
         caller = matrix_test_users["caller"]
-        
+
         from addon.broker.models import Account
-        from addon.broker.queries import save_account, get_account_by_protocol_and_id, delete_account
-        
+        from addon.broker.queries import (
+            save_account,
+            get_account_by_protocol_and_id,
+            delete_account,
+        )
+
         # Create account with complex credentials
         account = Account(
             protocol="matrix",
             account_id=caller["user_id"],
             display_name="Persistence Test Account",
-            credentials_json=""
+            credentials_json="",
         )
-        
+
         complex_credentials = {
             "access_token": caller["access_token"],
             "user_id": caller["user_id"],
             "homeserver": TEST_HOMESERVER,
             "device_id": "test_device_123",
             "custom_setting": True,
-            "nested_data": {
-                "key1": "value1",
-                "key2": ["item1", "item2"]
-            }
+            "nested_data": {"key1": "value1", "key2": ["item1", "item2"]},
         }
         account.credentials = complex_credentials
-        
+
         # Save account
         save_account(account)
-        
+
         # Retrieve and verify all data persisted correctly
         retrieved = get_account_by_protocol_and_id("matrix", caller["user_id"])
         assert retrieved is not None
@@ -494,12 +515,12 @@ class TestMatrixPluginE2E:
         assert retrieved.credentials["custom_setting"] is True
         assert retrieved.credentials["nested_data"]["key1"] == "value1"
         assert retrieved.credentials["nested_data"]["key2"] == ["item1", "item2"]
-        
+
         # Update account
         retrieved.display_name = "Updated Test Account"
         retrieved.credentials["custom_setting"] = False
         save_account(retrieved)
-        
+
         # Verify update persisted
         updated = get_account_by_protocol_and_id("matrix", caller["user_id"])
         assert updated.display_name == "Updated Test Account"
@@ -507,7 +528,7 @@ class TestMatrixPluginE2E:
         # Other fields should remain unchanged
         assert updated.credentials["access_token"] == caller["access_token"]
         assert updated.credentials["nested_data"]["key1"] == "value1"
-        
+
         # Clean up
         delete_account("matrix", caller["user_id"])
 

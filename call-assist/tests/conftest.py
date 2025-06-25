@@ -25,8 +25,9 @@ pytest_socket.disable_socket = stub_method
 
 import os
 import socket
-import asyncio
 import tempfile
+import threading
+import time
 
 import pytest
 import pytest_asyncio
@@ -35,6 +36,8 @@ from grpclib.client import Channel
 from proto_gen.callassist.broker import BrokerIntegrationStub
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
+import asyncio
+from addon.broker.main import serve
 
 @pytest.fixture()
 def enable_socket():
@@ -72,9 +75,44 @@ def find_available_port() -> int:
         return sock.getsockname()[1]
 
 
-@pytest_asyncio.fixture(scope="session")
-async def broker_process():
-    """Session-scoped in-process broker"""
+def _run_broker_server(grpc_port, web_port, db_path, stop_event):
+    """Run broker server in a separate thread"""
+
+    
+    # Create new event loop for this thread
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    async def run_until_stopped():
+        # Start the server
+        server_task = asyncio.create_task(
+            serve(
+                grpc_port=grpc_port,
+                web_port=web_port,
+                db_path=db_path,
+            ),
+        )
+        
+        # Wait for stop event
+        while not stop_event.is_set():
+            await asyncio.sleep(0.1)
+        
+        # Cancel the server
+        server_task.cancel()
+        try:
+            await server_task
+        except asyncio.CancelledError:
+            pass
+    
+    try:
+        loop.run_until_complete(run_until_stopped())
+    finally:
+        loop.close()
+
+
+@pytest.fixture(scope="session")
+def broker_process():
+    """Session-scoped broker running in separate thread"""
 
     # Ensure sockets are enabled for broker operations
     _enable_socket()
@@ -89,49 +127,57 @@ async def broker_process():
     web_port = find_available_port()
 
     logger.info(
-        f"Starting in-process broker: gRPC={grpc_port}, Web={web_port}, DB={db_path}"
+        f"Starting broker in thread: gRPC={grpc_port}, Web={web_port}, DB={db_path}"
     )
 
-    # Import broker serve function directly
-    from addon.broker.main import serve
+    # Create stop event for clean shutdown
+    stop_event = threading.Event()
 
-    # Start broker in background task
-    server_task = asyncio.create_task(
-        serve(
-            grpc_port=grpc_port,
-            web_port=web_port,
-            db_path=db_path,
-        )
+    # Start broker in separate thread
+    broker_thread = threading.Thread(
+        target=_run_broker_server,
+        args=(grpc_port, web_port, db_path, stop_event),
+        daemon=True
     )
+    broker_thread.start()
 
     # Wait for server to start by testing actual gRPC connection
-    # Test actual gRPC connection instead of just port availability
-    async with Channel(host="localhost", port=grpc_port) as channel:
-        stub = BrokerIntegrationStub(channel)
-        health = await stub.health_check(
-            betterproto_lib_pydantic_google_protobuf.Empty(), timeout=5
-        )
-        logger.info("Broker server is ready: %s", health)
+    max_retries = 50  # 5 seconds with 0.1s sleeps
+    for _ in range(max_retries):
+        try:
+            # Test port availability first
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(0.1)
+                result = sock.connect_ex(("localhost", grpc_port))
+                if result == 0:
+                    logger.info("Broker gRPC port is available")
+                    break
+        except Exception:
+            pass
+        time.sleep(0.1)
+    else:
+        raise RuntimeError("Broker failed to start within timeout")
 
-    logger.info(f"In-process broker started on ports gRPC={grpc_port}, Web={web_port}")
+    logger.info(f"Broker started in thread on ports gRPC={grpc_port}, Web={web_port}")
 
     # Return broker info instead of process
     broker_info = {
         "grpc_port": grpc_port,
         "web_port": web_port,
         "db_path": db_path,
-        "task": server_task,
+        "thread": broker_thread,
+        "stop_event": stop_event,
     }
 
     yield broker_info
 
     # Cleanup
-    logger.info("Shutting down in-process broker...")
-    server_task.cancel()
-    try:
-        await server_task
-    except asyncio.CancelledError:
-        pass
+    logger.info("Shutting down broker thread...")
+    stop_event.set()
+    broker_thread.join(timeout=5.0)
+    
+    if broker_thread.is_alive():
+        logger.warning("Broker thread did not shut down gracefully")
 
     # Clean up temporary database
     try:
@@ -139,7 +185,7 @@ async def broker_process():
     except OSError:
         pass
 
-    logger.info("In-process broker shutdown complete")
+    logger.info("Broker thread shutdown complete")
 
 
 @pytest_asyncio.fixture(scope="function")
