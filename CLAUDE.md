@@ -180,6 +180,50 @@ call-assist/
 - Protocol-agnostic design for future extensibility
 - Comprehensive call lifecycle management
 
+### Web UI Technology Stack
+
+**Migration from NiceGUI to Ludic**: The project migrated from NiceGUI to Ludic for better testability and simpler HTML generation without client-side JavaScript dependencies.
+
+**Ludic Framework**:
+- **Documentation**: https://github.com/getludic/ludic
+- **FastAPI Integration**: https://getludic.dev/docs/integrations#fastapi
+- **Philosophy**: Type-guided HTML components in pure Python with minimal JavaScript
+- **Benefits**: Server-side rendering, component reusability, type safety, easy testing via HTTP requests
+- **Installation**: `pip install "ludic[fastapi]"`
+- **Usage Pattern**: Return Ludic components directly from FastAPI endpoints
+
+**andreasphil Design System**:
+- **Repository**: https://github.com/andreasphil/design-system
+- **Demo/Docs**: https://andreasphil.github.io/design-system/
+- **Philosophy**: Small CSS framework (~6kb) that makes semantic HTML look good out-of-the-box
+- **Components**: Buttons, forms, tables, dialogs, navigation, typography
+- **Benefits**: No classes needed on semantic HTML, automatic responsive design, light/dark mode
+- **Usage**: Include CSS file, use semantic HTML elements with optional component classes
+
+**Integration Pattern**:
+```python
+from fastapi import FastAPI
+from ludic.contrib.fastapi import LudicRoute
+from ludic.html import html, head, body, div, h1
+
+app = FastAPI()
+app.router.route_class = LudicRoute
+
+@app.get("/")
+def index() -> html:
+    return html(
+        head(title("Call Assist")),
+        body(div(h1("Account Management"), id="container"))
+    )
+```
+
+**HTMX Integration**:
+- **Purpose**: Provides interactivity without custom JavaScript
+- **CDN**: Include HTMX via CDN in HTML head
+- **Usage**: Add `hx-*` attributes to HTML elements for AJAX interactions
+- **Benefits**: No JavaScript needed, server-side rendering, progressive enhancement
+- **Pattern**: Use `hx-get`, `hx-post`, `hx-target`, `hx-swap` attributes on forms and buttons
+
 ### Entity Architecture Design
 
 **Philosophy**: Push business logic to the broker for easier future updates, while keeping the integration thin and domain-agnostic.

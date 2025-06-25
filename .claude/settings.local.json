@@ -34,7 +34,9 @@
       "Bash(rm:*)",
       "Bash(rg:*)",
       "Bash(*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "WebFetch(domain:getludic.dev)",
+      "WebFetch(domain:andreasphil.github.io)"
     ],
     "deny": []
   }
