@@ -1,3 +1,5 @@
 # Ignore all generated protobuf files
 *_pb2.py
 *_pb2_grpc.py
+
+broker_data.db

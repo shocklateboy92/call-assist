@@ -197,7 +197,7 @@ class DatabaseManager:
 
 
 # Global database manager instance
-db_manager = None
+db_manager = DatabaseManager()
 
 
 def set_database_path(path: str):
