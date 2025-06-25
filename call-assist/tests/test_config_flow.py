@@ -28,7 +28,7 @@ async def test_form_valid_connection(broker_process, hass: HomeAssistant) -> Non
     result2 = await hass.config_entries.flow.async_configure(
         result["flow_id"],
         {
-            CONF_HOST: "localhost",
+            CONF_HOST: "127.0.0.1",
             CONF_PORT: broker_process["grpc_port"],
         },
     )

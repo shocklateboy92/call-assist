@@ -8,6 +8,8 @@ applyTo: '**.py'
 - In general, prefer using existing libraries for common tasks instead of writing your own code.
     - For example, use `pathlib` for file system operations, `json` for JSON handling, etc.
 
+- Always import at the top of the file, avoid importing inside functions or methods unless absolutely necessary.
+
 - Use `logging` for logging instead of `print`.
 - Use `pytest` for testing
 - Don't catch all exceptions in tests. Let tests fail if an unexpected/unknown exception occurs.

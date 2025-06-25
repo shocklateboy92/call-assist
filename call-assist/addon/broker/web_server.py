@@ -31,8 +31,8 @@ class WebUIServer:
             await init_database()
 
             # Load settings from database
-            self.host = get_setting("web_ui_host") or "0.0.0.0"
-            self.port = get_setting("web_ui_port") or 8080
+            # self.host = get_setting("web_ui_host") or "0.0.0.0"
+            # self.port = get_setting("web_ui_port") or 8080
 
             # Set broker reference for UI
             if self.broker_ref:
