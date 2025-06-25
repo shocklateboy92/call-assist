@@ -17,6 +17,9 @@ service BrokerIntegration {
   
   // Health check for connection monitoring
   rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
+  
+  // Get protocol schemas for UI generation
+  rpc GetProtocolSchemas(google.protobuf.Empty) returns (ProtocolSchemasResponse);
 }
 
 // Messages for HA Entity streaming (HA -> Broker)
@@ -56,5 +59,32 @@ message HealthCheckResponse {
   bool healthy = 1;
   string message = 2;
   google.protobuf.Timestamp timestamp = 3;
+}
+
+// Protocol schema messages
+message FieldDefinition {
+  string key = 1;
+  string display_name = 2;
+  string description = 3;
+  string type = 4;  // STRING, PASSWORD, URL, INTEGER, BOOLEAN, SELECT
+  bool required = 5;
+  string default_value = 6;
+  bool sensitive = 7;
+  repeated string allowed_values = 8;
+  string placeholder = 9;
+  string validation_pattern = 10;
+}
+
+message ProtocolSchema {
+  string protocol = 1;
+  string display_name = 2;
+  string description = 3;
+  repeated FieldDefinition credential_fields = 4;
+  repeated FieldDefinition setting_fields = 5;
+  repeated string example_account_ids = 6;
+}
+
+message ProtocolSchemasResponse {
+  repeated ProtocolSchema schemas = 1;
 }
 

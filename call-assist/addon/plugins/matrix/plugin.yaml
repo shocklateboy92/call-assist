@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../../broker/plugin-schema.json
-name: matrix
+name: Matrix Plugin
 protocol: matrix
 version: "1.0.0"
 description: "Matrix video calling plugin using matrix-js-sdk"
@@ -33,13 +33,60 @@ capabilities:
   webrtc_support: true
   features: ["video_call", "audio_call", "screen_share"]
 
-# Required credentials
+# Rich field definitions for UI generation
+credential_fields:
+  - key: homeserver
+    display_name: Homeserver URL
+    description: The Matrix homeserver URL (e.g., https://matrix.org)
+    type: URL
+    required: true
+    placeholder: https://matrix.org
+    validation_pattern: ^https?://.*
+
+  - key: access_token
+    display_name: Access Token
+    description: Your Matrix access token for authentication
+    type: PASSWORD
+    required: true
+    sensitive: true
+    placeholder: syt_...
+
+  - key: user_id
+    display_name: User ID
+    description: Your Matrix user ID (e.g., @user:matrix.org)
+    type: STRING
+    required: true
+    placeholder: "@user:matrix.org"
+    validation_pattern: ^@.*:.*
+
+setting_fields:
+  - key: turn_servers
+    display_name: TURN Servers
+    description: Comma-separated list of TURN server URLs for NAT traversal
+    type: STRING
+    required: false
+    placeholder: "turn:turnserver.example.com:3478"
+
+  - key: ice_servers
+    display_name: ICE Servers
+    description: Additional ICE servers for WebRTC connectivity (JSON format)
+    type: STRING
+    required: false
+    placeholder: '[{"urls": "stun:stun.l.google.com:19302"}]'
+
+  - key: call_timeout
+    display_name: Call Timeout (seconds)
+    description: Timeout for outgoing calls in seconds
+    type: INTEGER
+    required: false
+    default_value: "30"
+
+# Legacy support (auto-generated from credential_fields/setting_fields)
 required_credentials:
   - homeserver
   - access_token
   - user_id
 
-# Optional settings
 optional_settings:
   - turn_servers
   - ice_servers

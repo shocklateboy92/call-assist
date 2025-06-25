@@ -127,7 +127,7 @@ async def accounts_page_content():
         async def load_accounts():
             """Load accounts from database"""
             try:
-                accounts = get_all_accounts()
+                accounts = await get_all_accounts()
                 rows = []
                 for account in accounts:
                     rows.append(
@@ -180,7 +180,7 @@ async def accounts_page_content():
 
         async def delete_account_handler(account_data, dialog):
             try:
-                success = delete_account(
+                success = await delete_account(
                     account_data["protocol"].lower(), account_data["account_id"]
                 )
                 if success:
@@ -278,7 +278,7 @@ async def history_page_content():
         async def load_history():
             """Load call history from database"""
             try:
-                call_logs = get_call_history(50)
+                call_logs = await get_call_history(50)
                 rows = []
                 for log in call_logs:
                     duration_str = "N/A"
@@ -327,77 +327,38 @@ async def add_account_page():
         ui.label("Add New Account").classes("text-h5")
 
         # Protocol selection
+        protocol_options = [
+            {"label": schema["display_name"], "value": protocol}
+            for protocol, schema in ui_state["protocol_schemas"].items()
+        ]
+        
         protocol_select = ui.select(
             label="Protocol",
-            options=list(ui_state["protocol_schemas"].keys()),
+            options=protocol_options,
             value=None,
         ).classes("w-full")
 
-        # Dynamic form fields based on protocol
+        # Dynamic form container
         form_container = ui.column().classes("w-full")
-
-        # Form state
-        form_data = {}
+        current_form = None
 
         async def on_protocol_change():
             """Update form fields when protocol changes"""
+            nonlocal current_form
             protocol = protocol_select.value
             if not protocol or protocol not in ui_state["protocol_schemas"]:
                 form_container.clear()
+                current_form = None
                 return
 
+            # Import form generator here to avoid circular imports
+            from addon.broker.form_generator import create_account_form
+            
             schema = ui_state["protocol_schemas"][protocol]
             form_container.clear()
-            form_data.clear()
-
+            
             with form_container:
-                ui.label(f'{schema["display_name"]} Account').classes("text-h6")
-                ui.label(schema["description"]).classes("text-caption")
-
-                # Account ID field
-                account_id_input = ui.input(
-                    label="Account ID",
-                    placeholder=f'e.g., {schema["example_account_ids"][0] if schema["example_account_ids"] else ""}',
-                    value="",
-                ).classes("w-full")
-                form_data["account_id"] = account_id_input
-
-                # Display name field
-                display_name_input = ui.input(
-                    label="Display Name",
-                    placeholder="Friendly name for this account",
-                    value="",
-                ).classes("w-full")
-                form_data["display_name"] = display_name_input
-
-                # Credentials fields
-                ui.separator()
-                ui.label("Credentials").classes("text-subtitle1")
-
-                form_data["credentials"] = {}
-                for field in schema["credential_fields"]:
-                    if field["type"] in ["PASSWORD", "STRING"]:
-                        credential_input = ui.input(
-                            label=field["display_name"],
-                            placeholder=field["description"],
-                            value=field["default_value"],
-                            password=field["sensitive"],
-                        ).classes("w-full")
-                        form_data["credentials"][field["key"]] = credential_input
-                    elif field["type"] == "SELECT":
-                        credential_select = ui.select(
-                            label=field["display_name"],
-                            options=field["allowed_values"],
-                            value=field["default_value"],
-                        ).classes("w-full")
-                        form_data["credentials"][field["key"]] = credential_select
-                    elif field["type"] == "URL":
-                        credential_input = ui.input(
-                            label=field["display_name"],
-                            placeholder=field["description"],
-                            value=field["default_value"],
-                        ).classes("w-full")
-                        form_data["credentials"][field["key"]] = credential_input
+                current_form = create_account_form(schema)
 
                 # Submit button
                 ui.button("Add Account", on_click=submit_account).classes(
@@ -407,26 +368,35 @@ async def add_account_page():
         async def submit_account():
             """Submit new account"""
             try:
-                protocol = protocol_select.value
-                if not protocol:
+                if not current_form:
                     ui.notify("Please select a protocol", type="negative")
                     return
 
-                # Collect form data
-                account_id = form_data["account_id"].value
-                display_name = form_data["display_name"].value
+                # Validate form
+                is_valid, errors = current_form.validate_form()
+                if not is_valid:
+                    current_form.show_validation_errors(errors)
+                    return
 
-                if not account_id or not display_name:
+                # Get form data
+                form_data = current_form.get_form_data()
+                protocol = protocol_select.value
+                account_id = form_data.get("account_id")
+                display_name = form_data.get("display_name")
+
+                # Ensure we have required values
+                if not protocol or not account_id or not display_name:
                     ui.notify("Please fill in all required fields", type="negative")
                     return
 
-                # Collect credentials
-                credentials = {}
-                for key, input_field in form_data["credentials"].items():
-                    credentials[key] = input_field.value
+                # Extract credentials (all fields except account_id and display_name)
+                credentials = {
+                    key: value for key, value in form_data.items()
+                    if key not in ["account_id", "display_name"]
+                }
 
                 # Check if account already exists
-                existing = get_account_by_protocol_and_id(protocol, account_id)
+                existing = await get_account_by_protocol_and_id(protocol, account_id)
                 if existing:
                     ui.notify("Account already exists", type="negative")
                     return
@@ -440,7 +410,7 @@ async def add_account_page():
                 )
                 account.credentials = credentials
 
-                save_account(account)
+                await save_account(account)
                 ui.notify("Account added successfully", type="positive")
                 ui.navigate.to("/ui")
 
@@ -468,13 +438,13 @@ async def settings_page():
         # Settings form
         settings_form = {}
 
-        # Load current settings
+        # Load current settings asynchronously
         current_settings = {
-            "web_ui_port": get_setting("web_ui_port") or 8080,
-            "web_ui_host": get_setting("web_ui_host") or "0.0.0.0",
-            "enable_call_history": get_setting("enable_call_history") or True,
-            "max_call_history_days": get_setting("max_call_history_days") or 30,
-            "auto_cleanup_logs": get_setting("auto_cleanup_logs") or True,
+            "web_ui_port": await get_setting("web_ui_port") or 8080,
+            "web_ui_host": await get_setting("web_ui_host") or "0.0.0.0",
+            "enable_call_history": await get_setting("enable_call_history") or True,
+            "max_call_history_days": await get_setting("max_call_history_days") or 30,
+            "auto_cleanup_logs": await get_setting("auto_cleanup_logs") or True,
         }
 
         # Create form fields
@@ -509,7 +479,7 @@ async def settings_page():
             try:
                 for key, field in settings_form.items():
                     value = field.value
-                    save_setting(key, value)
+                    await save_setting(key, value)
 
                 ui.notify("Settings saved successfully", type="positive")
 

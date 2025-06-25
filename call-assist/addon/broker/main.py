@@ -15,10 +15,14 @@ from proto_gen.callassist.broker import (
     BrokerEntityUpdate,
     BrokerEntityType,
     HealthCheckResponse,
+    ProtocolSchemasResponse,
+    ProtocolSchema,
+    FieldDefinition,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from addon.broker.database import set_database_path
 from addon.broker.web_server import WebUIServer
+from addon.broker.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +80,9 @@ class CallAssistBroker(BrokerIntegrationBase):
 
         # Startup time for health check
         self.startup_time = datetime.now(timezone.utc)
+        
+        # Initialize plugin manager
+        self.plugin_manager = PluginManager()
 
     async def stream_ha_entities(
         self, ha_entity_update_iterator: AsyncIterator[HaEntityUpdate]
@@ -152,6 +159,62 @@ class CallAssistBroker(BrokerIntegrationBase):
             message=f"Broker running for {uptime.total_seconds():.0f} seconds",
             timestamp=datetime.now(timezone.utc),
         )
+
+    async def get_protocol_schemas(
+        self,
+        betterproto_lib_pydantic_google_protobuf_empty: betterproto_lib_google.Empty,
+    ) -> ProtocolSchemasResponse:
+        """Get protocol schemas for UI generation"""
+        schemas_dict = self.plugin_manager.get_protocol_schemas()
+        schemas = []
+        
+        for protocol, schema_data in schemas_dict.items():
+            # Convert credential fields
+            credential_fields = [
+                FieldDefinition(
+                    key=field["key"],
+                    display_name=field["display_name"],
+                    description=field["description"],
+                    type=field["type"],
+                    required=field["required"],
+                    default_value=field["default_value"],
+                    sensitive=field["sensitive"],
+                    allowed_values=field["allowed_values"],
+                    placeholder=field["placeholder"],
+                    validation_pattern=field["validation_pattern"]
+                )
+                for field in schema_data["credential_fields"]
+            ]
+            
+            # Convert setting fields
+            setting_fields = [
+                FieldDefinition(
+                    key=field["key"],
+                    display_name=field["display_name"],
+                    description=field["description"],
+                    type=field["type"],
+                    required=field["required"],
+                    default_value=field["default_value"],
+                    sensitive=field["sensitive"],
+                    allowed_values=field["allowed_values"],
+                    placeholder=field["placeholder"],
+                    validation_pattern=field["validation_pattern"]
+                )
+                for field in schema_data["setting_fields"]
+            ]
+            
+            schema = ProtocolSchema(
+                protocol=protocol,
+                display_name=schema_data["display_name"],
+                description=schema_data["description"],
+                credential_fields=credential_fields,
+                setting_fields=setting_fields,
+                example_account_ids=schema_data["example_account_ids"]
+            )
+            
+            schemas.append(schema)
+        
+        return ProtocolSchemasResponse(schemas=schemas)
 
     async def _update_call_stations(self):
         """Update call stations based on available HA entities"""

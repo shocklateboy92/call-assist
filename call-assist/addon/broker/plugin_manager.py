@@ -38,6 +38,22 @@ class PluginState(Enum):
 
 
 @dataclass
+class FieldDefinition(JsonSchemaMixin):
+    """Definition for a credential or setting field with UI metadata"""
+
+    key: str
+    display_name: str
+    description: str = ""
+    type: Literal["STRING", "PASSWORD", "URL", "INTEGER", "BOOLEAN", "SELECT"] = "STRING"
+    required: bool = False
+    default_value: str = ""
+    sensitive: bool = False  # Whether to mask the field in UI
+    allowed_values: Optional[List[str]] = None  # For SELECT type
+    placeholder: str = ""  # Placeholder text for UI
+    validation_pattern: str = ""  # Regex pattern for validation
+
+
+@dataclass
 class ExecutableConfig(JsonSchemaMixin):
     """Configuration for plugin executable"""
 
@@ -88,6 +104,8 @@ class PluginMetadata(JsonSchemaMixin):
     description: str = ""
     required_credentials: Optional[List[str]] = None
     optional_settings: Optional[List[str]] = None
+    credential_fields: Optional[List[FieldDefinition]] = None  # UI metadata for credentials
+    setting_fields: Optional[List[FieldDefinition]] = None  # UI metadata for settings
 
     def __post_init__(self):
         # Handle None values for lists
@@ -95,6 +113,36 @@ class PluginMetadata(JsonSchemaMixin):
             self.required_credentials = []
         if self.optional_settings is None:
             self.optional_settings = []
+        if self.credential_fields is None:
+            self.credential_fields = []
+        if self.setting_fields is None:
+            self.setting_fields = []
+
+        # Auto-generate rich field definitions from simple lists if not provided
+        if not self.credential_fields and self.required_credentials:
+            self.credential_fields = [
+                FieldDefinition(
+                    key=cred,
+                    display_name=cred.replace("_", " ").title(),
+                    description=f"Enter your {cred.replace('_', ' ')}",
+                    type="PASSWORD" if any(secret_word in cred.lower() for secret_word in ["password", "token", "secret", "key"]) else "STRING",
+                    required=True,
+                    sensitive=any(secret_word in cred.lower() for secret_word in ["password", "token", "secret", "key"])
+                )
+                for cred in self.required_credentials
+            ]
+
+        if not self.setting_fields and self.optional_settings:
+            self.setting_fields = [
+                FieldDefinition(
+                    key=setting,
+                    display_name=setting.replace("_", " ").title(),
+                    description=f"Configure {setting.replace('_', ' ')}",
+                    type="STRING",
+                    required=False
+                )
+                for setting in self.optional_settings
+            ]
 
 
 @dataclass
@@ -523,19 +571,63 @@ class PluginManager:
             return self.plugins[protocol]
         return None
 
-    async def start_call_on_account(
-        self, protocol: str, account_id: str, call_request: CallStartRequest
-    ) -> Optional[CallStartResponse]:
-        """Start a call on a specific account"""
-        # For now, just use the main plugin instance
-        return await self.start_call(protocol, call_request)
-
-    async def end_call_on_account(
-        self, protocol: str, account_id: str, call_request: CallEndRequest
-    ) -> Optional[CallEndResponse]:
-        """End a call on a specific account"""
-        # For now, just use the main plugin instance
-        return await self.end_call(protocol, call_request)
+    def get_protocol_schemas(self) -> Dict[str, Dict]:
+        """Get UI schemas for all available protocols"""
+        schemas = {}
+        
+        for protocol, plugin_instance in self.plugins.items():
+            metadata = plugin_instance.metadata
+            
+            # Convert plugin metadata to UI schema format
+            schema = {
+                "protocol": protocol,
+                "display_name": metadata.name,
+                "description": metadata.description,
+                "credential_fields": [
+                    {
+                        "key": field.key,
+                        "display_name": field.display_name,
+                        "description": field.description,
+                        "type": field.type,
+                        "required": field.required,
+                        "default_value": field.default_value,
+                        "sensitive": field.sensitive,
+                        "allowed_values": field.allowed_values or [],
+                        "placeholder": field.placeholder,
+                        "validation_pattern": field.validation_pattern
+                    }
+                    for field in (metadata.credential_fields or [])
+                ],
+                "setting_fields": [
+                    {
+                        "key": field.key,
+                        "display_name": field.display_name,
+                        "description": field.description,
+                        "type": field.type,
+                        "required": field.required,
+                        "default_value": field.default_value,
+                        "sensitive": field.sensitive,
+                        "allowed_values": field.allowed_values or [],
+                        "placeholder": field.placeholder,
+                        "validation_pattern": field.validation_pattern
+                    }
+                    for field in (metadata.setting_fields or [])
+                ],
+                "example_account_ids": [
+                    f"user@{protocol}.example.com",
+                    f"example_user"
+                ],
+                "capabilities": {
+                    "video_codecs": metadata.capabilities.video_codecs,
+                    "audio_codecs": metadata.capabilities.audio_codecs,
+                    "webrtc_support": metadata.capabilities.webrtc_support,
+                    "features": metadata.capabilities.features or []
+                }
+            }
+            
+            schemas[protocol] = schema
+            
+        return schemas
 
     async def shutdown_all(self):
         """Shutdown all running plugins"""
