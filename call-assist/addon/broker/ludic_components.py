@@ -29,6 +29,7 @@ from ludic.html import (
     h6,
     p,
     span,
+    strong,
     a,
     button,
     form,
@@ -159,45 +160,23 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                 ),
                 # HTMX for interactivity
                 script(src="https://unpkg.com/htmx.org@1.9.10"),
-                # Custom CSS for Call Assist branding
-                style(
-                    """
-                    :root {
-                        --color-primary: #2563eb;
-                        --color-primary-variant: #1d4ed8;
-                    }
-                    .call-assist-header {
-                        background: var(--color-primary);
-                        color: white;
-                        padding: 1rem;
-                        margin-bottom: 1rem;
-                    }
-                    .status-valid { color: #059669; }
-                    .status-invalid { color: #dc2626; }
-                    .account-actions { display: flex; gap: 0.5rem; }
-                    .form-container { max-width: 32rem; margin: 0 auto; }
-                    .table-container { overflow-x: auto; }
-                """
-                ),
             ),
             body(
-                header(h1("📹 Call Assist Broker"), class_="call-assist-header"),
-                self.render_navigation(),
+                header(
+                    nav(
+                        strong("📹 Call Assist Broker"),
+                        ul(
+                            li(a("Accounts", href="/ui")),
+                            li(a("Status", href="/ui/status")),
+                            li(a("Call History", href="/ui/history")),
+                            li(a("Settings", href="/ui/settings")),
+                        ),
+                        data_variant="fixed",
+                    ),
+                ),
                 main(*self.children, style=CSSProperties(padding="1rem")),
                 **self.attrs,
             ),
-        )
-
-    def render_navigation(self) -> nav:
-        """Render navigation menu"""
-        return nav(
-            ul(
-                li(a("Accounts", href="/ui")),
-                li(a("Status", href="/ui/status")),
-                li(a("Call History", href="/ui/history")),
-                li(a("Settings", href="/ui/settings")),
-            ),
-            style=CSSProperties(padding="0 1rem", margin_bottom="1rem"),
         )
 
 
