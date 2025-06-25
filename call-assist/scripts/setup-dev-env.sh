@@ -29,26 +29,8 @@ else
     exit 1
 fi
 
-# Install any additional broker requirements (should be minimal now)
-echo "Installing additional broker requirements..."
-cd "$PROJECT_ROOT/addon/broker"
-if [ -f "requirements.txt" ]; then
-    echo "  📋 Installing broker/requirements.txt"
-    pip install -r requirements.txt
-fi
-
-if [ -f "test_requirements.txt" ]; then
-    echo "  🧪 Installing broker/test_requirements.txt"
-    pip install -r test_requirements.txt
-fi
-
-# Install integration requirements
-echo "Installing integration requirements..."
-cd "$PROJECT_ROOT/integration"
-if [ -f "test_requirements.txt" ]; then
-    echo "  🧪 Installing integration/test_requirements.txt"
-    pip install -r test_requirements.txt
-fi
+# Broker dependencies are now managed via pyproject.toml
+# Integration dependencies are now managed via pyproject.toml
 
 # Build protobuf files
 echo "🔧 Building protobuf files..."

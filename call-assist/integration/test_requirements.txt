@@ -1,4 +1,0 @@
-# Test requirements for Call Assist Home Assistant integration
-pytest-homeassistant-custom-component>=0.13.252
-homeassistant>=2025.6.1
-pytest-socket>=0.6.0

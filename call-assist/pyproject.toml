@@ -25,10 +25,15 @@ test = [
     "pytest>=8.3.5",
     "pytest-asyncio>=0.26.0",
     "pytest-mock>=3.14.1",
+    "aioresponses>=0.7.4",
+    "grpclib>=0.4.7",
+    "httpx>=0.24.0",
+    "sqlmodel>=0.0.14",
 ]
 integration = [
     "pytest-homeassistant-custom-component>=0.13.252",
     "homeassistant>=2025.6.1",
+    "pytest-socket>=0.6.0",
 ]
 
 [tool.setuptools.packages.find]
