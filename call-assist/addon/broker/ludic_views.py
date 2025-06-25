@@ -37,7 +37,7 @@ from addon.broker.plugin_manager import PluginManager
 logger = logging.getLogger(__name__)
 
 
-async def get_protocol_schemas(
+def get_protocol_schemas(
     plugin_manager: PluginManager = Depends(get_plugin_manager)
 ) -> Dict[str, Any]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
@@ -112,9 +112,8 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page():
+    async def add_account_page(protocols: Dict[str, Any] = Depends(get_protocol_schemas)):
         """Add new account page"""
-        protocols = await get_protocol_schemas()
         return PageLayout(
             "Add Account - Call Assist Broker",
             AccountForm(protocols=protocols, is_edit=False)
@@ -164,6 +163,7 @@ def create_routes(app: FastAPI):
         protocol: str = Path(...), 
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
+        protocols: Dict[str, Any] = Depends(get_protocol_schemas),
     ):
         """Edit existing account page"""
         # Load existing account
@@ -171,7 +171,6 @@ def create_routes(app: FastAPI):
         if not existing_account:
             raise HTTPException(status_code=404, detail="Account not found")
 
-        protocols = await get_protocol_schemas()
         if protocol not in protocols:
             raise HTTPException(
                 status_code=400, detail=f"Protocol '{protocol}' not found"
@@ -255,12 +254,14 @@ def create_routes(app: FastAPI):
             raise HTTPException(status_code=400, detail="Failed to delete account")
 
     @app.get("/ui/api/protocol-fields", response_class=HTMLResponse)
-    async def get_protocol_fields(protocol: str | None = None):
+    async def get_protocol_fields(
+        protocol: str | None = None,
+        protocols: Dict[str, Any] = Depends(get_protocol_schemas),
+    ):
         """Get protocol-specific form fields for HTMX dynamic loading"""
         if not protocol:
             return HTMLResponse(content="")
 
-        protocols = await get_protocol_schemas()
         if protocol not in protocols:
             return HTMLResponse(content="<p>Protocol not found</p>")
 
