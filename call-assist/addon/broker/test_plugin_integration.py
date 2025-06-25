@@ -57,34 +57,32 @@ async def test_plugin_schema_integration():
     return True
 
 
-async def test_broker_schema_endpoint():
-    """Test that broker can provide schemas via gRPC"""
-    logger.info("Testing broker schema endpoint...")
+async def test_broker_plugin_integration():
+    """Test that broker integrates correctly with plugin manager"""
+    logger.info("Testing broker plugin integration...")
     
     try:
         from addon.broker.main import CallAssistBroker
-        import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
         
         # Create broker instance
         broker = CallAssistBroker()
         
-        # Test get_protocol_schemas
-        response = await broker.get_protocol_schemas(betterproto_lib_google.Empty())
+        # Test that plugin manager is initialized
+        assert broker.plugin_manager is not None, "Plugin manager not initialized"
+        logger.info("✅ Plugin manager properly integrated with broker")
         
-        logger.info(f"Broker returned {len(response.schemas)} protocol schemas")
+        # Test that web UI can access schemas through broker
+        schemas = broker.plugin_manager.get_protocol_schemas()
+        logger.info(f"✅ Web UI can access {len(schemas)} protocol schemas through broker")
         
-        for schema in response.schemas:
-            logger.info(f"\n=== Protocol: {schema.protocol} ===")
-            logger.info(f"Display Name: {schema.display_name}")
-            logger.info(f"Description: {schema.description}")
-            logger.info(f"Credential Fields: {len(schema.credential_fields)}")
-            logger.info(f"Setting Fields: {len(schema.setting_fields)}")
+        for protocol, schema in schemas.items():
+            logger.info(f"  - {protocol}: {schema['display_name']}")
         
-        logger.info("\n✅ Broker schema endpoint test passed!")
+        logger.info("✅ Broker plugin integration test passed!")
         return True
         
     except Exception as e:
-        logger.error(f"❌ Broker schema endpoint test failed: {e}")
+        logger.error(f"❌ Broker plugin integration test failed: {e}")
         return False
 
 
@@ -98,8 +96,8 @@ async def main():
     if not await test_plugin_schema_integration():
         success = False
     
-    # Test 2: Broker Schema Endpoint
-    if not await test_broker_schema_endpoint():
+    # Test 2: Broker Plugin Integration
+    if not await test_broker_plugin_integration():
         success = False
     
     if success:

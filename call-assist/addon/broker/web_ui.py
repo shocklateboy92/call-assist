@@ -31,36 +31,13 @@ def set_broker_reference(broker):
 
 
 async def get_protocol_schemas():
-    """Get protocol schemas from broker"""
+    """Get protocol schemas from broker's plugin manager"""
     if ui_state["broker_ref"]:
         try:
-            response = await ui_state["broker_ref"].get_protocol_schemas(None)
-            schemas = {}
-            for schema in response.schemas:
-                schemas[schema.protocol] = {
-                    "display_name": schema.display_name,
-                    "description": schema.description,
-                    "credential_fields": [
-                        {
-                            "key": field.key,
-                            "display_name": field.display_name,
-                            "description": field.description,
-                            "type": field.type,
-                            "required": field.required,
-                            "default_value": field.default_value,
-                            "sensitive": field.sensitive,
-                            "allowed_values": (
-                                list(field.allowed_values)
-                                if field.allowed_values
-                                else []
-                            ),
-                        }
-                        for field in schema.credential_fields
-                    ],
-                    "example_account_ids": list(schema.example_account_ids),
-                }
-            ui_state["protocol_schemas"] = schemas
-            return schemas
+            # Access plugin manager directly since we're in the same process
+            schemas_dict = ui_state["broker_ref"].plugin_manager.get_protocol_schemas()
+            ui_state["protocol_schemas"] = schemas_dict
+            return schemas_dict
         except Exception as e:
             logger.error(f"Failed to get protocol schemas: {e}")
             return {}

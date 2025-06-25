@@ -45,13 +45,14 @@ async def test_broker_startup():
         assert len(schemas) > 0, "No schemas generated"
         logger.info(f"✅ Generated {len(schemas)} protocol schemas")
         
-        # Test gRPC schema endpoint
-        import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-        response = await broker.get_protocol_schemas(betterproto_lib_google.Empty())
-        assert len(response.schemas) > 0, "gRPC endpoint returned no schemas"
-        logger.info(f"✅ gRPC endpoint returned {len(response.schemas)} schemas")
+        # Test that web UI can access schemas through broker
+        # (This simulates what the web UI does)
+        ui_schemas = broker.plugin_manager.get_protocol_schemas()
+        assert len(ui_schemas) > 0, "Web UI cannot access schemas"
+        logger.info(f"✅ Web UI can access schemas through broker")
         
         # Test health check still works
+        import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
         health = await broker.health_check(betterproto_lib_google.Empty())
         assert health.healthy, "Health check failed"
         logger.info("✅ Health check passed")
