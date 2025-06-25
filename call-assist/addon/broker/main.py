@@ -18,8 +18,6 @@ from proto_gen.callassist.broker import (
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -279,10 +277,13 @@ async def main():
 
 
 if __name__ == "__main__":
+    # Set up logging
+    logging.basicConfig(level=logging.INFO)
+
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         logger.info("Broker shutdown complete")
     except Exception as e:
         logger.error(f"Failed to start broker: {e}")
-        exit(1)
+        raise
