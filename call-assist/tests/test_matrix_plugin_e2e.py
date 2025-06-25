@@ -84,8 +84,13 @@ class WebUITestClient:
         """Extract account information from the accounts table in the UI"""
         accounts = []
         
+        # First validate that we have proper HTML structure
+        body = soup.find("body")
+        if body and hasattr(body, 'attrs') and 'children' in body.attrs:
+            # This indicates malformed HTML where server sent string as attribute
+            raise AssertionError(f"Malformed HTML detected: body tag has 'children' attribute instead of proper child elements")
+        
         # Look for table rows in the accounts table
-        # Look for table rows in the HTML
         table_rows = soup.find_all("tr")
         
         for row in table_rows:
@@ -146,6 +151,52 @@ class WebUITestClient:
                     inputs[name] = "textarea"
         
         return inputs
+
+    def validate_html_structure(self, soup: BeautifulSoup, page_name: str = "page") -> None:
+        """Validate that the HTML structure is properly formed and not malformed by server errors"""
+        # Check for malformed body tag with string content as attribute
+        body = soup.find("body")
+        if body and hasattr(body, 'attrs') and 'children' in body.attrs:
+            raise AssertionError(f"Malformed HTML in {page_name}: body tag has 'children' attribute containing string content instead of proper child elements")
+        
+        # Check that body has actual child elements, not just text
+        if body:
+            # Body should have actual HTML child elements, not just raw text
+            child_elements = body.find_all(recursive=False)  # Direct children only
+            if len(child_elements) == 0:
+                # Check if body only contains text (which might indicate serialization error)
+                body_text = body.get_text(strip=True)
+                if body_text and len(body_text) > 100:  # Suspiciously long text without structure
+                    raise AssertionError(f"Malformed HTML in {page_name}: body contains only text content without proper HTML structure")
+        
+        # Check for common error patterns in the HTML
+        html_text = str(soup).lower()
+        error_patterns = [
+            "children=",  # Ludic serialization error
+            "internal server error",
+            "500 internal server error", 
+            "traceback",
+            "exception occurred"
+        ]
+        
+        for pattern in error_patterns:
+            if pattern in html_text:
+                raise AssertionError(f"HTML structure error in {page_name}: found error pattern '{pattern}'")
+
+    def extract_visible_text_content(self, soup: BeautifulSoup) -> str:
+        """Extract all user-visible text from the page for content validation"""
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+        
+        # Get text content and clean it up
+        text = soup.get_text()
+        # Normalize whitespace
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = ' '.join(chunk for chunk in chunks if chunk)
+        
+        return text
 
 
 class MatrixTestClient:
@@ -287,7 +338,16 @@ class TestMatrixPluginWebUIE2E:
         
         # Test main page loads
         html, soup = await web_ui_client.get_page("/ui")
-        assert "Call Assist" in html or "Broker" in html
+        
+        # Validate HTML structure first
+        web_ui_client.validate_html_structure(soup, "main page")
+        
+        # Check for expected content in visible text
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        assert any(keyword in visible_text for keyword in ["Call Assist", "Broker", "Accounts"]), \
+            f"Expected content not found in visible text: {visible_text[:200]}..."
+        
+        # Verify basic HTML structure
         assert soup.find("body") is not None
 
     @pytest.mark.asyncio
@@ -297,13 +357,21 @@ class TestMatrixPluginWebUIE2E:
         
         html, soup = await web_ui_client.get_page("/ui")
         
+        # Validate HTML structure first
+        web_ui_client.validate_html_structure(soup, "main UI page")
+        
+        # Extract visible text for content validation
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        
         # Should contain accounts section
-        assert "Accounts" in html or "accounts" in html.lower()
+        assert any(keyword in visible_text for keyword in ["Accounts", "accounts"]), \
+            f"Accounts section not found in visible text: {visible_text[:200]}..."
         
-        # Should have Add Account button
-        assert "Add Account" in html or "add" in html.lower()
+        # Should have Add Account functionality
+        assert any(keyword in visible_text for keyword in ["Add Account", "Add", "add"]), \
+            f"Add Account functionality not found in visible text: {visible_text[:200]}..."
         
-        # Extract any existing accounts
+        # Extract any existing accounts (this will also validate HTML structure)
         accounts = web_ui_client.extract_accounts_from_table(soup)
         logger.info(f"Found {len(accounts)} existing accounts: {accounts}")
 
@@ -314,11 +382,19 @@ class TestMatrixPluginWebUIE2E:
         
         html, soup = await web_ui_client.get_page("/ui/add-account")
         
+        # Validate HTML structure first
+        web_ui_client.validate_html_structure(soup, "add account page")
+        
+        # Extract visible text for content validation
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        
         # Should have protocol selection
-        assert "Protocol" in html or "protocol" in html.lower()
+        assert any(keyword in visible_text for keyword in ["Protocol", "protocol"]), \
+            f"Protocol selection not found in visible text: {visible_text[:200]}..."
         
         # Should have Add Account form
-        assert "Add Account" in html or "Add" in html
+        assert any(keyword in visible_text for keyword in ["Add Account", "Add"]), \
+            f"Add Account form not found in visible text: {visible_text[:200]}..."
         
         # Extract available protocols
         protocols = web_ui_client.extract_protocol_options(soup)
@@ -328,8 +404,8 @@ class TestMatrixPluginWebUIE2E:
         matrix_available = any("matrix" in p.lower() for p in protocols)
         assert matrix_available, f"Matrix protocol not found in {protocols}"
 
-    @pytest.mark.asyncio 
-    async def test_add_matrix_account_via_web_ui(self, web_ui_client, matrix_test_users):
+    @pytest.mark.asyncio
+    async def test_add_matrix_account_via_web_ui(self, web_ui_client: WebUITestClient, matrix_test_users):
         """Test adding a Matrix account through the web UI form submission"""
         if "caller" not in matrix_test_users:
             pytest.skip("Matrix test user not available")
@@ -406,30 +482,30 @@ class TestMatrixPluginWebUIE2E:
             logger.info(f"Edit page response: {e}")
 
     @pytest.mark.asyncio
-    async def test_complete_web_ui_navigation(self, web_ui_client):
+    async def test_complete_web_ui_navigation(self, web_ui_client: WebUITestClient):
         """Test that all key web UI pages are accessible and load correctly"""
         await web_ui_client.wait_for_server()
 
         # Test main page
         html, soup = await web_ui_client.get_page("/ui")
-        assert soup.find("body") is not None
-        assert "Call Assist" in html or "Broker" in html or "Accounts" in html
+        web_ui_client.validate_html_structure(soup, "main page")
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        assert any(keyword in visible_text for keyword in ["Call Assist", "Broker", "Accounts"]), \
+            f"Expected main page content not found in: {visible_text[:200]}..."
         
         # Test add account page
         html, soup = await web_ui_client.get_page("/ui/add-account")
-        assert "Protocol" in html
-        assert "Add" in html or "add" in html.lower()
+        web_ui_client.validate_html_structure(soup, "add account page")
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        assert any(keyword in visible_text for keyword in ["Protocol", "Add"]), \
+            f"Expected add account content not found in: {visible_text[:200]}..."
         
         # Test settings page
         html, soup = await web_ui_client.get_page("/ui/settings")
-        assert "Settings" in html or "settings" in html.lower()
-        
-        # Check for no obvious errors in any page
-        for page_html in [html]:
-            error_indicators = ["error 500", "internal server error", "traceback"]
-            page_content = page_html.lower()
-            for error in error_indicators:
-                assert error not in page_content, f"Found error indicator '{error}' in page"
+        web_ui_client.validate_html_structure(soup, "settings page")
+        visible_text = web_ui_client.extract_visible_text_content(soup)
+        assert any(keyword in visible_text for keyword in ["Settings", "settings"]), \
+            f"Expected settings content not found in: {visible_text[:200]}..."
 
     @pytest.mark.asyncio
     async def test_matrix_plugin_schema_integration(self, web_ui_client):
@@ -438,6 +514,7 @@ class TestMatrixPluginWebUIE2E:
         
         # Load add account page
         html, soup = await web_ui_client.get_page("/ui/add-account")
+        web_ui_client.validate_html_structure(soup, "add account page")
         
         # Check that Matrix is available as a protocol option
         protocols = web_ui_client.extract_protocol_options(soup)
@@ -446,6 +523,7 @@ class TestMatrixPluginWebUIE2E:
         
         # Test the HTMX endpoint for Matrix protocol fields
         matrix_fields_html, matrix_fields_soup = await web_ui_client.get_page("/ui/api/protocol-fields?protocol=matrix")
+        web_ui_client.validate_html_structure(matrix_fields_soup, "Matrix protocol fields")
         
         # Verify Matrix-specific fields are returned
         matrix_inputs = web_ui_client.find_form_inputs(matrix_fields_soup)
@@ -471,13 +549,3 @@ class TestMatrixPluginWebUIE2E:
         # Should have at least a protocol selector
         has_protocol_field = any("protocol" in key.lower() for key in form_inputs.keys())
         assert has_protocol_field or "protocol" in html.lower(), "No protocol selection found"
-
-
-# Note: Full form submission testing would require JavaScript execution
-# which needs tools like Selenium or Playwright. The tests above validate
-# the UI structure and availability of Matrix plugin integration.
-#
-# For complete E2E testing with form submission, consider:
-# 1. Adding Selenium/Playwright for browser automation
-# 2. Testing the form logic separately from UI rendering
-# 3. Using the broker's internal APIs for backend validation
