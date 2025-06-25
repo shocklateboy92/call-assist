@@ -39,6 +39,7 @@ import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_goog
 import asyncio
 from addon.broker.main import serve
 
+
 @pytest.fixture()
 def enable_socket():
     """Work-around pytest-socket to allow network requests in E2E tests"""
@@ -75,41 +76,6 @@ def find_available_port() -> int:
         return sock.getsockname()[1]
 
 
-def _run_broker_server(grpc_port, web_port, db_path, stop_event):
-    """Run broker server in a separate thread"""
-
-    
-    # Create new event loop for this thread
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    async def run_until_stopped():
-        # Start the server
-        server_task = asyncio.create_task(
-            serve(
-                grpc_port=grpc_port,
-                web_port=web_port,
-                db_path=db_path,
-            ),
-        )
-        
-        # Wait for stop event
-        while not stop_event.is_set():
-            await asyncio.sleep(0.1)
-        
-        # Cancel the server
-        server_task.cancel()
-        try:
-            await server_task
-        except asyncio.CancelledError:
-            pass
-    
-    try:
-        loop.run_until_complete(run_until_stopped())
-    finally:
-        loop.close()
-
-
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker running in separate thread"""
@@ -130,15 +96,16 @@ def broker_process():
         f"Starting broker in thread: gRPC={grpc_port}, Web={web_port}, DB={db_path}"
     )
 
-    # Create stop event for clean shutdown
-    stop_event = threading.Event()
+    loop = asyncio.new_event_loop()
+
+    def run_thread():
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(
+            serve(grpc_port=grpc_port, web_port=web_port, db_path=db_path)
+        )
 
     # Start broker in separate thread
-    broker_thread = threading.Thread(
-        target=_run_broker_server,
-        args=(grpc_port, web_port, db_path, stop_event),
-        daemon=True
-    )
+    broker_thread = threading.Thread(target=run_thread, daemon=True)
     broker_thread.start()
 
     # Wait for server to start by testing actual gRPC connection
@@ -152,7 +119,7 @@ def broker_process():
                 if result == 0:
                     logger.info("Broker gRPC port is available")
                     break
-        except Exception:
+        except ConnectionRefusedError:
             pass
         time.sleep(0.1)
     else:
@@ -166,16 +133,14 @@ def broker_process():
         "web_port": web_port,
         "db_path": db_path,
         "thread": broker_thread,
-        "stop_event": stop_event,
     }
 
     yield broker_info
 
     # Cleanup
     logger.info("Shutting down broker thread...")
-    stop_event.set()
     broker_thread.join(timeout=5.0)
-    
+
     if broker_thread.is_alive():
         logger.warning("Broker thread did not shut down gracefully")
 
