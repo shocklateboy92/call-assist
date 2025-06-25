@@ -124,20 +124,26 @@ Camera (RTSP) → Broker (Capability Detection) → Call Plugin (Matrix/XMPP) �
 call-assist/
 ├── integration/           # Home Assistant custom integration (Python)
 ├── addon/
-│   ├── broker/           # Main orchestrator with web UI
-│   │   ├── main.py       # gRPC server + account management
-│   │   ├── web_ui.py     # NiceGUI web interface
-│   │   ├── web_api.py    # FastAPI REST endpoints
-│   │   ├── models.py     # SQLModel database schemas
-│   │   ├── database.py   # SQLite database management
-│   │   └── form_generator.py # Dynamic form generation
+│   ├── broker/                         # Main orchestrator with web UI
+│   │   ├── main.py                     # gRPC server + web UI server
+│   │   ├── ludic_components.py         # Ludic web interface components
+│   │   ├── ludic_views.py              # Ludic views for all UI
+│   │   ├── web_api.py                  # FastAPI REST endpoints
+│   │   ├── models.py                   # SQLModel database schemas
+│   │   ├── database.py                 # SQLite database management
+│   │   ├── queries.py                  # Database queries
+│   │   ├── plugin_manager.py           # Plugin loading and management logic
+│   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
+│   │   ├── web_server.py               # FastAPI web server
 │   ├── plugins/
 │   │   ├── matrix/       # TypeScript
 │   │   └── xmpp/         # C++
+├── scripts/              # Build/development scripts
+├── tests/                # Integration test, used for primary validation and development
 ├── proto/                # Shared gRPC schemas
 ├── Dockerfile            # Container build (moved to root for easy proto access)
+├── pyproject.toml        # Python dependencies and configuration including tests
 ├── docker-compose.dev.yml # Development environment
-├── scripts/              # Build/development scripts
 └── .github/workflows/    # CI/CD for multi-language builds
 ```
 
@@ -147,7 +153,6 @@ call-assist/
 3. **Media Player Support**: Chromecast primary, DLNA/UPnP/Miracast stretch goals
 4. **WebRTC Integration**: Leverage Matrix's native WebRTC support for direct streaming
 5. **Entity Architecture**: Broker-controlled, domain-agnostic entity system
-6. **Account Management**: Standalone web UI (NiceGUI + FastAPI) with SQLite persistence
 7. **Form Generation**: Schema-driven dynamic forms for protocol-specific configuration
 
 ### gRPC Service Definitions
@@ -199,23 +204,6 @@ call-assist/
 - **Components**: Buttons, forms, tables, dialogs, navigation, typography
 - **Benefits**: No classes needed on semantic HTML, automatic responsive design, light/dark mode
 - **Usage**: Include CSS file, use semantic HTML elements with optional component classes
-
-**Integration Pattern**:
-```python
-from fastapi import FastAPI
-from ludic.contrib.fastapi import LudicRoute
-from ludic.html import html, head, body, div, h1
-
-app = FastAPI()
-app.router.route_class = LudicRoute
-
-@app.get("/")
-def index() -> html:
-    return html(
-        head(title("Call Assist")),
-        body(div(h1("Account Management"), id="container"))
-    )
-```
 
 **HTMX Integration**:
 - **Purpose**: Provides interactivity without custom JavaScript
