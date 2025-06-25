@@ -5,24 +5,35 @@ Shared test fixtures for Call Assist tests
 This module contains broker-related fixtures that are used across multiple test files.
 """
 
+import logging
+
+# Set up logging for tests
+logger = logging.getLogger(__name__)
+
+import pytest_socket
+
+
+def stub_method(*args, **kwargs):
+    """Stub method to disable pytest-socket"""
+    logger.info(
+        "pytest-socket disabled. These are integration tests that require network access."
+    )
+    pass
+
+
+pytest_socket.disable_socket = stub_method
+
 import os
 import socket
-import logging
 import asyncio
 import tempfile
 
 import pytest
 import pytest_asyncio
-import pytest_homeassistant_custom_component.common
-import pytest_socket
-from grpclib.client import Channel
 
-# Test imports - updated for betterproto
+from grpclib.client import Channel
 from proto_gen.callassist.broker import BrokerIntegrationStub
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
-
-# Set up logging for tests
-logger = logging.getLogger(__name__)
 
 
 @pytest.fixture()
@@ -87,27 +98,20 @@ async def broker_process():
     # Start broker in background task
     server_task = asyncio.create_task(
         serve(
-            grpc_host="localhost",
             grpc_port=grpc_port,
-            web_host="localhost",
             web_port=web_port,
             db_path=db_path,
         )
     )
 
-    # Wait for server to start
-    max_retries = 20
-    for _ in range(max_retries):
-        if not is_port_available(grpc_port):
-            break
-        await asyncio.sleep(0.1)
-    else:
-        server_task.cancel()
-        try:
-            await server_task
-        except asyncio.CancelledError:
-            pass
-        raise RuntimeError("Broker server failed to start within timeout")
+    # Wait for server to start by testing actual gRPC connection
+    # Test actual gRPC connection instead of just port availability
+    async with Channel(host="localhost", port=grpc_port) as channel:
+        stub = BrokerIntegrationStub(channel)
+        health = await stub.health_check(
+            betterproto_lib_pydantic_google_protobuf.Empty(), timeout=5
+        )
+        logger.info("Broker server is ready: %s", health)
 
     logger.info(f"In-process broker started on ports gRPC={grpc_port}, Web={web_port}")
 
@@ -168,26 +172,31 @@ def setup_integration_path():
     """Set up the integration path for testing."""
     import os
     import sys
-    
+
     # Set environment variable for custom components path
-    os.environ["CUSTOM_COMPONENTS_PATH"] = "/workspaces/universal/call-assist/config/homeassistant/custom_components"
-    
+    os.environ["CUSTOM_COMPONENTS_PATH"] = (
+        "/workspaces/universal/call-assist/config/homeassistant/custom_components"
+    )
+
     # Add to Python path
     config_path = "/workspaces/universal/call-assist/config/homeassistant"
     if config_path not in sys.path:
         sys.path.insert(0, config_path)
-    
+
     # Patch the common module at session level
     import pytest_homeassistant_custom_component.common as common
+
     original_get_test_config_dir = common.get_test_config_dir
-    
+
     def patched_get_test_config_dir(*add_path):
-        return os.path.join("/workspaces/universal/call-assist/config/homeassistant", *add_path)
-    
+        return os.path.join(
+            "/workspaces/universal/call-assist/config/homeassistant", *add_path
+        )
+
     common.get_test_config_dir = patched_get_test_config_dir
-    
+
     yield
-    
+
     # Cleanup
     common.get_test_config_dir = original_get_test_config_dir
     if config_path in sys.path:

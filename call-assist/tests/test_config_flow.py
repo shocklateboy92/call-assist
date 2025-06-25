@@ -20,6 +20,7 @@ async def test_form(broker_process, hass: HomeAssistant) -> None:
 
 async def test_form_valid_connection(broker_process, hass: HomeAssistant) -> None:
     """Test we can successfully connect to broker."""
+    
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
     )
@@ -32,6 +33,9 @@ async def test_form_valid_connection(broker_process, hass: HomeAssistant) -> Non
         },
     )
     await hass.async_block_till_done()
+
+    # Debug: check what error we're getting 
+    print(f"Config flow result - type: {result2['type']}, errors: {result2.get('errors', {})}")
 
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     assert result2["title"] == "Call Assist (localhost)"
