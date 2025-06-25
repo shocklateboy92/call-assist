@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 Ludic-based FastAPI views for Call Assist Broker web UI
+
+Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
-from typing import Dict, Any, Optional
-from fastapi import FastAPI, Form, HTTPException, Path, Request
+from typing import Dict, Any
+from fastapi import FastAPI, Form, HTTPException, Path, Request, Depends
 from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, legend, label, input, p
 
@@ -29,36 +31,26 @@ from addon.broker.queries import (
 from addon.broker.account_service import get_accounts_with_status
 from addon.broker.database import get_db_stats
 from addon.broker.models import Account
+from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager
+from addon.broker.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
-# Global state for broker reference
-_broker_ref = None
+
+async def get_protocol_schemas(
+    plugin_manager: PluginManager = Depends(get_plugin_manager)
+) -> Dict[str, Any]:
+    """Get protocol schemas from plugin manager (via dependency injection)"""
+    try:
+        schemas_dict = plugin_manager.get_protocol_schemas()
+        return schemas_dict
+    except Exception as e:
+        logger.error(f"Failed to get protocol schemas: {e}")
+        return {}
 
 
-def set_broker_reference(broker):
-    """Set reference to the broker for accessing protocol schemas and other data"""
-    global _broker_ref
-    _broker_ref = broker
-
-
-async def get_protocol_schemas() -> Dict[str, Any]:
-    """Get protocol schemas from broker's plugin manager"""
-    if _broker_ref:
-        try:
-            # Access plugin manager directly since we're in the same process
-            schemas_dict = _broker_ref.plugin_manager.get_protocol_schemas()
-            return schemas_dict
-        except Exception as e:
-            logger.error(f"Failed to get protocol schemas: {e}")
-            return {}
-    return {}
-
-
-def create_routes(app: FastAPI, broker_ref=None):
-    """Create all web UI routes"""
-    if broker_ref:
-        set_broker_reference(broker_ref)
+def create_routes(app: FastAPI):
+    """Create all web UI routes with dependency injection"""
 
     # Add exception handler for all exceptions
     @app.exception_handler(Exception)
@@ -400,24 +392,28 @@ def create_routes(app: FastAPI, broker_ref=None):
         return HTMLResponse(content=str(div(*fields)))
 
     @app.get("/ui/status", response_class=HTMLResponse)
-    async def status_page():
+    async def status_page(
+        broker = Depends(get_broker_instance),
+        plugin_manager: PluginManager = Depends(get_plugin_manager)
+    ):
         """Status monitoring page"""
         # Database stats
         db_stats = await get_db_stats()
 
         # Broker status
         broker_status = {}
-        if _broker_ref:
+        try:
             broker_status = {
                 "status": "Running",
-                "active_calls": len(_broker_ref.active_calls),
-                "configured_accounts": len(_broker_ref.account_credentials),
+                "active_calls": len(getattr(broker, 'active_calls', [])),
+                "configured_accounts": len(getattr(broker, 'account_credentials', {})),
                 "available_protocols": ", ".join(
-                    _broker_ref.plugin_manager.get_available_protocols()
+                    plugin_manager.get_available_protocols()
                 ),
             }
-        else:
-            broker_status = {"status": "Not Connected"}
+        except Exception as e:
+            logger.error(f"Error getting broker status: {e}")
+            broker_status = {"status": "Error", "error": str(e)}
 
         return PageLayout(
             "Status - Call Assist Broker",

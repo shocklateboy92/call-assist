@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 async def get_session() -> Session:
     """Get database session using the global database manager"""
-    from addon.broker.database import get_database_instance
+    # Import here to avoid circular dependency during migration
+    from addon.broker.dependencies import get_database_instance
     db_manager = await get_database_instance()
     return db_manager.get_session()
 

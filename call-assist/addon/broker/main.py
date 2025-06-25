@@ -17,7 +17,7 @@ from proto_gen.callassist.broker import (
     HealthCheckResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-from addon.broker.database import set_database_path
+from addon.broker.dependencies import app_state
 from addon.broker.web_server import WebUIServer
 from addon.broker.plugin_manager import PluginManager
 
@@ -27,19 +27,15 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Global broker instance for access from other modules
-_broker_instance: Optional["CallAssistBroker"] = None
-
-
+# Backward compatibility - these will delegate to the new dependency system
 def get_broker_instance() -> Optional["CallAssistBroker"]:
-    """Get the global broker instance"""
-    return _broker_instance
+    """Get the global broker instance (backward compatibility)"""
+    return app_state.broker_instance
 
 
 def set_broker_instance(broker: "CallAssistBroker"):
-    """Set the global broker instance"""
-    global _broker_instance
-    _broker_instance = broker
+    """Set the global broker instance (backward compatibility)"""
+    app_state.set_broker_instance(broker)
 
 
 @dataclass
@@ -83,7 +79,7 @@ class CallAssistBroker(BrokerIntegrationBase):
     - Basic health check
     """
 
-    def __init__(self):
+    def __init__(self, plugin_manager: Optional[PluginManager] = None, database_manager=None):
         # Store HA entities we receive
         self.ha_entities: Dict[str, HAEntity] = {}
 
@@ -96,8 +92,11 @@ class CallAssistBroker(BrokerIntegrationBase):
         # Startup time for health check
         self.startup_time = datetime.now(timezone.utc)
         
-        # Initialize plugin manager
-        self.plugin_manager = PluginManager()
+        # Initialize plugin manager (injected or create new)
+        self.plugin_manager = plugin_manager or PluginManager()
+        
+        # Store database manager reference (injected or None)
+        self.database_manager = database_manager
 
     async def stream_ha_entities(
         self, ha_entity_update_iterator: AsyncIterator[HaEntityUpdate]
@@ -299,15 +298,18 @@ async def serve(
     """Start the consolidated Call Assist Broker with gRPC, web UI, and database"""
     logger.info(f"Initializing Call Assist Broker with database: {db_path}")
 
-    # Set database path for lazy initialization
-    set_database_path(db_path)
+    # Initialize dependencies in correct order
+    await app_state.initialize(db_path)
 
-    # Create broker instance
-    broker = CallAssistBroker()
-    set_broker_instance(broker)
+    # Create broker instance with injected dependencies
+    broker = CallAssistBroker(
+        plugin_manager=app_state.plugin_manager,
+        database_manager=app_state.database_manager
+    )
+    app_state.set_broker_instance(broker)
 
     # Initialize web server
-    web_server = WebUIServer(broker_ref=broker)
+    web_server = WebUIServer()
     web_server.host = web_host
     web_server.port = web_port
 

@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 class WebUIServer:
     """Manages the web UI server (Ludic + FastAPI)"""
 
-    def __init__(self, broker_ref=None):
-        self.broker_ref = broker_ref
+    def __init__(self):
+        """Initialize web server (dependencies will be injected via FastAPI DI)"""
         self.server_task: Optional[asyncio.Task] = None
         self.host = "0.0.0.0"
         self.port = 8080
@@ -35,8 +35,8 @@ class WebUIServer:
             async def redirect_to_ui():
                 return RedirectResponse(url="/ui", status_code=302)
             
-            # Setup Ludic routes
-            create_routes(self.app, self.broker_ref)
+            # Setup Ludic routes (dependencies will be injected automatically)
+            create_routes(self.app)
 
             logger.info(f"Web UI server initialized on {self.host}:{self.port}")
 
@@ -81,9 +81,9 @@ class WebUIServer:
             logger.error(f"Error stopping web UI server: {e}")
 
 
-def create_web_server(broker_ref=None) -> WebUIServer:
-    """Create web UI server with broker reference"""
-    return WebUIServer(broker_ref)
+def create_web_server() -> WebUIServer:
+    """Create web UI server (dependencies will be injected via FastAPI DI)"""
+    return WebUIServer()
 
 
 # For standalone testing
