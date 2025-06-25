@@ -549,3 +549,89 @@ class TestMatrixPluginWebUIE2E:
         # Should have at least a protocol selector
         has_protocol_field = any("protocol" in key.lower() for key in form_inputs.keys())
         assert has_protocol_field or "protocol" in html.lower(), "No protocol selection found"
+
+    @pytest.mark.asyncio
+    async def test_invalid_matrix_account_status_checking(self, web_ui_client: WebUITestClient):
+        """Test that invalid Matrix account credentials show as invalid status in the UI"""
+        await web_ui_client.wait_for_server()
+        
+        # Add an account with invalid Matrix credentials that will definitely fail
+        # Use malformed/missing required fields to ensure plugin initialization fails
+        invalid_form_data = {
+            "protocol": "matrix",
+            "account_id": "@invalid_user:invalid-domain",
+            "display_name": "Invalid Matrix Account",
+            "homeserver": "",  # Empty homeserver should cause failure
+            "user_id": "",     # Empty user_id should cause failure 
+            "access_token": ""  # Empty access_token should cause failure
+        }
+        
+        # First trigger the HTMX request to load Matrix form fields
+        protocol_fields_response = await web_ui_client.get_page("/ui/api/protocol-fields?protocol=matrix")
+        matrix_fields_html, matrix_fields_soup = protocol_fields_response
+        
+        # Verify Matrix-specific fields are loaded
+        assert "homeserver" in matrix_fields_html.lower() or "access_token" in matrix_fields_html.lower()
+        
+        # Submit the form with invalid credentials
+        status, response_html, response_soup = await web_ui_client.post_form("/ui/add-account", invalid_form_data)
+        
+        # The form submission might succeed (saving to database) or fail
+        if status == 302:  # Successful redirect
+            logger.info("Invalid account form submission successful - checking status display")
+            
+            # Navigate to main page to check account status
+            html, soup = await web_ui_client.get_page("/ui")
+            accounts = web_ui_client.extract_accounts_from_table(soup)
+            
+            # Find the invalid account we just added
+            invalid_account = None
+            for account in accounts:
+                if account.get("account_id") == "@invalid_user:invalid-domain":
+                    invalid_account = account
+                    break
+            
+            assert invalid_account is not None, f"Invalid Matrix account not found in accounts list: {accounts}"
+            
+            # Check that the status shows as invalid
+            # The status should be checked real-time from the plugin
+            status_text = invalid_account.get("status", "")
+            
+            # The account should show as invalid since the credentials are bogus
+            status_is_invalid = "invalid" in status_text.lower() or "❌" in status_text
+            assert status_is_invalid, f"Status text should indicate invalid status. Got: '{status_text}'. Account: {invalid_account}"
+            
+            logger.info(f"Successfully verified invalid Matrix account shows invalid status: {invalid_account}")
+            
+        elif status == 200:
+            # Form submission succeeded but might not redirect (some forms work this way)
+            logger.info("Form submission returned 200 - checking if account was added")
+            
+            # Navigate to main page to check account status
+            html, soup = await web_ui_client.get_page("/ui")
+            accounts = web_ui_client.extract_accounts_from_table(soup)
+            
+            # Find the invalid account
+            invalid_account = None
+            for account in accounts:
+                if account.get("account_id") == "@invalid_user:invalid-domain":
+                    invalid_account = account
+                    break
+            
+            if invalid_account is not None:
+                # Account was added, check that status shows as invalid
+                status_text = invalid_account.get("status", "")
+                
+                # Check that the status indicates invalid
+                status_is_invalid = "invalid" in status_text.lower() or "❌" in status_text
+                assert status_is_invalid, f"Status text should indicate invalid status. Got: '{status_text}'. Account: {invalid_account}"
+                
+                logger.info(f"Successfully verified invalid Matrix account shows invalid status: {invalid_account}")
+            else:
+                logger.info("Account was not added - this is also acceptable for invalid credentials")
+            
+        else:
+            # Form submission failed with error status - this is also acceptable for invalid credentials
+            logger.info(f"Form submission failed with status {status} - this is acceptable for invalid credentials")
+            # We can still check that the error handling works properly
+            assert status in [400, 422, 500], f"Unexpected status code for invalid credentials: {status}"

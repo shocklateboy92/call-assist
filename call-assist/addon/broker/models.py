@@ -13,7 +13,6 @@ class Account(SQLModel, table=True):
     account_id: str = Field(index=True)  # e.g., "@user:matrix.org"
     display_name: str
     credentials_json: str  # JSON serialized credentials
-    is_valid: bool = Field(default=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

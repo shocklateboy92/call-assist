@@ -4,8 +4,11 @@ from sqlmodel import Session, select
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 import json
+import logging
 
 from addon.broker.models import Account, BrokerSettings, CallLog
+
+logger = logging.getLogger(__name__)
 
 
 async def get_session() -> Session:
@@ -56,7 +59,6 @@ async def save_account(account: Account) -> Account:
             # Update existing account
             existing.display_name = account.display_name
             existing.credentials_json = account.credentials_json
-            existing.is_valid = account.is_valid
             existing.updated_at = datetime.now(timezone.utc)
             session.commit()
             session.refresh(existing)
@@ -164,8 +166,12 @@ async def get_call_history(limit: int = 50) -> list[CallLog]:
     """Get recent call history"""
     session = await get_session()
     with session:
+        # Use proper SQLModel ordering
+        from sqlmodel import desc
         return list(
             session.exec(
-                select(CallLog).order_by(CallLog.start_time.desc()).limit(limit)
+                select(CallLog).order_by(desc(CallLog.start_time)).limit(limit)
             ).all()
         )
+
+

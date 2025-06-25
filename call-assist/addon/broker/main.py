@@ -4,7 +4,7 @@ import asyncio
 import logging
 import grpclib
 from grpclib.server import Server
-from typing import Dict, List, Optional, AsyncIterator
+from typing import Dict, List, Optional, AsyncIterator, TYPE_CHECKING
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -21,7 +21,25 @@ from addon.broker.database import set_database_path
 from addon.broker.web_server import WebUIServer
 from addon.broker.plugin_manager import PluginManager
 
+if TYPE_CHECKING:
+    # Forward reference for type hints
+    pass
+
 logger = logging.getLogger(__name__)
+
+# Global broker instance for access from other modules
+_broker_instance: Optional["CallAssistBroker"] = None
+
+
+def get_broker_instance() -> Optional["CallAssistBroker"]:
+    """Get the global broker instance"""
+    return _broker_instance
+
+
+def set_broker_instance(broker: "CallAssistBroker"):
+    """Set the global broker instance"""
+    global _broker_instance
+    _broker_instance = broker
 
 
 @dataclass
@@ -286,6 +304,7 @@ async def serve(
 
     # Create broker instance
     broker = CallAssistBroker()
+    set_broker_instance(broker)
 
     # Initialize web server
     web_server = WebUIServer(broker_ref=broker)

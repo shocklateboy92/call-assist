@@ -19,7 +19,6 @@ from addon.broker.ludic_components import (
     ErrorPage,
 )
 from addon.broker.queries import (
-    get_all_accounts,
     get_account_by_protocol_and_id,
     save_account,
     delete_account,
@@ -27,6 +26,7 @@ from addon.broker.queries import (
     save_setting,
     get_call_history,
 )
+from addon.broker.account_service import get_accounts_with_status
 from addon.broker.database import get_db_stats
 from addon.broker.models import Account
 
@@ -101,24 +101,16 @@ def create_routes(app: FastAPI, broker_ref=None):
     @app.get("/ui", response_class=HTMLResponse)
     async def main_page():
         """Main dashboard page with accounts table"""
-        accounts = await get_all_accounts()
-        accounts_data = []
-
-        for account in accounts:
-            accounts_data.append(
-                {
-                    "id": account.id,
-                    "protocol": account.protocol,
-                    "account_id": account.account_id,
-                    "display_name": account.display_name,
-                    "is_valid": account.is_valid,
-                    "updated_at": (
-                        account.updated_at.strftime("%Y-%m-%d %H:%M")
-                        if account.updated_at
-                        else "N/A"
-                    ),
-                }
-            )
+        # Get accounts with real-time status checking
+        accounts_data = await get_accounts_with_status()
+        
+        # Format the updated_at field for display
+        for account in accounts_data:
+            if account.get("updated_at"):
+                # updated_at is already formatted as string from get_accounts_with_status
+                account["updated_at"] = account["updated_at"][:16]  # Show only YYYY-MM-DD HH:MM
+            else:
+                account["updated_at"] = "N/A"
 
         return PageLayout(
             "Call Assist Broker",
@@ -499,3 +491,6 @@ def create_routes(app: FastAPI, broker_ref=None):
             status_code=302,
             headers={"Location": "/ui/settings", "HX-Redirect": "/ui/settings"},
         )
+
+    # Return the configured app
+    return app

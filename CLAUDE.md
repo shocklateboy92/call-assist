@@ -132,6 +132,7 @@ call-assist/
 │   │   ├── models.py                   # SQLModel database schemas
 │   │   ├── database.py                 # SQLite database management
 │   │   ├── queries.py                  # Database queries
+│   │   ├── account_service.py          # Account business logic and status checking
 │   │   ├── plugin_manager.py           # Plugin loading and management logic
 │   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
 │   │   ├── web_server.py               # FastAPI web server
