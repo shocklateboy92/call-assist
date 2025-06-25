@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Remove backward compatibility functions - use dependency injection instead
+# FastAPI-based broker using dependency injection
 
 
 @dataclass

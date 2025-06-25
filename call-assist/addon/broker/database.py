@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 from sqlmodel import create_engine, Session, select
 from addon.broker.models import SQLModel, Account, BrokerSettings, CallLog
+from addon.broker.queries import get_setting_with_session, save_setting_with_session
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +26,7 @@ class DatabaseManager:
             # Create all tables
             SQLModel.metadata.create_all(self.engine)
 
-            # Run any necessary migrations or default data setup
+            # Run default data setup
             await self._setup_default_settings()
 
             logger.info("Database initialization completed successfully")
@@ -37,7 +38,6 @@ class DatabaseManager:
     async def _setup_default_settings(self):
         """Set up default broker settings if they don't exist"""
         try:
-            from addon.broker.queries import get_setting, save_setting
 
             # Default settings
             default_settings = {
@@ -48,11 +48,12 @@ class DatabaseManager:
                 "auto_cleanup_logs": True,
             }
 
-            for key, value in default_settings.items():
-                existing_value = await get_setting(key)
-                if existing_value is None:
-                    await save_setting(key, value)
-                    logger.info(f"Set default setting: {key} = {value}")
+            with self.get_session() as session:
+                for key, value in default_settings.items():
+                    existing_value = get_setting_with_session(session, key)
+                    if existing_value is None:
+                        save_setting_with_session(session, key, value)
+                        logger.info(f"Set default setting: {key} = {value}")
 
         except Exception as e:
             logger.error(f"Failed to setup default settings: {e}")
@@ -158,50 +159,3 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Database restore failed: {e}")
             return False
-
-
-# DEPRECATED: Use dependency injection instead
-# These functions remain for backward compatibility during migration
-
-# Global database manager instance (lazy initialized)
-_db_manager_instance: Optional[DatabaseManager] = None
-_db_path: str = "broker_data.db"
-
-
-def set_database_path(path: str):
-    """DEPRECATED: Set database path - use app_state.initialize(db_path) instead"""
-    global _db_path, _db_manager_instance
-    _db_path = path
-    if _db_manager_instance:
-        _db_manager_instance.engine.dispose()
-        _db_manager_instance = None
-
-
-async def get_database_instance() -> DatabaseManager:
-    """DEPRECATED: Get database instance - use dependency injection instead"""
-    global _db_manager_instance
-
-    if _db_manager_instance is None:
-        _db_manager_instance = DatabaseManager(_db_path)
-        await _db_manager_instance.initialize()
-        logger.info(f"Database manager created and initialized with path: {_db_path}")
-
-    return _db_manager_instance
-
-
-async def get_db_stats():
-    """Get database statistics - will be converted to dependency injection"""
-    db_manager = await get_database_instance()
-    return await db_manager.get_database_stats()
-
-
-async def cleanup_old_logs():
-    """Clean up old call logs - will be converted to dependency injection"""
-    from addon.broker.queries import get_setting
-
-    max_days = await get_setting("max_call_history_days") or 30
-    auto_cleanup = await get_setting("auto_cleanup_logs")
-
-    if auto_cleanup:
-        db_manager = await get_database_instance()
-        await db_manager.cleanup_old_call_logs(max_days)

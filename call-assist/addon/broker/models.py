@@ -24,7 +24,6 @@ class Account(SQLModel, table=True):
         """Set credentials from dictionary"""
         self.credentials_json = json.dumps(value)
 
-    # Make credentials available as property for backward compatibility
     @property
     def credentials(self) -> Dict[str, str]:
         return self.get_credentials()
@@ -56,7 +55,6 @@ class BrokerSettings(SQLModel, table=True):
         """Set value from Python object"""
         self.value_json = json.dumps(val)
 
-    # Make value available as property for backward compatibility
     @property
     def value(self) -> Any:
         return self.get_value()

@@ -119,15 +119,4 @@ async def get_broker_instance(
     return state.broker_instance
 
 
-# No backward compatibility functions needed anymore
-
-# TEMPORARY: Keep this function for queries.py during migration
-async def get_database_instance() -> DatabaseManager:
-    """Get database instance (temporary for migration)"""
-    if app_state.database_manager is None:
-        await app_state.initialize(app_state.db_path)
-    
-    if app_state.database_manager is None:
-        raise RuntimeError("Failed to initialize database manager")
-    
-    return app_state.database_manager
+# Dependency injection functions for FastAPI

@@ -10,6 +10,7 @@ from typing import Dict, Any
 from fastapi import FastAPI, Form, HTTPException, Path, Request, Depends
 from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, legend, label, input, p
+from sqlmodel import Session
 
 from addon.broker.ludic_components import (
     PageLayout,
@@ -21,16 +22,16 @@ from addon.broker.ludic_components import (
     ErrorPage,
 )
 from addon.broker.queries import (
-    get_account_by_protocol_and_id,
-    save_account,
-    delete_account,
-    get_call_history,
+    get_account_by_protocol_and_id_with_session,
+    save_account_with_session,
+    delete_account_with_session,
+    get_call_logs_with_session,
 )
 from addon.broker.account_service import get_account_service
 from addon.broker.settings_service import get_settings_service
 from addon.broker.database import DatabaseManager
 from addon.broker.models import Account
-from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager
+from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager, get_database_session
 from addon.broker.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
@@ -125,6 +126,7 @@ def create_routes(app: FastAPI):
         protocol: str = Form(...),
         account_id: str = Form(...),
         display_name: str = Form(...),
+        session: Session = Depends(get_database_session),
     ):
         """Submit new account"""
         # Get all form data for credentials
@@ -136,7 +138,7 @@ def create_routes(app: FastAPI):
         }
 
         # Check if account already exists
-        existing = await get_account_by_protocol_and_id(protocol, account_id)
+        existing = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
         if existing:
             raise HTTPException(status_code=400, detail="Account already exists")
 
@@ -150,7 +152,7 @@ def create_routes(app: FastAPI):
         # Convert form values to strings for credentials
         account.credentials = {k: str(v) for k, v in credentials.items()}
 
-        await save_account(account)
+        save_account_with_session(session, account)
 
         # Redirect to main page
         return Response(
@@ -158,10 +160,14 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/edit-account/{protocol}/{account_id}", response_class=HTMLResponse)
-    async def edit_account_page(protocol: str = Path(...), account_id: str = Path(...)):
+    async def edit_account_page(
+        protocol: str = Path(...), 
+        account_id: str = Path(...),
+        session: Session = Depends(get_database_session),
+    ):
         """Edit existing account page"""
         # Load existing account
-        existing_account = await get_account_by_protocol_and_id(protocol, account_id)
+        existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
         if not existing_account:
             raise HTTPException(status_code=404, detail="Account not found")
 
@@ -195,10 +201,11 @@ def create_routes(app: FastAPI):
         account_id: str = Path(...),
         new_account_id: str = Form(..., alias="account_id"),
         display_name: str = Form(...),
+        session: Session = Depends(get_database_session),
     ):
         """Submit account changes"""
         # Load existing account
-        existing_account = await get_account_by_protocol_and_id(protocol, account_id)
+        existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
         if not existing_account:
             raise HTTPException(status_code=404, detail="Account not found")
 
@@ -212,8 +219,8 @@ def create_routes(app: FastAPI):
 
         # If account_id changed, check if new one already exists
         if new_account_id != existing_account.account_id:
-            existing_new = await get_account_by_protocol_and_id(
-                protocol, new_account_id
+            existing_new = get_account_by_protocol_and_id_with_session(
+                session, protocol, new_account_id
             )
             if existing_new:
                 raise HTTPException(
@@ -226,7 +233,7 @@ def create_routes(app: FastAPI):
         # Convert form values to strings for credentials
         existing_account.credentials = {k: str(v) for k, v in credentials.items()}
 
-        await save_account(existing_account)
+        save_account_with_session(session, existing_account)
 
         # Redirect to main page
         return Response(
@@ -235,10 +242,12 @@ def create_routes(app: FastAPI):
 
     @app.delete("/ui/delete-account/{protocol}/{account_id}")
     async def delete_account_endpoint(
-        protocol: str = Path(...), account_id: str = Path(...)
+        protocol: str = Path(...), 
+        account_id: str = Path(...),
+        session: Session = Depends(get_database_session),
     ):
         """Delete account endpoint for HTMX"""
-        success = await delete_account(protocol, account_id)
+        success = delete_account_with_session(session, protocol, account_id)
         if success:
             # Return empty response to remove the table row
             return Response(content="", status_code=200)
@@ -424,9 +433,9 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/history", response_class=HTMLResponse)
-    async def history_page():
+    async def history_page(session: Session = Depends(get_database_session)):
         """Call history page"""
-        call_logs = await get_call_history(50)
+        call_logs = get_call_logs_with_session(session)
         logs_data = []
 
         for log in call_logs:
