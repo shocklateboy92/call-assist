@@ -83,16 +83,14 @@ def create_routes(app: FastAPI, broker_ref=None):
         error_details = str(exc) if show_details else None
 
         error_page = PageLayout(
-            page_title=f"{error_title} - Call Assist Broker",
-            children=[
-                ErrorPage(
-                    error_title=error_title,
-                    error_message=error_message,
-                    error_code=error_code,
-                    show_details=show_details,
-                    error_details=error_details,
-                )
-            ],
+            f"{error_title} - Call Assist Broker",
+            ErrorPage(
+                error_title=error_title,
+                error_message=error_message,
+                error_code=error_code,
+                show_details=show_details,
+                error_details=error_details,
+            )
         )
 
         return HTMLResponse(
@@ -123,8 +121,8 @@ def create_routes(app: FastAPI, broker_ref=None):
             )
 
         return PageLayout(
-            page_title="Call Assist Broker",
-            children=[AccountsTable(accounts=accounts_data)],
+            "Call Assist Broker",
+            AccountsTable(accounts=accounts_data)
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
@@ -132,8 +130,8 @@ def create_routes(app: FastAPI, broker_ref=None):
         """Add new account page"""
         protocols = await get_protocol_schemas()
         return PageLayout(
-            page_title="Add Account - Call Assist Broker",
-            children=[AccountForm(protocols=protocols, is_edit=False)],
+            "Add Account - Call Assist Broker",
+            AccountForm(protocols=protocols, is_edit=False)
         )
 
     @app.post("/ui/add-account")
@@ -196,15 +194,13 @@ def create_routes(app: FastAPI, broker_ref=None):
         }
 
         return PageLayout(
-            page_title="Edit Account - Call Assist Broker",
-            children=[
-                AccountForm(
-                    protocols=protocols,
-                    selected_protocol=protocol,
-                    account_data=account_data,
-                    is_edit=True,
-                )
-            ],
+            "Edit Account - Call Assist Broker",
+            AccountForm(
+                protocols=protocols,
+                selected_protocol=protocol,
+                account_data=account_data,
+                is_edit=True,
+            )
         )
 
     @app.post("/ui/edit-account/{protocol}/{account_id}")
@@ -432,11 +428,9 @@ def create_routes(app: FastAPI, broker_ref=None):
             broker_status = {"status": "Not Connected"}
 
         return PageLayout(
-            page_title="Status - Call Assist Broker",
-            children=[
-                StatusCard("Database Statistics", db_stats),
-                StatusCard("Broker Status", broker_status),
-            ],
+            "Status - Call Assist Broker",
+            StatusCard("Database Statistics", db_stats),
+            StatusCard("Broker Status", broker_status)
         )
 
     @app.get("/ui/history", response_class=HTMLResponse)
@@ -463,8 +457,8 @@ def create_routes(app: FastAPI, broker_ref=None):
             )
 
         return PageLayout(
-            page_title="Call History - Call Assist Broker",
-            children=[CallHistoryTable(call_logs=logs_data)],
+            "Call History - Call Assist Broker",
+            CallHistoryTable(call_logs=logs_data)
         )
 
     @app.get("/ui/settings", response_class=HTMLResponse)
@@ -480,8 +474,8 @@ def create_routes(app: FastAPI, broker_ref=None):
         }
 
         return PageLayout(
-            page_title="Settings - Call Assist Broker",
-            children=[SettingsForm(settings=current_settings)],
+            "Settings - Call Assist Broker",
+            SettingsForm(settings=current_settings)
         )
 
     @app.post("/ui/settings")
