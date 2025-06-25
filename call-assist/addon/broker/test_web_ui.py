@@ -7,7 +7,7 @@ import tempfile
 import os
 
 from addon.broker.models import Account, BrokerSettings, CallLog
-from addon.broker.database import DatabaseManager
+from addon.broker import database
 
 
 @pytest.fixture
@@ -16,25 +16,16 @@ def temp_db():
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
 
-    # Create test database
-    engine = create_engine(f"sqlite:///{db_path}")
-    SQLModel.metadata.create_all(engine)
-
-    # Patch the global database functions to use test database
-    import addon.broker.models as models
-
-    original_engine = models.engine
-    models.engine = engine
+    database.set_database_path(db_path)
 
     yield db_path
 
     # Cleanup
-    models.engine = original_engine
     os.unlink(db_path)
 
 
 @pytest.fixture
-def sample_account(temp_db):
+async def sample_account(temp_db):
     """Create a sample account for testing"""
     from addon.broker.queries import save_account
 
@@ -45,13 +36,13 @@ def sample_account(temp_db):
         credentials_json='{"homeserver": "https://matrix.org", "access_token": "test_token", "user_id": "@test:matrix.org"}',
         is_valid=True,
     )
-    return save_account(account)
+    return await save_account(account)
 
 
 class TestDatabaseModels:
     """Test database models and operations"""
 
-    def test_account_model(self, temp_db):
+    async def test_account_model(self, temp_db):
         """Test Account model functionality"""
         from addon.broker.queries import save_account, get_account_by_protocol_and_id
 
@@ -73,20 +64,22 @@ class TestDatabaseModels:
         assert account.credentials["username"] == "test"
 
         # Save and retrieve
-        saved_account = save_account(account)
+        saved_account = await save_account(account)
         assert saved_account.id is not None
 
-        retrieved_account = get_account_by_protocol_and_id("xmpp", "test@jabber.org")
+        retrieved_account = await get_account_by_protocol_and_id(
+            "xmpp", "test@jabber.org"
+        )
         assert retrieved_account is not None
         assert retrieved_account.display_name == "XMPP Test"
         assert retrieved_account.credentials["username"] == "test"
 
-    def test_call_log_model(self, temp_db):
+    async def test_call_log_model(self, temp_db):
         """Test CallLog model functionality"""
         from addon.broker.queries import log_call_start, log_call_end, get_call_history
 
         # Log call start
-        call_log = log_call_start(
+        call_log = await log_call_start(
             "test_call_123",
             "matrix",
             "@user:matrix.org",
@@ -100,10 +93,10 @@ class TestDatabaseModels:
         assert call_log.final_state == "INITIATING"
 
         # Log call end
-        log_call_end("test_call_123", "COMPLETED", {"duration": "120s"})
+        await log_call_end("test_call_123", "COMPLETED", {"duration": "120s"})
 
         # Retrieve history
-        history = get_call_history(10)
+        history = await get_call_history(10)
         assert len(history) == 1
         assert history[0].call_id == "test_call_123"
         assert history[0].final_state == "COMPLETED"

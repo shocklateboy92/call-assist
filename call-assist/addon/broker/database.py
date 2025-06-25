@@ -2,6 +2,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 from sqlmodel import create_engine, Session, select
 from addon.broker.models import SQLModel, Account, BrokerSettings, CallLog
 
@@ -37,7 +38,7 @@ class DatabaseManager:
         """Set up default broker settings if they don't exist"""
         try:
             from addon.broker.queries import get_setting, save_setting
-            
+
             # Default settings
             default_settings = {
                 "web_ui_port": 8080,
@@ -48,9 +49,9 @@ class DatabaseManager:
             }
 
             for key, value in default_settings.items():
-                existing_value = get_setting(key)
+                existing_value = await get_setting(key)
                 if existing_value is None:
-                    save_setting(key, value)
+                    await save_setting(key, value)
                     logger.info(f"Set default setting: {key} = {value}")
 
         except Exception as e:
@@ -196,32 +197,45 @@ class DatabaseManager:
             return 0
 
 
-# Global database manager instance
-db_manager = DatabaseManager()
+# Global database manager instance (lazy initialized)
+_db_manager_instance: Optional[DatabaseManager] = None
+_db_path: str = "broker_data.db"
 
 
 def set_database_path(path: str):
-    """Set the database path for the global database manager"""
-    global db_manager
-    db_manager = DatabaseManager(path)
+    """Set the database path for future database manager creation"""
+    global _db_path, _db_manager_instance
+    _db_path = path
+    if _db_manager_instance:
+        _db_manager_instance.engine.dispose()  # Dispose current engine if exists
+        _db_manager_instance = None  # Reset instance to force re-initialization
 
 
-async def init_database():
-    """Initialize the global database manager"""
-    await db_manager.initialize()
+async def get_database_instance() -> DatabaseManager:
+    """Get or create the database manager instance (lazy initialization)"""
+    global _db_manager_instance
+
+    if _db_manager_instance is None:
+        _db_manager_instance = DatabaseManager(_db_path)
+        await _db_manager_instance.initialize()
+        logger.info(f"Database manager created and initialized with path: {_db_path}")
+
+    return _db_manager_instance
 
 
 async def get_db_stats():
     """Get database statistics"""
+    db_manager = await get_database_instance()
     return await db_manager.get_database_stats()
 
 
 async def cleanup_old_logs():
     """Clean up old call logs based on settings"""
     from addon.broker.queries import get_setting
-    
-    max_days = get_setting("max_call_history_days") or 30
-    auto_cleanup = get_setting("auto_cleanup_logs")
+
+    max_days = await get_setting("max_call_history_days") or 30
+    auto_cleanup = await get_setting("auto_cleanup_logs")
 
     if auto_cleanup:
+        db_manager = await get_database_instance()
         await db_manager.cleanup_old_call_logs(max_days)

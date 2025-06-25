@@ -17,7 +17,7 @@ from proto_gen.callassist.broker import (
     HealthCheckResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-from addon.broker.database import set_database_path, init_database
+from addon.broker.database import set_database_path
 from addon.broker.web_server import WebUIServer
 
 logger = logging.getLogger(__name__)
@@ -275,14 +275,10 @@ async def serve(
     db_path: str = "broker_data.db",
 ):
     """Start the consolidated Call Assist Broker with gRPC, web UI, and database"""
-    # Initialize database first
-
     logger.info(f"Initializing Call Assist Broker with database: {db_path}")
 
-    # Set database path before initialization
+    # Set database path for lazy initialization
     set_database_path(db_path)
-    await init_database()
-    logger.info("Database initialized successfully")
 
     # Create broker instance
     broker = CallAssistBroker()

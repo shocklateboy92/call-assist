@@ -9,8 +9,6 @@ import uvicorn
 from nicegui import ui
 
 from addon.broker.web_ui import set_broker_reference, setup_ui_routes
-from addon.broker.database import init_database
-from addon.broker.queries import get_setting
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +25,6 @@ class WebUIServer:
     async def initialize(self):
         """Initialize web server settings"""
         try:
-            # Initialize database first
-            await init_database()
-
-            # Load settings from database
-            # self.host = get_setting("web_ui_host") or "0.0.0.0"
-            # self.port = get_setting("web_ui_port") or 8080
-
             # Set broker reference for UI
             if self.broker_ref:
                 set_broker_reference(self.broker_ref)
