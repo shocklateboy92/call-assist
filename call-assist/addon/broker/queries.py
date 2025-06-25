@@ -12,14 +12,20 @@ logger = logging.getLogger(__name__)
 
 
 async def get_session() -> Session:
-    """Get database session using the global database manager"""
+    """
+    Get database session using the global database manager
+    
+    DEPRECATED: Use dependency injection with get_database_session() instead.
+    This function remains for backward compatibility during migration.
+    """
     # Import here to avoid circular dependency during migration
     from addon.broker.dependencies import get_database_instance
     db_manager = await get_database_instance()
     return db_manager.get_session()
 
 
-# Account query functions
+# DEPRECATED FUNCTIONS - Use session-based versions with dependency injection instead
+# These functions manage their own sessions and will be removed after migration
 async def get_account_by_protocol_and_id(protocol: str, account_id: str) -> Optional[Account]:
     """Get account by protocol and account_id"""
     session = await get_session()
@@ -174,5 +180,49 @@ async def get_call_history(limit: int = 50) -> list[CallLog]:
                 select(CallLog).order_by(desc(CallLog.start_time)).limit(limit)
             ).all()
         )
+
+
+# Session-based query functions for dependency injection
+
+def get_all_accounts_with_session(session: Session) -> list[Account]:
+    """Get all accounts using provided session"""
+    return list(session.exec(select(Account)).all())
+
+
+def get_accounts_by_protocol_with_session(session: Session, protocol: str) -> list[Account]:
+    """Get all accounts for a specific protocol using provided session"""
+    return list(session.exec(select(Account).where(Account.protocol == protocol)).all())
+
+
+def get_account_by_protocol_and_id_with_session(
+    session: Session, protocol: str, account_id: str
+) -> Optional[Account]:
+    """Get account by protocol and account_id using provided session"""
+    return session.exec(
+        select(Account).where(Account.protocol == protocol, Account.account_id == account_id)
+    ).first()
+
+
+def get_setting_with_session(session: Session, key: str) -> Optional[Any]:
+    """Get setting value using provided session"""
+    setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
+    return setting.get_value() if setting else None
+
+
+def save_setting_with_session(session: Session, key: str, value: Any) -> BrokerSettings:
+    """Save setting value using provided session"""
+    setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
+    
+    if setting:
+        setting.set_value(value)
+        setting.updated_at = datetime.now(timezone.utc)
+    else:
+        setting = BrokerSettings(key=key, value_json="{}")
+        setting.set_value(value)
+        session.add(setting)
+    
+    session.commit()
+    session.refresh(setting)
+    return setting
 
 

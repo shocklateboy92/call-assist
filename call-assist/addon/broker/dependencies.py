@@ -119,29 +119,15 @@ async def get_broker_instance(
     return state.broker_instance
 
 
-# Helper functions for backward compatibility during migration
-def set_database_path(path: str):
-    """Set database path (for backward compatibility)"""
-    app_state.db_path = path
+# No backward compatibility functions needed anymore
 
-
+# TEMPORARY: Keep this function for queries.py during migration
 async def get_database_instance() -> DatabaseManager:
-    """Get database instance (for backward compatibility)"""
+    """Get database instance (temporary for migration)"""
     if app_state.database_manager is None:
-        # Lazy initialization for backward compatibility
         await app_state.initialize(app_state.db_path)
     
     if app_state.database_manager is None:
         raise RuntimeError("Failed to initialize database manager")
     
     return app_state.database_manager
-
-
-def get_broker_instance_compat():
-    """Get broker instance (for backward compatibility)"""
-    return app_state.broker_instance
-
-
-def set_broker_instance_compat(broker):
-    """Set broker instance (for backward compatibility)"""
-    app_state.set_broker_instance(broker)

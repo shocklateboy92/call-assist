@@ -27,15 +27,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Backward compatibility - these will delegate to the new dependency system
-def get_broker_instance() -> Optional["CallAssistBroker"]:
-    """Get the global broker instance (backward compatibility)"""
-    return app_state.broker_instance
-
-
-def set_broker_instance(broker: "CallAssistBroker"):
-    """Set the global broker instance (backward compatibility)"""
-    app_state.set_broker_instance(broker)
+# Remove backward compatibility functions - use dependency injection instead
 
 
 @dataclass

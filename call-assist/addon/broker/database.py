@@ -159,43 +159,9 @@ class DatabaseManager:
             logger.error(f"Database restore failed: {e}")
             return False
 
-    async def migrate_from_memory_accounts(self, memory_accounts: dict):
-        """Migrate accounts from in-memory storage to database"""
-        try:
-            migrated_count = 0
 
-            for account_key, account_creds in memory_accounts.items():
-                # Check if account already exists in database
-                existing = session.exec(
-                    select(Account).where(
-                        Account.protocol == account_creds.protocol,
-                        Account.account_id == account_creds.account_id,
-                    )
-                ).first()
-
-                if not existing:
-                    # Create new account record
-                    db_account = Account(
-                        protocol=account_creds.protocol,
-                        account_id=account_creds.account_id,
-                        display_name=account_creds.display_name,
-                        credentials_json="",  # Will be set via property
-                        is_valid=account_creds.is_valid,
-                    )
-                    db_account.credentials = account_creds.credentials
-
-                    with self.get_session() as session:
-                        session.add(db_account)
-                        session.commit()
-                        migrated_count += 1
-
-            logger.info(f"Migrated {migrated_count} accounts from memory to database")
-            return migrated_count
-
-        except Exception as e:
-            logger.error(f"Account migration failed: {e}")
-            return 0
-
+# DEPRECATED: Use dependency injection instead
+# These functions remain for backward compatibility during migration
 
 # Global database manager instance (lazy initialized)
 _db_manager_instance: Optional[DatabaseManager] = None
@@ -203,16 +169,16 @@ _db_path: str = "broker_data.db"
 
 
 def set_database_path(path: str):
-    """Set the database path for future database manager creation"""
+    """DEPRECATED: Set database path - use app_state.initialize(db_path) instead"""
     global _db_path, _db_manager_instance
     _db_path = path
     if _db_manager_instance:
-        _db_manager_instance.engine.dispose()  # Dispose current engine if exists
-        _db_manager_instance = None  # Reset instance to force re-initialization
+        _db_manager_instance.engine.dispose()
+        _db_manager_instance = None
 
 
 async def get_database_instance() -> DatabaseManager:
-    """Get or create the database manager instance (lazy initialization)"""
+    """DEPRECATED: Get database instance - use dependency injection instead"""
     global _db_manager_instance
 
     if _db_manager_instance is None:
@@ -224,13 +190,13 @@ async def get_database_instance() -> DatabaseManager:
 
 
 async def get_db_stats():
-    """Get database statistics"""
+    """Get database statistics - will be converted to dependency injection"""
     db_manager = await get_database_instance()
     return await db_manager.get_database_stats()
 
 
 async def cleanup_old_logs():
-    """Clean up old call logs based on settings"""
+    """Clean up old call logs - will be converted to dependency injection"""
     from addon.broker.queries import get_setting
 
     max_days = await get_setting("max_call_history_days") or 30

@@ -3,48 +3,51 @@
 Account service module for business logic related to account management.
 
 This module handles account status checking and other business logic,
-while keeping database queries separate in queries.py.
+using dependency injection for clean separation of concerns.
 """
 
 import logging
 from typing import Dict, Any, List
+from fastapi import Depends
+from sqlmodel import Session
 
-from addon.broker.queries import get_all_accounts
+from addon.broker.dependencies import get_plugin_manager, get_database_session
+from addon.broker.plugin_manager import PluginManager
+from addon.broker.queries import get_all_accounts_with_session
 
 logger = logging.getLogger(__name__)
 
 
-async def get_accounts_with_status() -> List[Dict[str, Any]]:
-    """Get all accounts with real-time status check from plugins"""
-    # Get plugin manager from broker
-    plugin_manager = None
-    try:
-        # Try to get the plugin manager from the broker instance
-        from addon.broker.main import get_broker_instance
-        broker = get_broker_instance()
-        if broker:
-            plugin_manager = broker.plugin_manager
-    except Exception as e:
-        logger.warning(f"Could not get plugin manager: {e}")
+class AccountService:
+    """Account service with dependency injection"""
     
-    accounts = await get_all_accounts()
-    accounts_with_status = []
-    
-    for account in accounts:
-        account_dict = {
-            "id": account.id,
-            "protocol": account.protocol,
-            "account_id": account.account_id,
-            "display_name": account.display_name,
-            "created_at": account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else "",
-            "updated_at": account.updated_at.strftime("%Y-%m-%d %H:%M:%S") if account.updated_at else "",
-        }
+    def __init__(
+        self,
+        plugin_manager: PluginManager = Depends(get_plugin_manager),
+        session: Session = Depends(get_database_session)
+    ):
+        self.plugin_manager = plugin_manager
+        self.session = session
+
+    async def get_accounts_with_status(self) -> List[Dict[str, Any]]:
+        """Get all accounts with real-time status check from plugins"""
+        accounts = get_all_accounts_with_session(self.session)
+        accounts_with_status = []
         
-        # Check real-time status using plugin manager
-        if plugin_manager:
+        for account in accounts:
+            account_dict = {
+                "id": account.id,
+                "protocol": account.protocol,
+                "account_id": account.account_id,
+                "display_name": account.display_name,
+                "created_at": account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else "",
+                "updated_at": account.updated_at.strftime("%Y-%m-%d %H:%M:%S") if account.updated_at else "",
+            }
+            
+            # Check real-time status using plugin manager
             try:
                 # Try to initialize the plugin account to check if credentials are valid
-                is_valid = await plugin_manager.initialize_plugin_account(
+                is_valid = await self.plugin_manager.initialize_plugin_account(
                     protocol=account.protocol,
                     account_id=account.account_id,
                     display_name=account.display_name,
@@ -55,37 +58,43 @@ async def get_accounts_with_status() -> List[Dict[str, Any]]:
             except Exception as e:
                 logger.error(f"Error checking status for account {account.account_id}: {e}")
                 account_dict["is_valid"] = False
-        else:
-            # Fallback - assume invalid if plugin manager not available
-            account_dict["is_valid"] = False
-            logger.warning(f"Plugin manager not available, marking {account.account_id} as invalid")
+            
+            accounts_with_status.append(account_dict)
         
-        accounts_with_status.append(account_dict)
-    
-    return accounts_with_status
+        return accounts_with_status
 
-
-async def check_account_status(protocol: str, account_id: str, display_name: str, credentials: Dict[str, str]) -> bool:
-    """Check the status of a single account using the plugin manager"""
-    try:
-        # Get plugin manager from broker
-        from addon.broker.main import get_broker_instance
-        broker = get_broker_instance()
-        if not broker or not broker.plugin_manager:
-            logger.warning("Plugin manager not available for status check")
+    async def check_account_status(
+        self, 
+        protocol: str, 
+        account_id: str, 
+        display_name: str, 
+        credentials: Dict[str, str]
+    ) -> bool:
+        """Check the status of a single account using the plugin manager"""
+        try:
+            # Try to initialize the plugin account
+            is_valid = await self.plugin_manager.initialize_plugin_account(
+                protocol=protocol,
+                account_id=account_id,
+                display_name=display_name,
+                credentials=credentials
+            )
+            
+            logger.debug(f"Account {account_id} status check: {'valid' if is_valid else 'invalid'}")
+            return is_valid
+            
+        except Exception as e:
+            logger.error(f"Error checking status for account {account_id}: {e}")
             return False
-        
-        # Try to initialize the plugin account
-        is_valid = await broker.plugin_manager.initialize_plugin_account(
-            protocol=protocol,
-            account_id=account_id,
-            display_name=display_name,
-            credentials=credentials
-        )
-        
-        logger.debug(f"Account {account_id} status check: {'valid' if is_valid else 'invalid'}")
-        return is_valid
-        
-    except Exception as e:
-        logger.error(f"Error checking status for account {account_id}: {e}")
-        return False
+
+
+# Dependency injection helper functions for FastAPI routes
+async def get_account_service(
+    plugin_manager: PluginManager = Depends(get_plugin_manager),
+    session: Session = Depends(get_database_session)
+) -> AccountService:
+    """Get AccountService with injected dependencies"""
+    return AccountService(plugin_manager, session)
+
+
+# Use dependency injection via get_account_service() for FastAPI routes

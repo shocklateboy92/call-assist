@@ -24,12 +24,11 @@ from addon.broker.queries import (
     get_account_by_protocol_and_id,
     save_account,
     delete_account,
-    get_setting,
-    save_setting,
     get_call_history,
 )
-from addon.broker.account_service import get_accounts_with_status
-from addon.broker.database import get_db_stats
+from addon.broker.account_service import get_account_service
+from addon.broker.settings_service import get_settings_service
+from addon.broker.database import DatabaseManager
 from addon.broker.models import Account
 from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager
 from addon.broker.plugin_manager import PluginManager
@@ -91,10 +90,12 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui", response_class=HTMLResponse)
-    async def main_page():
+    async def main_page(
+        account_service = Depends(get_account_service)
+    ):
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
-        accounts_data = await get_accounts_with_status()
+        accounts_data = await account_service.get_accounts_with_status()
         
         # Format the updated_at field for display
         for account in accounts_data:
@@ -394,11 +395,12 @@ def create_routes(app: FastAPI):
     @app.get("/ui/status", response_class=HTMLResponse)
     async def status_page(
         broker = Depends(get_broker_instance),
-        plugin_manager: PluginManager = Depends(get_plugin_manager)
+        plugin_manager: PluginManager = Depends(get_plugin_manager),
+        db_manager: DatabaseManager = Depends(get_database_manager)
     ):
         """Status monitoring page"""
         # Database stats
-        db_stats = await get_db_stats()
+        db_stats = await db_manager.get_database_stats()
 
         # Broker status
         broker_status = {}
@@ -450,16 +452,12 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/settings", response_class=HTMLResponse)
-    async def settings_page():
+    async def settings_page(
+        settings_service = Depends(get_settings_service)
+    ):
         """Settings page"""
         # Load current settings
-        current_settings = {
-            "web_ui_port": await get_setting("web_ui_port") or 8080,
-            "web_ui_host": await get_setting("web_ui_host") or "0.0.0.0",
-            "enable_call_history": await get_setting("enable_call_history") or True,
-            "max_call_history_days": await get_setting("max_call_history_days") or 30,
-            "auto_cleanup_logs": await get_setting("auto_cleanup_logs") or True,
-        }
+        current_settings = await settings_service.get_all_settings()
 
         return PageLayout(
             "Settings - Call Assist Broker",
@@ -473,14 +471,19 @@ def create_routes(app: FastAPI):
         enable_call_history: bool = Form(False),
         max_call_history_days: int = Form(...),
         auto_cleanup_logs: bool = Form(False),
+        settings_service = Depends(get_settings_service)
     ):
         """Submit settings changes"""
         # Save all settings
-        await save_setting("web_ui_host", web_ui_host)
-        await save_setting("web_ui_port", web_ui_port)
-        await save_setting("enable_call_history", enable_call_history)
-        await save_setting("max_call_history_days", max_call_history_days)
-        await save_setting("auto_cleanup_logs", auto_cleanup_logs)
+        settings_data = {
+            "web_ui_host": web_ui_host,
+            "web_ui_port": web_ui_port,
+            "enable_call_history": enable_call_history,
+            "max_call_history_days": max_call_history_days,
+            "auto_cleanup_logs": auto_cleanup_logs,
+        }
+        
+        await settings_service.update_settings(settings_data)
 
         # Redirect back to settings page
         return Response(
