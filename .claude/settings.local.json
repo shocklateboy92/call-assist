@@ -39,7 +39,8 @@
       "WebFetch(domain:andreasphil.github.io)",
       "WebFetch(domain:cdn.jsdelivr.net)",
       "Bash(./scripts/test-video-infrastructure.sh:*)",
-      "Bash(docker exec:*)"
+      "Bash(docker exec:*)",
+      "Bash(npm install)"
     ],
     "deny": []
   }

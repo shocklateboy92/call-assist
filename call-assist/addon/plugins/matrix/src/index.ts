@@ -6,6 +6,120 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { Observable, Subject } from 'rxjs';
 
+// WebRTC types and interfaces
+interface RTCPeerConnectionInterface {
+  createOffer(): Promise<RTCSessionDescriptionInit>;
+  createAnswer(): Promise<RTCSessionDescriptionInit>;
+  setLocalDescription(description: RTCSessionDescriptionInit): Promise<void>;
+  setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void>;
+  addIceCandidate(candidate: RTCIceCandidateInit): Promise<void>;
+  close(): void;
+  onicecandidate: ((event: RTCPeerConnectionIceEvent) => void) | null;
+  onconnectionstatechange: ((event: Event) => void) | null;
+  connectionState: RTCPeerConnectionState;
+  localDescription: RTCSessionDescriptionInit | null;
+  remoteDescription: RTCSessionDescriptionInit | null;
+}
+
+interface RTCPeerConnectionIceEvent {
+  candidate: RTCIceCandidateInit | null;
+}
+
+type RTCPeerConnectionState = 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
+
+// Mock WebRTC implementation for development/testing
+class MockRTCPeerConnection implements RTCPeerConnectionInterface {
+  public connectionState: RTCPeerConnectionState = 'new';
+  public localDescription: RTCSessionDescriptionInit | null = null;
+  public remoteDescription: RTCSessionDescriptionInit | null = null;
+  public onicecandidate: ((event: RTCPeerConnectionIceEvent) => void) | null = null;
+  public onconnectionstatechange: ((event: Event) => void) | null = null;
+
+  async createOffer(): Promise<RTCSessionDescriptionInit> {
+    console.log('MockRTCPeerConnection: Creating offer');
+    const callId = Math.random().toString(36).substring(7);
+    const offer = {
+      type: 'offer' as RTCSdpType,
+      sdp: this.generateMockSDP(callId, 'offer')
+    };
+    return offer;
+  }
+
+  async createAnswer(): Promise<RTCSessionDescriptionInit> {
+    console.log('MockRTCPeerConnection: Creating answer');
+    const callId = Math.random().toString(36).substring(7);
+    const answer = {
+      type: 'answer' as RTCSdpType,
+      sdp: this.generateMockSDP(callId, 'answer')
+    };
+    return answer;
+  }
+
+  async setLocalDescription(description: RTCSessionDescriptionInit): Promise<void> {
+    console.log(`MockRTCPeerConnection: Setting local description (${description.type})`);
+    this.localDescription = description;
+    this.connectionState = 'connecting';
+    this.onconnectionstatechange?.(new Event('connectionstatechange'));
+
+    // Simulate ICE candidate generation
+    setTimeout(() => {
+      const mockCandidate: RTCIceCandidateInit = {
+        candidate: 'candidate:1 1 UDP 2113667326 192.168.1.100 54400 typ host',
+        sdpMLineIndex: 0,
+        sdpMid: '0'
+      };
+      this.onicecandidate?.({ candidate: mockCandidate });
+      
+      // Simulate end of candidates
+      setTimeout(() => {
+        this.onicecandidate?.({ candidate: null });
+      }, 100);
+    }, 50);
+  }
+
+  async setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void> {
+    console.log(`MockRTCPeerConnection: Setting remote description (${description.type})`);
+    this.remoteDescription = description;
+    this.connectionState = 'connected';
+    this.onconnectionstatechange?.(new Event('connectionstatechange'));
+  }
+
+  async addIceCandidate(candidate: RTCIceCandidateInit): Promise<void> {
+    console.log(`MockRTCPeerConnection: Adding ICE candidate: ${candidate.candidate}`);
+    // Mock: just log the candidate
+  }
+
+  close(): void {
+    console.log('MockRTCPeerConnection: Closing connection');
+    this.connectionState = 'closed';
+    this.onconnectionstatechange?.(new Event('connectionstatechange'));
+  }
+
+  private generateMockSDP(callId: string, type: 'offer' | 'answer'): string {
+    // Generate more realistic SDP for testing
+    return `v=0\r\no=- ${Date.now()} 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\na=msid-semantic: WMS\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:${type === 'offer' ? 'actpass' : 'active'}\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=sendrecv\r\na=msid:- ${callId}_audio\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:${type === 'offer' ? 'actpass' : 'active'}\r\na=mid:1\r\na=extmap:2 urn:ietf:params:rtp-hdrext:toffset\r\na=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:4 urn:3gpp:video-orientation\r\na=sendrecv\r\na=msid:- ${callId}_video\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:96 VP8/90000\r\na=rtcp-fb:96 goog-remb\r\na=rtcp-fb:96 transport-cc\r\na=rtcp-fb:96 ccm fir\r\na=rtcp-fb:96 nack\r\na=rtcp-fb:96 nack pli\r\n`;
+  }
+
+  private generateFingerprint(): string {
+    const chars = '0123456789ABCDEF';
+    const fingerprint = Array.from({length: 64}, () => chars[Math.floor(Math.random() * chars.length)]);
+    return fingerprint.join('').match(/.{2}/g)!.join(':');
+  }
+}
+
+// Factory function for creating RTCPeerConnection instances
+// This can be easily replaced with real WebRTC implementation
+function createPeerConnection(): RTCPeerConnectionInterface {
+  // TODO: Replace with real RTCPeerConnection when wrtc package is available
+  // return new wrtc.RTCPeerConnection({
+  //   iceServers: [
+  //     { urls: 'stun:coturn:3478' },
+  //     { urls: 'turn:coturn:3478', username: 'user', credential: 'pass' }
+  //   ]
+  // });
+  return new MockRTCPeerConnection();
+}
+
 // Import generated protobuf types
 import {
   CallPluginDefinition,
@@ -49,6 +163,8 @@ interface CallInfo {
   startTime: number;
   state: CallState;
   remoteStreamUrl?: string;
+  peerConnection?: RTCPeerConnectionInterface;
+  iceCandidates: RTCIceCandidateInit[];
 }
 
 class MatrixCallPlugin {
@@ -146,10 +262,19 @@ class MatrixCallPlugin {
           const roomId = request.targetAddress;
           const callId = request.callId;
           
+          // Create WebRTC peer connection
+          const peerConnection = createPeerConnection();
+          
+          // Set up peer connection event handlers
+          this.setupPeerConnectionHandlers(peerConnection, callId);
+          
           // Create WebRTC offer for video call
+          const offerDescription = await peerConnection.createOffer();
+          await peerConnection.setLocalDescription(offerDescription);
+          
           const offer = {
             type: 'offer',
-            sdp: this.generateMockWebRTCOffer(callId)
+            sdp: offerDescription.sdp
           };
           
           // Send Matrix call invite event (m.call.invite)
@@ -171,7 +296,9 @@ class MatrixCallPlugin {
             roomId,
             startTime: Date.now(),
             state: CallState.CALL_STATE_INITIATING,
-            remoteStreamUrl: `matrix://webrtc/${callId}`
+            remoteStreamUrl: `matrix://webrtc/${callId}`,
+            peerConnection,
+            iceCandidates: []
           });
           
           // Emit call event
@@ -225,10 +352,23 @@ class MatrixCallPlugin {
         }
 
         try {
-          // Generate answer SDP
+          // Get the peer connection from call info
+          let peerConnection = callInfo.peerConnection;
+          
+          if (!peerConnection) {
+            // Create new peer connection if not exists (for incoming calls)
+            peerConnection = createPeerConnection();
+            this.setupPeerConnectionHandlers(peerConnection, callId);
+            callInfo.peerConnection = peerConnection;
+          }
+          
+          // Generate answer SDP  
+          const answerDescription = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answerDescription);
+          
           const answer = {
             type: 'answer',
-            sdp: this.generateMockWebRTCAnswer(callId)
+            sdp: answerDescription.sdp
           };
           
           // Send Matrix call answer event (m.call.answer)
@@ -288,6 +428,12 @@ class MatrixCallPlugin {
         }
 
         try {
+          // Close peer connection
+          if (callInfo.peerConnection) {
+            callInfo.peerConnection.close();
+            console.log(`Closed peer connection for call ${callId}`);
+          }
+          
           // Send Matrix call hangup event (m.call.hangup)
           if (this.matrixClient) {
             const callHangupContent = {
@@ -491,82 +637,37 @@ class MatrixCallPlugin {
     }
   }
 
-  private generateMockWebRTCOffer(callId: string): string {
-    // Generate a mock SDP offer for WebRTC
-    // In a real implementation, this would come from a WebRTC peer connection
-    return `v=0
-o=- ${Date.now()} 2 IN IP4 127.0.0.1
-s=-
-t=0 0
-a=group:BUNDLE 0 1
-a=msid-semantic: WMS
-m=audio 9 UDP/TLS/RTP/SAVPF 111
-c=IN IP4 0.0.0.0
-a=rtcp:9 IN IP4 0.0.0.0
-a=ice-ufrag:${callId.slice(0, 8)}
-a=ice-pwd:${callId.slice(-16)}
-a=ice-options:trickle
-a=fingerprint:sha-256 ${this.generateFingerprint()}
-a=setup:actpass
-a=mid:0
-a=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level
-a=sendrecv
-a=msid:- ${callId}_audio
-a=rtcp-mux
-a=rtpmap:111 opus/48000/2
-a=rtcp-fb:111 transport-cc
-a=fmtp:111 minptime=10;useinbandfec=1
-m=video 9 UDP/TLS/RTP/SAVPF 96
-c=IN IP4 0.0.0.0
-a=rtcp:9 IN IP4 0.0.0.0
-a=ice-ufrag:${callId.slice(0, 8)}
-a=ice-pwd:${callId.slice(-16)}
-a=ice-options:trickle
-a=fingerprint:sha-256 ${this.generateFingerprint()}
-a=setup:actpass
-a=mid:1
-a=extmap:2 urn:ietf:params:rtp-hdrext:toffset
-a=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time
-a=extmap:4 urn:3gpp:video-orientation
-a=sendrecv
-a=msid:- ${callId}_video
-a=rtcp-mux
-a=rtcp-rsize
-a=rtpmap:96 VP8/90000
-a=rtcp-fb:96 goog-remb
-a=rtcp-fb:96 transport-cc
-a=rtcp-fb:96 ccm fir
-a=rtcp-fb:96 nack
-a=rtcp-fb:96 nack pli
-`;
-  }
-
-  private generateFingerprint(): string {
-    // Generate a mock SHA-256 fingerprint
-    const chars = '0123456789ABCDEF';
-    const fingerprint = Array.from({length: 64}, () => chars[Math.floor(Math.random() * chars.length)]);
-    return fingerprint.join('').match(/.{2}/g)!.join(':');
-  }
-
-  private generateMockWebRTCAnswer(callId: string): string {
-    // Generate a mock SDP answer for WebRTC
-    // In a real implementation, this would come from a WebRTC peer connection
-    return `v=0\r\no=- ${Date.now()} 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\na=msid-semantic: WMS\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:active\r\na=mid:0\r\na=extmap:1 urn:ietf:params:rtp-hdrext:ssrc-audio-level\r\na=sendrecv\r\na=msid:- ${callId}_audio_answer\r\na=rtcp-mux\r\na=rtpmap:111 opus/48000/2\r\na=rtcp-fb:111 transport-cc\r\na=fmtp:111 minptime=10;useinbandfec=1\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\nc=IN IP4 0.0.0.0\r\na=rtcp:9 IN IP4 0.0.0.0\r\na=ice-ufrag:${callId.slice(0, 8)}\r\na=ice-pwd:${callId.slice(-16)}\r\na=ice-options:trickle\r\na=fingerprint:sha-256 ${this.generateFingerprint()}\r\na=setup:active\r\na=mid:1\r\na=extmap:2 urn:ietf:params:rtp-hdrext:toffset\r\na=extmap:3 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time\r\na=extmap:4 urn:3gpp:video-orientation\r\na=sendrecv\r\na=msid:- ${callId}_video_answer\r\na=rtcp-mux\r\na=rtcp-rsize\r\na=rtpmap:96 VP8/90000\r\na=rtcp-fb:96 goog-remb\r\na=rtcp-fb:96 transport-cc\r\na=rtcp-fb:96 ccm fir\r\na=rtcp-fb:96 nack\r\na=rtcp-fb:96 nack pli\r\n`;
-  }
 
   private async handleIncomingCallInvite(event: any, room: any): Promise<void> {
     const content = event.getContent();
     const callId = content.call_id;
     const roomId = room.roomId;
+    const offer = content.offer;
     
     console.log(`Handling incoming call invite for call ${callId} in room ${roomId}`);
+    
+    // Create peer connection for incoming call
+    const peerConnection = createPeerConnection();
+    this.setupPeerConnectionHandlers(peerConnection, callId);
+    
+    // Set remote description from the offer
+    if (offer && offer.sdp) {
+      try {
+        await peerConnection.setRemoteDescription(offer);
+        console.log(`Set remote description for incoming call ${callId}`);
+      } catch (error) {
+        console.error(`Failed to set remote description for call ${callId}:`, error);
+      }
+    }
     
     // Store the incoming call
     this.activeWebRTCCalls.set(callId, {
       roomId,
       startTime: Date.now(),
       state: CallState.CALL_STATE_RINGING,
-      remoteStreamUrl: `matrix://webrtc/${callId}/incoming`
+      remoteStreamUrl: `matrix://webrtc/${callId}/incoming`,
+      peerConnection,
+      iceCandidates: []
     });
     
     // Emit call event for incoming call
@@ -587,6 +688,7 @@ a=rtcp-fb:96 nack pli
     const content = event.getContent();
     const callId = content.call_id;
     const roomId = room.roomId;
+    const answer = content.answer;
     const callInfo = this.activeWebRTCCalls.get(callId);
     
     if (!callInfo) {
@@ -595,6 +697,27 @@ a=rtcp-fb:96 nack pli
     }
     
     console.log(`Call ${callId} was answered`);
+    
+    // Set remote description from the answer
+    if (callInfo.peerConnection && answer && answer.sdp) {
+      try {
+        await callInfo.peerConnection.setRemoteDescription(answer);
+        console.log(`Set remote description from answer for call ${callId}`);
+        
+        // Add any stored ICE candidates
+        for (const candidate of callInfo.iceCandidates) {
+          try {
+            await callInfo.peerConnection.addIceCandidate(candidate);
+            console.log(`Added stored ICE candidate for call ${callId}`);
+          } catch (error) {
+            console.error(`Failed to add stored ICE candidate:`, error);
+          }
+        }
+        callInfo.iceCandidates = []; // Clear stored candidates
+      } catch (error) {
+        console.error(`Failed to set remote description from answer for call ${callId}:`, error);
+      }
+    }
     
     // Update call state
     callInfo.state = CallState.CALL_STATE_ACTIVE;
@@ -627,6 +750,12 @@ a=rtcp-fb:96 nack pli
     
     console.log(`Call ${callId} was hung up: ${content.reason || 'unknown reason'}`);
     
+    // Close peer connection
+    if (callInfo.peerConnection) {
+      callInfo.peerConnection.close();
+      console.log(`Closed peer connection for remotely hung up call ${callId}`);
+    }
+    
     // Emit call ended event
     this.callEventSubject.next({
       type: CallEventType.CALL_EVENT_ENDED,
@@ -643,19 +772,102 @@ a=rtcp-fb:96 nack pli
     this.activeWebRTCCalls.delete(callId);
   }
 
+  private setupPeerConnectionHandlers(peerConnection: RTCPeerConnectionInterface, callId: string): void {
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      const candidate = event.candidate;
+      if (candidate && this.matrixClient) {
+        // Send ICE candidate to Matrix
+        const callInfo = this.activeWebRTCCalls.get(callId);
+        if (callInfo) {
+          const candidateContent = {
+            call_id: callId,
+            version: 1,
+            candidates: [candidate],
+            party_id: this.config?.userId
+          };
+          
+          this.matrixClient.sendEvent(callInfo.roomId, 'm.call.candidates' as any, candidateContent);
+          console.log(`Sent ICE candidate for call ${callId}`);
+        }
+      } else {
+        console.log(`ICE gathering complete for call ${callId}`);
+      }
+    };
+
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = (event) => {
+      console.log(`Call ${callId} connection state: ${peerConnection.connectionState}`);
+      
+      const callInfo = this.activeWebRTCCalls.get(callId);
+      if (callInfo) {
+        // Update call state based on peer connection state
+        switch (peerConnection.connectionState) {
+          case 'connected':
+            callInfo.state = CallState.CALL_STATE_ACTIVE;
+            this.callEventSubject.next({
+              type: CallEventType.CALL_EVENT_ANSWERED,
+              timestamp: new Date(),
+              callId,
+              state: CallState.CALL_STATE_ACTIVE,
+              metadata: { roomId: callInfo.roomId }
+            });
+            break;
+          case 'failed':
+          case 'disconnected':
+            callInfo.state = CallState.CALL_STATE_FAILED;
+            this.callEventSubject.next({
+              type: CallEventType.CALL_EVENT_ENDED,
+              timestamp: new Date(),
+              callId,
+              state: CallState.CALL_STATE_FAILED,
+              metadata: { roomId: callInfo.roomId, reason: 'connection_failed' }
+            });
+            break;
+        }
+      }
+    };
+  }
+
   private async handleIceCandidates(event: any, room: any): Promise<void> {
     const content = event.getContent();
     const callId = content.call_id;
     const roomId = room.roomId;
+    const candidates = content.candidates || [];
     
-    console.log(`Received ICE candidates for call ${callId} in room ${roomId}:`, content.candidates);
+    console.log(`Received ${candidates.length} ICE candidates for call ${callId} in room ${roomId}`);
     
-    // In a real implementation, these would be forwarded to the WebRTC peer connection
-    // For now, we just log them for debugging
+    const callInfo = this.activeWebRTCCalls.get(callId);
+    if (callInfo && callInfo.peerConnection) {
+      // Add ICE candidates to peer connection
+      for (const candidate of candidates) {
+        try {
+          await callInfo.peerConnection.addIceCandidate(candidate);
+          console.log(`Added ICE candidate for call ${callId}: ${candidate.candidate}`);
+        } catch (error) {
+          console.error(`Failed to add ICE candidate for call ${callId}:`, error);
+        }
+      }
+    } else {
+      console.warn(`No peer connection found for call ${callId}, storing candidates`);
+      // Store candidates for later if peer connection doesn't exist yet
+      if (callInfo) {
+        callInfo.iceCandidates.push(...candidates);
+      }
+    }
   }
 
   async shutdown(): Promise<void> {
     console.log('Shutting down Matrix plugin...');
+    
+    // Close all active peer connections
+    for (const [callId, callInfo] of this.activeWebRTCCalls.entries()) {
+      if (callInfo.peerConnection) {
+        callInfo.peerConnection.close();
+        console.log(`Closed peer connection for call ${callId} during shutdown`);
+      }
+    }
+    this.activeWebRTCCalls.clear();
     
     if (this.matrixClient) {
       this.matrixClient.stopClient();
