@@ -16,12 +16,16 @@ from proto_gen.callassist.broker import (
     BrokerEntityUpdate,
     BrokerEntityType,
     HealthCheckResponse,
+    ServiceDefinition,
+    ServiceExecutionRequest,
+    ServiceExecutionResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from addon.broker.dependencies import app_state
 from addon.broker.queries import get_enabled_call_stations_with_session
 from addon.broker.web_server import WebUIServer
 from addon.broker.plugin_manager import PluginManager
+from addon.broker.service_registry import ServiceRegistry
 
 if TYPE_CHECKING:
     # Forward reference for type hints
@@ -91,6 +95,12 @@ class CallAssistBroker(BrokerIntegrationBase):
         
         # Store database manager reference (injected or None)
         self.database_manager = database_manager
+        
+        # Initialize service registry
+        self.service_registry = ServiceRegistry()
+        
+        # Register built-in services
+        self._register_services()
 
     async def stream_ha_entities(
         self, ha_entity_update_iterator: AsyncIterator[HaEntityUpdate]
@@ -278,6 +288,98 @@ class CallAssistBroker(BrokerIntegrationBase):
                 logger.error(f"Error notifying subscriber: {e}")
                 # Continue with next subscriber
 
+    def _register_services(self):
+        """Register built-in services with the service registry."""
+        # We'll register services lazily when they're first requested
+        # This allows us to properly inject dependencies
+        logger.info("Service registry initialized - services will be registered on first use")
+
+    async def get_service_definitions(
+        self,
+        betterproto_lib_pydantic_google_protobuf_empty,
+    ) -> AsyncIterator[ServiceDefinition]:
+        """Stream service definitions to the integration."""
+        logger.info("Streaming service definitions")
+        
+        try:
+            # Ensure services are registered
+            await self._ensure_services_registered()
+            
+            definitions = self.service_registry.get_service_definitions()
+            for definition in definitions:
+                yield definition
+                logger.debug(f"Sent service definition: {definition.service_name}")
+        except Exception as e:
+            logger.error(f"Error streaming service definitions: {e}")
+            # Don't re-raise, just end the stream
+
+    async def _ensure_services_registered(self):
+        """Ensure all services are registered with proper dependencies."""
+        if len(self.service_registry.services) > 0:
+            return  # Already registered
+            
+        from addon.broker.services.make_call_service import MakeCallService
+        
+        # Get available call stations and contacts for the service
+        # TODO: Make this dynamic - currently using stub data
+        available_call_stations = [
+            {"station_id": "living_room", "display_name": "Living Room"},
+            {"station_id": "kitchen", "display_name": "Kitchen"},
+            {"station_id": "bedroom", "display_name": "Bedroom"},
+        ]
+        
+        available_contacts = [
+            {"contact_id": "family_room", "display_name": "Family Room"},
+            {"contact_id": "office", "display_name": "Office"},
+            {"contact_id": "guest_room", "display_name": "Guest Room"},
+        ]
+        
+        # Get a database session - use app_state database manager
+        database_session = None
+        if app_state.database_manager:
+            try:
+                database_session = app_state.database_manager.get_session()
+            except Exception as e:
+                logger.warning(f"Could not get database session: {e}")
+        
+        # Create and register the make_call service
+        make_call_service = MakeCallService(
+            plugin_manager=self.plugin_manager,
+            database_session=database_session,
+            available_call_stations=available_call_stations,
+            available_contacts=available_contacts
+        )
+        
+        # Debug the service definition
+        try:
+            service_def = make_call_service.get_service_definition()
+            logger.info(f"Service definition debug:")
+            logger.info(f"  Name: {service_def.service_name}")
+            logger.info(f"  Fields: {len(service_def.fields)}")
+            for field in service_def.fields:
+                logger.info(f"    - {field.key}: {field.field_type}")
+        except Exception as e:
+            logger.error(f"Error getting service definition: {e}")
+        
+        self.service_registry.register_service(make_call_service)
+
+    async def execute_service(
+        self, service_execution_request: ServiceExecutionRequest
+    ) -> ServiceExecutionResponse:
+        """Execute a service with the given parameters."""
+        logger.info(f"Executing service: {service_execution_request.service_name}")
+        
+        try:
+            result = await self.service_registry.execute_service(service_execution_request)
+            return result
+        except Exception as e:
+            logger.error(f"Error executing service {service_execution_request.service_name}: {e}")
+            return ServiceExecutionResponse(
+                success=False,
+                message=f"Service execution failed: {str(e)}",
+                result_data={},
+                timestamp=datetime.now(timezone.utc)
+            )
 
 async def serve(
     grpc_host: str = "0.0.0.0",

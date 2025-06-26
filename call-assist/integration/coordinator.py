@@ -45,6 +45,9 @@ class CallAssistCoordinator(DataUpdateCoordinator):
         # Track broker entities we've created
         self.broker_entities: Dict[str, Dict[str, Any]] = {}
         
+        # Track registered services
+        self.registered_services: Set[str] = set()
+        
         # Tasks for streaming
         self._ha_stream_task: asyncio.Task | None = None
         self._broker_stream_task: asyncio.Task | None = None
@@ -70,6 +73,9 @@ class CallAssistCoordinator(DataUpdateCoordinator):
         # Start broker entity streaming
         await self._start_broker_streaming()
         
+        # Discover and register dynamic services
+        await self._discover_and_register_services()
+        
         _LOGGER.info("Call Assist coordinator setup complete")
 
     async def async_shutdown(self) -> None:
@@ -88,6 +94,9 @@ class CallAssistCoordinator(DataUpdateCoordinator):
                 await self._broker_stream_task
             except asyncio.CancelledError:
                 pass
+        
+        # Unregister services
+        await self._unregister_services()
         
         # Remove state change listener
         if self._state_change_listener:
@@ -138,7 +147,7 @@ class CallAssistCoordinator(DataUpdateCoordinator):
                 await self._send_entity_update(entity_id, state)
 
     @callback
-    def _handle_state_change(self, event: Event) -> None:
+    def _handle_state_change(self, event) -> None:
         """Handle state change events."""
         entity_id = event.data.get(ATTR_ENTITY_ID)
         
@@ -216,6 +225,106 @@ class CallAssistCoordinator(DataUpdateCoordinator):
                 # Restart streaming
                 await asyncio.sleep(1)
                 await self._stream_broker_entities()
+
+    async def _discover_and_register_services(self) -> None:
+        """Discover services from broker and register them as Home Assistant services."""
+        try:
+            _LOGGER.info("Discovering services from broker...")
+            
+            service_count = 0
+            async for service_def in self.grpc_client.get_service_definitions():
+                await self._register_ha_service(service_def)
+                service_count += 1
+                _LOGGER.debug("Registered service: %s", service_def.service_name)
+            
+            _LOGGER.info("Service discovery complete. Registered %d services", service_count)
+            
+        except Exception as ex:
+            _LOGGER.error("Failed to discover services: %s", ex)
+            # Don't fail setup, just continue without dynamic services
+
+    async def _register_ha_service(self, service_def) -> None:
+        """Register a broker service as a Home Assistant service."""
+        from homeassistant.helpers import service
+        from homeassistant.core import ServiceCall
+        import voluptuous as vol
+        
+        # Build service schema from broker service definition
+        schema = {}
+        for field in service_def.fields:
+            if field.field_type.name == "STRING":
+                field_schema = str
+            elif field.field_type.name == "INTEGER":
+                field_schema = int
+            elif field.field_type.name == "BOOLEAN":
+                field_schema = bool
+            elif field.field_type.name == "SELECT":
+                # Create a selector with allowed values
+                field_schema = vol.In(field.options)
+            else:
+                field_schema = str  # Default to string
+            
+            if field.required:
+                schema[vol.Required(field.key, description=field.description)] = field_schema
+            else:
+                default = field.default_value if field.default_value else None
+                schema[vol.Optional(field.key, default=default, description=field.description)] = field_schema
+        
+        # Create service handler
+        async def service_handler(call: ServiceCall) -> None:
+            """Handle service call by forwarding to broker."""
+            try:
+                _LOGGER.info("Executing service %s with data: %s", service_def.service_name, call.data)
+                
+                # Convert parameters to strings (as expected by broker)
+                parameters = {k: str(v) for k, v in call.data.items()}
+                
+                # Execute service on broker
+                response = await self.grpc_client.execute_service(
+                    service_def.service_name,
+                    parameters,
+                    f"ha_{self.config_entry.entry_id}"
+                )
+                
+                if response.success:
+                    _LOGGER.info("Service %s executed successfully: %s", 
+                                service_def.service_name, response.message)
+                else:
+                    _LOGGER.error("Service %s failed: %s", 
+                                 service_def.service_name, response.message)
+                
+            except Exception as ex:
+                _LOGGER.error("Error executing service %s: %s", service_def.service_name, ex)
+        
+        # Register the service with Home Assistant
+        self.hass.services.async_register(
+            DOMAIN,
+            service_def.service_name,
+            service_handler,
+            schema=vol.Schema(schema) if schema else None
+        )
+        
+        # Track the service
+        self.registered_services.add(service_def.service_name)
+        
+        _LOGGER.info("Registered HA service: %s.%s", DOMAIN, service_def.service_name)
+
+    async def _unregister_services(self) -> None:
+        """Unregister all dynamic services."""
+        try:
+            _LOGGER.info("Unregistering services...")
+            
+            for service_name in self.registered_services:
+                self.hass.services.async_remove(DOMAIN, service_name)
+                _LOGGER.info("Unregistered service: %s", service_name)
+                
+            # Clear registered services
+            self.registered_services.clear()
+            
+            _LOGGER.info("Service unregistration complete")
+            
+        except Exception as ex:
+            _LOGGER.error("Failed to unregister services: %s", ex)
 
     @property
     def broker_version(self) -> str:

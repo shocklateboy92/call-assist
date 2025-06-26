@@ -15,6 +15,10 @@ service BrokerIntegration {
   // Broker entity streaming - broker pushes call stations and other entities to HA
   rpc StreamBrokerEntities(google.protobuf.Empty) returns (stream BrokerEntityUpdate);
   
+  // Dynamic service management
+  rpc GetServiceDefinitions(google.protobuf.Empty) returns (stream ServiceDefinition);
+  rpc ExecuteService(ServiceExecutionRequest) returns (ServiceExecutionResponse);
+  
   // Health check for connection monitoring
   rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
 }
@@ -56,5 +60,57 @@ message HealthCheckResponse {
   bool healthy = 1;
   string message = 2;
   google.protobuf.Timestamp timestamp = 3;
+}
+
+// Dynamic Service definitions
+message ServiceDefinition {
+  string service_name = 1;        // e.g., "make_call"
+  string display_name = 2;        // e.g., "Make Video Call"
+  string description = 3;         // User-friendly description
+  repeated ServiceField fields = 4; // Input parameters
+  repeated string required_capabilities = 5; // e.g., ["make_call"]
+  string icon = 6;                // MDI icon name
+}
+
+message ServiceField {
+  string key = 1;                 // Field name in service call
+  string display_name = 2;        // Human-readable name
+  ServiceFieldType field_type = 3; // Type of field
+  bool required = 4;              // Whether field is required
+  string description = 5;         // Help text for users
+  repeated string options = 6;    // For select fields
+  string default_value = 7;       // Default value if any
+  ServiceFieldValidation validation = 8; // Validation rules
+}
+
+enum ServiceFieldType {
+  SERVICE_FIELD_TYPE_UNKNOWN = 0;
+  SERVICE_FIELD_TYPE_STRING = 1;
+  SERVICE_FIELD_TYPE_INTEGER = 2;
+  SERVICE_FIELD_TYPE_BOOLEAN = 3;
+  SERVICE_FIELD_TYPE_SELECT = 4;   // Dropdown with predefined options
+  SERVICE_FIELD_TYPE_ENTITY = 5;   // HA entity selector
+  SERVICE_FIELD_TYPE_DURATION = 6; // Time duration
+}
+
+message ServiceFieldValidation {
+  int32 min_length = 1;           // For strings
+  int32 max_length = 2;           // For strings
+  int32 min_value = 3;            // For integers
+  int32 max_value = 4;            // For integers
+  string regex_pattern = 5;       // For string validation
+}
+
+message ServiceExecutionRequest {
+  string service_name = 1;
+  map<string, string> parameters = 2;
+  string integration_id = 3;      // Which integration instance called this
+}
+
+message ServiceExecutionResponse {
+  bool success = 1;
+  string message = 2;             // Success/error message
+  map<string, string> result_data = 3; // Additional result data
+  google.protobuf.Timestamp timestamp = 4;
 }
 

@@ -12,6 +12,9 @@ from .proto_gen.callassist.broker import (
     HaEntityUpdate,
     BrokerEntityUpdate,
     HealthCheckResponse,
+    ServiceDefinition,
+    ServiceExecutionRequest,
+    ServiceExecutionResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
@@ -159,4 +162,36 @@ class CallAssistGrpcClient:
         except Exception as ex:
             _LOGGER.warning("Broker entity streaming connection lost")
             self._connected = False
+            raise
+
+    async def get_service_definitions(self) -> AsyncIterator[ServiceDefinition]:
+        """Get service definitions from broker."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+
+        try:
+            request = betterproto_lib_pydantic_google_protobuf.Empty()
+            async for service_def in self.stub.get_service_definitions(request):
+                yield service_def
+
+        except Exception as ex:
+            _LOGGER.error("Failed to get service definitions: %s", ex)
+            raise
+
+    async def execute_service(self, service_name: str, parameters: Dict[str, str], integration_id: str = "ha_integration") -> ServiceExecutionResponse:
+        """Execute a service on the broker."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+
+        try:
+            request = ServiceExecutionRequest(
+                service_name=service_name,
+                parameters=parameters,
+                integration_id=integration_id
+            )
+            response = await self.stub.execute_service(request)
+            return response
+
+        except Exception as ex:
+            _LOGGER.error("Failed to execute service %s: %s", service_name, ex)
             raise
