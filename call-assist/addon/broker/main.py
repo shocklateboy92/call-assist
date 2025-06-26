@@ -196,8 +196,18 @@ class CallAssistBroker(BrokerIntegrationBase):
             # Notify subscribers of state change
             await self._notify_entity_changes()
             
-            # TODO: Implement actual call logic via plugin manager
-            # For now, just log the call attempt
+            # Implement actual call logic via plugin manager
+            success = await self._initiate_plugin_call(call_id, station, start_call_request.contact)
+            
+            if not success:
+                station.state = "idle"  # Reset state on failure
+                await self._notify_entity_changes()
+                return StartCallResponse(
+                    success=False,
+                    message="Failed to initiate call through protocol plugins",
+                    call_id="",
+                )
+            
             logger.info(f"Call {call_id} started successfully")
             
             return StartCallResponse(
@@ -329,6 +339,89 @@ class CallAssistBroker(BrokerIntegrationBase):
             except Exception as e:
                 logger.error(f"Error notifying subscriber: {e}")
                 # Continue with next subscriber
+
+    async def _initiate_plugin_call(self, call_id: str, station, contact: str) -> bool:
+        """Initiate a call through the appropriate protocol plugin"""
+        try:
+            # Determine protocol from contact format
+            protocol = self._detect_protocol_from_contact(contact)
+            if not protocol:
+                logger.error(f"Could not determine protocol for contact: {contact}")
+                return False
+
+            # Get camera stream URL from HA entity attributes
+            camera_entity = self.ha_entities.get(station.camera_entity_id)
+            if not camera_entity:
+                logger.error(f"Camera entity {station.camera_entity_id} not found")
+                return False
+
+            # Fix: ha_entities contains HAEntity objects, not dicts
+            camera_stream_url = camera_entity.attributes.get("stream_source", "")
+            if not camera_stream_url:
+                logger.error(f"No stream source found for camera {station.camera_entity_id}")
+                return False
+
+            # Import CallStartRequest here to avoid circular imports
+            from proto_gen.callassist.plugin import CallStartRequest
+            from proto_gen.callassist.common import MediaCapabilities, Resolution
+
+            # Create basic media capabilities using correct structure
+            camera_capabilities = MediaCapabilities(
+                video_codecs=["H264", "VP8"],
+                audio_codecs=["OPUS", "PCMU"],
+                supported_resolutions=[
+                    Resolution(width=640, height=480, framerate=10),
+                    Resolution(width=1280, height=720, framerate=30)
+                ],
+                hardware_acceleration=False,
+                webrtc_support=True,
+                max_bandwidth_kbps=2000
+            )
+            
+            player_capabilities = MediaCapabilities(
+                video_codecs=["H264", "VP8", "VP9"],
+                audio_codecs=["OPUS", "AAC"],
+                supported_resolutions=[
+                    Resolution(width=1920, height=1080, framerate=30),
+                    Resolution(width=1280, height=720, framerate=30)
+                ],
+                hardware_acceleration=True,
+                webrtc_support=True,
+                max_bandwidth_kbps=10000
+            )
+
+            # Create call start request
+            call_request = CallStartRequest(
+                call_id=call_id,
+                target_address=contact,
+                camera_stream_url=camera_stream_url,
+                camera_capabilities=camera_capabilities,
+                player_capabilities=player_capabilities,
+            )
+
+            # Call the plugin manager
+            response = await self.plugin_manager.start_call(protocol, call_request)
+            
+            if response and response.success:
+                logger.info(f"Plugin call started successfully: {response.message}")
+                return True
+            else:
+                error_msg = response.message if response else "No response from plugin"
+                logger.error(f"Plugin call failed: {error_msg}")
+                return False
+
+        except Exception as e:
+            logger.error(f"Exception during plugin call initiation: {e}")
+            return False
+
+    def _detect_protocol_from_contact(self, contact: str) -> str:
+        """Detect protocol from contact format"""
+        if contact.startswith("@") and ":" in contact:
+            return "matrix"  # Matrix user ID format: @user:server
+        elif "@" in contact and "." in contact:
+            return "xmpp"    # XMPP JID format: user@domain
+        else:
+            return ""  # Unknown format
 
 
 async def serve(

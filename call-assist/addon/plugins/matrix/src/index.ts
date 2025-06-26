@@ -280,6 +280,9 @@ class MatrixCallPlugin {
           // Set up peer connection event handlers
           this.setupPeerConnectionHandlers(peerConnection, callId);
           
+          // Add camera stream to peer connection
+          await this.addCameraStreamToPeerConnection(peerConnection, request.cameraStreamUrl);
+          
           // Create WebRTC offer for video call
           const offerDescription = await peerConnection.createOffer();
           await peerConnection.setLocalDescription(offerDescription);
@@ -866,6 +869,34 @@ class MatrixCallPlugin {
       if (callInfo) {
         callInfo.iceCandidates.push(...candidates);
       }
+    }
+  }
+
+  private async addCameraStreamToPeerConnection(peerConnection: RTCPeerConnectionInterface, cameraStreamUrl: string): Promise<void> {
+    console.log(`Adding camera stream to WebRTC: ${cameraStreamUrl}`);
+    
+    try {
+      // For now, we'll use a placeholder implementation
+      // In a real implementation, you would:
+      // 1. Connect to the RTSP stream using a library like node-ffmpeg or gstreamer
+      // 2. Transcode the RTSP stream to WebRTC-compatible format
+      // 3. Add the video track to the peer connection
+      
+      // This is a placeholder that logs the camera stream URL
+      // The actual media pipeline would be implemented here
+      console.log(`Camera stream URL: ${cameraStreamUrl}`);
+      console.log('Media pipeline placeholder - RTSP to WebRTC transcoding would happen here');
+      
+      // TODO: Implement actual RTSP → WebRTC media pipeline
+      // This could involve:
+      // - Using FFmpeg to transcode RTSP to WebRTC
+      // - Using GStreamer pipeline for media processing
+      // - Creating MediaStreamTrack from camera feed
+      // - Adding track to peer connection: peerConnection.addTrack(track, stream)
+      
+    } catch (error) {
+      console.error('Failed to add camera stream to peer connection:', error);
+      throw error;
     }
   }
 

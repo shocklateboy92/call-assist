@@ -47,11 +47,11 @@ class CallStationService:
             # Check if both entities are available
             camera_available = (
                 station.camera_entity_id in available_entities and
-                available_entities[station.camera_entity_id].get("available", False)
+                available_entities[station.camera_entity_id].available
             )
             player_available = (
                 station.media_player_entity_id in available_entities and
-                available_entities[station.media_player_entity_id].get("available", False)
+                available_entities[station.media_player_entity_id].available
             )
             
             station_dict["camera_available"] = camera_available
@@ -60,12 +60,12 @@ class CallStationService:
             
             # Add entity names for display
             if station.camera_entity_id in available_entities:
-                station_dict["camera_name"] = available_entities[station.camera_entity_id].get("name", station.camera_entity_id)
+                station_dict["camera_name"] = available_entities[station.camera_entity_id].name
             else:
                 station_dict["camera_name"] = f"{station.camera_entity_id} (not found)"
                 
             if station.media_player_entity_id in available_entities:
-                station_dict["player_name"] = available_entities[station.media_player_entity_id].get("name", station.media_player_entity_id)
+                station_dict["player_name"] = available_entities[station.media_player_entity_id].name
             else:
                 station_dict["player_name"] = f"{station.media_player_entity_id} (not found)"
             
