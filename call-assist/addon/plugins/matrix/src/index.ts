@@ -5,8 +5,8 @@ import { MatrixClient, createClient, ClientEvent, RoomEvent } from 'matrix-js-sd
 import { Subject } from 'rxjs';
 import * as wrtc from '@roamhq/wrtc';
 import { spawn, ChildProcess } from 'child_process';
-import { createReadStream } from 'fs';
-import { pipeline } from 'stream/promises';
+import ffmpegStatic from 'ffmpeg-static';
+import { Readable } from 'stream';
 
 // WebRTC types and interfaces
 interface RTCPeerConnectionInterface {
@@ -173,9 +173,12 @@ interface MatrixConfig {
 // Media pipeline management interface
 interface MediaPipeline {
   ffmpegProcess?: ChildProcess;
-  mediaStream?: any; // Will hold the media stream from RTSP
+  videoSource?: any; // RTCVideoSource for WebRTC
+  audioSource?: any; // RTCAudioSource for WebRTC
   isActive: boolean;
   cameraStreamUrl: string;
+  frameBuffer: Buffer[];
+  frameInterval?: NodeJS.Timeout;
 }
 
 // Strongly typed call info interface
@@ -890,7 +893,8 @@ class MatrixCallPlugin {
       // Create media pipeline for RTSP to WebRTC transcoding
       const mediaPipeline: MediaPipeline = {
         isActive: false,
-        cameraStreamUrl
+        cameraStreamUrl,
+        frameBuffer: []
       };
 
       // For real implementation, we would use FFmpeg to transcode RTSP to WebRTC
@@ -902,17 +906,24 @@ class MatrixCallPlugin {
       if ('addTrack' in peerConnection) {
         console.log('✅ Real WebRTC peer connection detected - setting up media tracks');
         
-        // Create a synthetic video track for now (placeholder for real RTSP stream)
-        // In a real implementation, this would be replaced with FFmpeg stream processing
-        const syntheticVideoTrack = await this.createSyntheticVideoTrack();
+        // Create a real video track that will be fed by FFmpeg RTSP stream
+        const realVideoTrack = await this.createRealVideoTrack(mediaPipeline);
         
-        if (syntheticVideoTrack) {
+        // Create audio track for complete media experience
+        const realAudioTrack = await this.createRealAudioTrack(mediaPipeline);
+        
+        if (realVideoTrack) {
           // Add the video track to the peer connection
-          (peerConnection as any).addTrack(syntheticVideoTrack);
-          console.log('✅ Video track added to peer connection');
+          (peerConnection as any).addTrack(realVideoTrack);
+          console.log('✅ Real video track added to peer connection');
           
           mediaPipeline.isActive = true;
-          mediaPipeline.mediaStream = syntheticVideoTrack;
+        }
+        
+        if (realAudioTrack) {
+          // Add the audio track to the peer connection
+          (peerConnection as any).addTrack(realAudioTrack);
+          console.log('✅ Real audio track added to peer connection');
         }
       } else {
         console.log('ℹ️  Mock WebRTC peer connection - skipping real media streaming');
@@ -930,52 +941,102 @@ class MatrixCallPlugin {
     }
   }
 
-  private async createSyntheticVideoTrack(): Promise<any> {
-    console.log('Creating synthetic video track for testing...');
+  private async createRealVideoTrack(mediaPipeline: MediaPipeline): Promise<any> {
+    console.log('Creating real video track for RTSP stream...');
     
     try {
-      // For now, we create a black video track as a placeholder
-      // In a real implementation, this would be replaced with RTSP stream data
-      
       // Check if we have access to real WebRTC objects
       if (typeof wrtc !== 'undefined' && wrtc.nonstandard) {
         console.log('✅ Creating real MediaStreamTrack using @roamhq/wrtc');
         
-        // Create a simple video source (black screen for now)
-        // This is where we would connect the FFmpeg output
+        // Create video source that will be fed by FFmpeg
         const videoSource = new wrtc.nonstandard.RTCVideoSource();
         const track = videoSource.createTrack();
         
-        // Send a black frame periodically (placeholder for real video)
-        this.startSyntheticVideoSource(videoSource);
+        // Store video source in media pipeline for FFmpeg to use
+        mediaPipeline.videoSource = videoSource;
         
+        console.log('✅ Real video track created - ready for FFmpeg frames');
         return track;
       } else {
-        console.log('ℹ️  WebRTC nonStandard API not available - using mock track');
-        return null;
+        console.log('ℹ️  WebRTC nonStandard API not available - using fallback');
+        // Fallback to synthetic video for testing
+        return await this.createFallbackVideoTrack(mediaPipeline);
       }
     } catch (error) {
-      console.error('Error creating synthetic video track:', error);
+      console.error('Error creating real video track:', error);
       return null;
     }
   }
 
-  private startSyntheticVideoSource(videoSource: any): void {
-    // Create a simple black frame as placeholder
+  private async createFallbackVideoTrack(mediaPipeline: MediaPipeline): Promise<any> {
+    console.log('Creating fallback synthetic video track...');
+    
+    try {
+      if (typeof wrtc !== 'undefined' && wrtc.nonstandard) {
+        const videoSource = new wrtc.nonstandard.RTCVideoSource();
+        const track = videoSource.createTrack();
+        
+        // Store for cleanup
+        mediaPipeline.videoSource = videoSource;
+        
+        // Send test pattern instead of black frames
+        this.startTestPatternVideoSource(videoSource);
+        
+        return track;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error creating fallback video track:', error);
+      return null;
+    }
+  }
+
+  private async createRealAudioTrack(mediaPipeline: MediaPipeline): Promise<any> {
+    console.log('Creating real audio track for RTSP stream...');
+    
+    try {
+      // Check if we have access to real WebRTC objects
+      if (typeof wrtc !== 'undefined' && wrtc.nonstandard) {
+        console.log('✅ Creating real AudioStreamTrack using @roamhq/wrtc');
+        
+        // Create audio source that will be fed by FFmpeg
+        const audioSource = new wrtc.nonstandard.RTCAudioSource();
+        const track = audioSource.createTrack();
+        
+        // Store audio source in media pipeline for FFmpeg to use
+        mediaPipeline.audioSource = audioSource;
+        
+        console.log('✅ Real audio track created - ready for FFmpeg audio');
+        return track;
+      } else {
+        console.log('ℹ️  WebRTC nonStandard API not available - skipping audio track');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating real audio track:', error);
+      return null;
+    }
+  }
+
+  private startTestPatternVideoSource(videoSource: any): void {
+    console.log('Starting test pattern video source...');
+    
     const width = 640;
     const height = 480;
-    const frame = {
-      width,
-      height,
-      data: new Uint8ClampedArray(width * height * 1.5).fill(0) // YUV420 black frame
-    };
-
+    const frameSize = width * height * 1.5; // YUV420P
+    
+    let frameCounter = 0;
+    
     // Send frames at 10 FPS
     const interval = setInterval(() => {
       try {
+        // Create a simple test pattern with moving elements
+        const frame = this.generateTestPatternFrame(width, height, frameCounter);
         videoSource.onFrame(frame);
+        frameCounter++;
       } catch (error) {
-        console.error('Error sending video frame:', error);
+        console.error('Error sending test pattern frame:', error);
         clearInterval(interval);
       }
     }, 100); // 10 FPS
@@ -983,31 +1044,112 @@ class MatrixCallPlugin {
     // Stop after 30 seconds (placeholder for real stream)
     setTimeout(() => {
       clearInterval(interval);
-      console.log('Stopped synthetic video source');
+      console.log('Stopped test pattern video source');
     }, 30000);
   }
 
+  private generateTestPatternFrame(width: number, height: number, frameCounter: number): any {
+    // Generate a simple test pattern with moving bars
+    const frameSize = width * height * 1.5;
+    const data = new Uint8ClampedArray(frameSize);
+    
+    // Y plane (luminance)
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const index = y * width + x;
+        
+        // Create moving vertical bars
+        const barPosition = (frameCounter * 2) % width;
+        const distanceFromBar = Math.abs(x - barPosition);
+        
+        if (distanceFromBar < 20) {
+          data[index] = 255; // White bar
+        } else if ((x + y + frameCounter) % 60 < 30) {
+          data[index] = 128; // Gray checkerboard
+        } else {
+          data[index] = 64;  // Dark gray
+        }
+      }
+    }
+    
+    // U and V planes (chrominance) - set to neutral values
+    const uvOffset = width * height;
+    const uvSize = width * height / 4;
+    
+    for (let i = 0; i < uvSize; i++) {
+      data[uvOffset + i] = 128; // U plane
+      data[uvOffset + uvSize + i] = 128; // V plane
+    }
+    
+    return {
+      width,
+      height,
+      data
+    };
+  }
+
   private async startFFmpegTranscoding(mediaPipeline: MediaPipeline): Promise<void> {
-    console.log(`🎬 Starting FFmpeg transcoding for: ${mediaPipeline.cameraStreamUrl}`);
+    console.log(`🎬 Starting real FFmpeg transcoding for: ${mediaPipeline.cameraStreamUrl}`);
     
     try {
-      // This is a placeholder for actual FFmpeg integration
-      // In a real implementation, you would:
-      // 1. Use ffmpeg-static to get the FFmpeg binary path
-      // 2. Spawn FFmpeg process to read RTSP stream
-      // 3. Transcode to WebRTC-compatible format (VP8/H.264)
-      // 4. Pipe the output to the WebRTC video track
+      // Get FFmpeg binary path
+      const ffmpegPath = ffmpegStatic;
+      if (!ffmpegPath) {
+        throw new Error('FFmpeg binary not found');
+      }
       
-      // Example FFmpeg command (not executed yet):
-      // ffmpeg -i rtsp://camera/stream -c:v libvpx -b:v 1M -c:a libopus -f webm pipe:1
+      console.log(`📹 Using FFmpeg at: ${ffmpegPath}`);
       
-      console.log('FFmpeg transcoding placeholder - would spawn process here:');
-      console.log(`  Input: ${mediaPipeline.cameraStreamUrl}`);
-      console.log(`  Output: WebRTC-compatible stream`);
-      console.log(`  Codec: VP8/H.264 video, Opus audio`);
+      // Initialize frame buffer for raw video data
+      mediaPipeline.frameBuffer = [];
       
-      // For now, just mark as successful
-      // mediaPipeline.ffmpegProcess = spawn('echo', ['FFmpeg placeholder']);
+      // FFmpeg command to transcode RTSP to raw YUV420P frames for WebRTC
+      // Note: This focuses on video for now, audio would require separate processing
+      const ffmpegArgs = [
+        '-i', mediaPipeline.cameraStreamUrl,     // Input RTSP stream
+        '-f', 'rawvideo',                        // Output raw video
+        '-pix_fmt', 'yuv420p',                   // YUV420P format for WebRTC
+        '-s', '640x480',                         // Resolution (640x480)
+        '-r', '10',                              // Frame rate (10 FPS)
+        '-an',                                   // No audio in this stream (video only)
+        '-loglevel', 'error',                    // Minimal logging
+        'pipe:1'                                 // Output to stdout
+      ];
+      
+      console.log(`🚀 Starting FFmpeg with args: ${ffmpegArgs.join(' ')}`);
+      
+      // Spawn FFmpeg process
+      mediaPipeline.ffmpegProcess = spawn(ffmpegPath, ffmpegArgs);
+      
+      const ffmpegProcess = mediaPipeline.ffmpegProcess;
+      if (!ffmpegProcess) {
+        throw new Error('Failed to start FFmpeg process');
+      }
+      
+      // Handle FFmpeg stdout (raw video frames)
+      if (ffmpegProcess.stdout) {
+        this.handleFFmpegVideoFrames(mediaPipeline, ffmpegProcess.stdout);
+      }
+      
+      // Handle FFmpeg stderr (error logging)
+      if (ffmpegProcess.stderr) {
+        ffmpegProcess.stderr.on('data', (data) => {
+          console.error(`FFmpeg stderr: ${data.toString()}`);
+        });
+      }
+      
+      // Handle process events
+      ffmpegProcess.on('close', (code) => {
+        console.log(`FFmpeg process closed with code: ${code}`);
+        mediaPipeline.isActive = false;
+      });
+      
+      ffmpegProcess.on('error', (error) => {
+        console.error(`FFmpeg process error: ${error}`);
+        mediaPipeline.isActive = false;
+      });
+      
+      console.log('✅ FFmpeg transcoding process started successfully');
       
     } catch (error) {
       console.error('Error starting FFmpeg transcoding:', error);
@@ -1015,10 +1157,68 @@ class MatrixCallPlugin {
     }
   }
 
+  private handleFFmpegVideoFrames(mediaPipeline: MediaPipeline, stdout: Readable): void {
+    console.log('📺 Setting up FFmpeg video frame processing...');
+    
+    const frameSize = 640 * 480 * 1.5; // YUV420P: Y + U/2 + V/2 = width * height * 1.5
+    let buffer = Buffer.alloc(0);
+    
+    stdout.on('data', (chunk: Buffer) => {
+      // Accumulate chunks into buffer
+      buffer = Buffer.concat([buffer, chunk]);
+      
+      // Process complete frames
+      while (buffer.length >= frameSize) {
+        const frameData = buffer.subarray(0, frameSize);
+        buffer = buffer.subarray(frameSize);
+        
+        // Send frame to WebRTC video source
+        this.sendFrameToWebRTC(mediaPipeline, frameData);
+      }
+    });
+    
+    stdout.on('end', () => {
+      console.log('FFmpeg video stream ended');
+    });
+    
+    stdout.on('error', (error) => {
+      console.error('FFmpeg stdout error:', error);
+    });
+  }
+
+  private sendFrameToWebRTC(mediaPipeline: MediaPipeline, frameData: Buffer): void {
+    try {
+      if (mediaPipeline.videoSource && mediaPipeline.isActive) {
+        // Convert raw YUV420P data to WebRTC frame format
+        const frame = {
+          width: 640,
+          height: 480,
+          data: new Uint8ClampedArray(frameData)
+        };
+        
+        // Send frame to WebRTC video source
+        mediaPipeline.videoSource.onFrame(frame);
+        
+        // Optional: Log frame processing (but limit to avoid spam)
+        if (Math.random() < 0.01) { // Log ~1% of frames
+          console.log(`📸 Processed RTSP frame: ${frameData.length} bytes`);
+        }
+      }
+    } catch (error) {
+      console.error('Error sending frame to WebRTC:', error);
+    }
+  }
+
   private async cleanupMediaPipeline(mediaPipeline: MediaPipeline): Promise<void> {
     console.log('Cleaning up media pipeline...');
     
     try {
+      // Stop frame interval if running
+      if (mediaPipeline.frameInterval) {
+        clearInterval(mediaPipeline.frameInterval);
+        mediaPipeline.frameInterval = undefined;
+      }
+      
       // Stop FFmpeg process if running
       if (mediaPipeline.ffmpegProcess) {
         console.log('Terminating FFmpeg process...');
