@@ -5,6 +5,7 @@ import { MatrixClient, createClient, MsgType, ClientEvent, RoomEvent } from 'mat
 import { promises as fs } from 'fs';
 import path from 'path';
 import { Observable, Subject } from 'rxjs';
+import * as wrtc from '@roamhq/wrtc';
 
 // WebRTC types and interfaces
 interface RTCPeerConnectionInterface {
@@ -14,15 +15,11 @@ interface RTCPeerConnectionInterface {
   setRemoteDescription(description: RTCSessionDescriptionInit): Promise<void>;
   addIceCandidate(candidate: RTCIceCandidateInit): Promise<void>;
   close(): void;
-  onicecandidate: ((event: RTCPeerConnectionIceEvent) => void) | null;
-  onconnectionstatechange: ((event: Event) => void) | null;
+  onicecandidate: ((event: any) => void) | null;
+  onconnectionstatechange: ((event: any) => void) | null;
   connectionState: RTCPeerConnectionState;
   localDescription: RTCSessionDescriptionInit | null;
   remoteDescription: RTCSessionDescriptionInit | null;
-}
-
-interface RTCPeerConnectionIceEvent {
-  candidate: RTCIceCandidateInit | null;
 }
 
 type RTCPeerConnectionState = 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
@@ -68,11 +65,14 @@ class MockRTCPeerConnection implements RTCPeerConnectionInterface {
         sdpMLineIndex: 0,
         sdpMid: '0'
       };
-      this.onicecandidate?.({ candidate: mockCandidate });
+      // Create a mock event object that matches the expected interface
+      const mockEvent = { candidate: mockCandidate } as any;
+      this.onicecandidate?.(mockEvent);
       
       // Simulate end of candidates
       setTimeout(() => {
-        this.onicecandidate?.({ candidate: null });
+        const endEvent = { candidate: null } as any;
+        this.onicecandidate?.(endEvent);
       }, 100);
     }, 50);
   }
@@ -108,16 +108,28 @@ class MockRTCPeerConnection implements RTCPeerConnectionInterface {
 }
 
 // Factory function for creating RTCPeerConnection instances
-// This can be easily replaced with real WebRTC implementation
-function createPeerConnection(): RTCPeerConnectionInterface {
-  // TODO: Replace with real RTCPeerConnection when wrtc package is available
-  // return new wrtc.RTCPeerConnection({
-  //   iceServers: [
-  //     { urls: 'stun:coturn:3478' },
-  //     { urls: 'turn:coturn:3478', username: 'user', credential: 'pass' }
-  //   ]
-  // });
-  return new MockRTCPeerConnection();
+function createPeerConnection(useMock: boolean = false): RTCPeerConnectionInterface {
+  if (useMock || process.env.USE_MOCK_WEBRTC === 'true') {
+    console.log('Using mock WebRTC implementation');
+    return new MockRTCPeerConnection();
+  }
+  
+  // Use real WebRTC implementation with TURN server configuration
+  console.log('Using real WebRTC implementation');  
+  const configuration: RTCConfiguration = {
+    iceServers: [
+      { urls: 'stun:coturn:3478' },
+      { 
+        urls: 'turn:coturn:3478', 
+        username: 'user', 
+        credential: 'pass' 
+      }
+    ],
+    iceCandidatePoolSize: 10
+  };
+  
+  // Cast to our interface to avoid type complexities
+  return new wrtc.RTCPeerConnection(configuration) as any as RTCPeerConnectionInterface;
 }
 
 // Import generated protobuf types
