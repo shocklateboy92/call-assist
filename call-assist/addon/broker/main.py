@@ -16,6 +16,8 @@ from proto_gen.callassist.broker import (
     BrokerEntityUpdate,
     BrokerEntityType,
     HealthCheckResponse,
+    StartCallRequest,
+    StartCallResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from addon.broker.dependencies import app_state
@@ -161,6 +163,56 @@ class CallAssistBroker(BrokerIntegrationBase):
             message=f"Broker running for {uptime.total_seconds():.0f} seconds",
             timestamp=datetime.now(timezone.utc),
         )
+
+    async def start_call(self, start_call_request: StartCallRequest) -> StartCallResponse:
+        """Start a call using the specified call station and contact."""
+        logger.info(f"Starting call from {start_call_request.call_station_id} to {start_call_request.contact}")
+        
+        # Validate call station exists
+        if start_call_request.call_station_id not in self.call_stations:
+            return StartCallResponse(
+                success=False,
+                message=f"Call station '{start_call_request.call_station_id}' not found",
+                call_id="",
+            )
+        
+        station = self.call_stations[start_call_request.call_station_id]
+        
+        # Check if call station is available
+        if not station.available:
+            return StartCallResponse(
+                success=False,
+                message=f"Call station '{start_call_request.call_station_id}' is not available",
+                call_id="",
+            )
+        
+        # Generate a unique call ID
+        call_id = f"call_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{start_call_request.call_station_id}"
+        
+        try:
+            # Update call station state
+            station.state = "calling"
+            
+            # Notify subscribers of state change
+            await self._notify_entity_changes()
+            
+            # TODO: Implement actual call logic via plugin manager
+            # For now, just log the call attempt
+            logger.info(f"Call {call_id} started successfully")
+            
+            return StartCallResponse(
+                success=True,
+                message=f"Call started successfully to {start_call_request.contact}",
+                call_id=call_id,
+            )
+            
+        except Exception as ex:
+            logger.error(f"Failed to start call: {ex}")
+            return StartCallResponse(
+                success=False,
+                message=f"Failed to start call: {str(ex)}",
+                call_id="",
+            )
 
     async def _update_call_stations(self):
         """Update call stations based on database configuration and HA entity availability"""

@@ -10,6 +10,7 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import DOMAIN, CONF_HOST, CONF_PORT
 from .coordinator import CallAssistCoordinator
+from .services import async_setup_services, async_unload_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -49,6 +50,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Setup platform for broker entities
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Setup services (only once for all integrations)
+    if not hass.services.has_service(DOMAIN, "start_call"):
+        await async_setup_services(hass)
+
     _LOGGER.info("Call Assist integration setup complete")
     return True
 
@@ -69,6 +74,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         # Remove from data
         hass.data[DOMAIN].pop(entry.entry_id)
+        
+        # Unload services if this was the last integration
+        if not hass.data.get(DOMAIN):
+            await async_unload_services(hass)
 
     _LOGGER.info("Call Assist integration unloaded")
     return unload_ok

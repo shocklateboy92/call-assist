@@ -12,6 +12,8 @@ from .proto_gen.callassist.broker import (
     HaEntityUpdate,
     BrokerEntityUpdate,
     HealthCheckResponse,
+    StartCallRequest,
+    StartCallResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
@@ -159,4 +161,21 @@ class CallAssistGrpcClient:
         except Exception as ex:
             _LOGGER.warning("Broker entity streaming connection lost")
             self._connected = False
+            raise
+
+    async def start_call(self, call_station_id: str, contact: str) -> StartCallResponse:
+        """Start a call using the specified call station and contact."""
+        if not self.stub:
+            raise RuntimeError("Not connected to broker")
+
+        try:
+            request = StartCallRequest(
+                call_station_id=call_station_id,
+                contact=contact
+            )
+            response = await self.stub.start_call(request)
+            return response
+
+        except Exception as ex:
+            _LOGGER.error("Start call failed: %s", ex)
             raise

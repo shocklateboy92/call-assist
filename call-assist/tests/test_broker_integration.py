@@ -22,6 +22,8 @@ from proto_gen.callassist.broker import (
     BrokerEntityUpdate,
     BrokerEntityType,
     HealthCheckResponse,
+    StartCallRequest,
+    StartCallResponse,
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from grpclib.client import Channel
@@ -288,6 +290,101 @@ class TestBrokerIntegration:
             
             assert len(matching_stations) >= 1
             logger.info(f"Camera {camera.entity_id} with stream {stream_source} has {len(matching_stations)} call stations")
+
+    async def test_start_call_service(self, broker, mock_ha_entities):
+        """Test the start_call service functionality"""
+        # First set up the broker with entities
+        async def mock_entity_stream():
+            for entity in mock_ha_entities:
+                yield entity
+
+        await broker.stream_ha_entities(mock_entity_stream())
+        
+        # Verify we have call stations
+        assert len(broker.call_stations) > 0
+        
+        # Get a call station ID
+        station_id = list(broker.call_stations.keys())[0]
+        
+        # Test successful call start
+        request = StartCallRequest(
+            call_station_id=station_id,
+            contact="@test_user:matrix.org"
+        )
+        
+        response = await broker.start_call(request)
+        
+        assert isinstance(response, StartCallResponse)
+        assert response.success == True
+        assert "Call started successfully" in response.message
+        assert response.call_id != ""
+        assert response.call_id.startswith("call_")
+        
+        # Verify call station state changed
+        station = broker.call_stations[station_id]
+        assert station.state == "calling"
+        
+    async def test_start_call_invalid_station(self, broker):
+        """Test start_call with invalid call station ID"""
+        request = StartCallRequest(
+            call_station_id="invalid_station_id",
+            contact="@test_user:matrix.org"
+        )
+        
+        response = await broker.start_call(request)
+        
+        assert isinstance(response, StartCallResponse)
+        assert response.success == False
+        assert "not found" in response.message
+        assert response.call_id == ""
+        
+    async def test_start_call_unavailable_station(self, broker):
+        """Test start_call with unavailable call station"""
+        # Create entities with unavailable camera
+        entities = [
+            HaEntityUpdate(
+                entity_id="camera.unavailable",
+                domain="camera",
+                name="Unavailable Camera",
+                state="unavailable",
+                attributes={},
+                available=False,
+                last_updated=datetime.now(timezone.utc),
+            ),
+            HaEntityUpdate(
+                entity_id="media_player.available",
+                domain="media_player",
+                name="Available Player",
+                state="idle",
+                attributes={},
+                available=True,
+                last_updated=datetime.now(timezone.utc),
+            ),
+        ]
+
+        async def mock_entity_stream():
+            for entity in entities:
+                yield entity
+
+        await broker.stream_ha_entities(mock_entity_stream())
+        
+        # Get the station ID (should be unavailable)
+        station_id = list(broker.call_stations.keys())[0]
+        station = broker.call_stations[station_id]
+        assert station.available == False
+        
+        # Try to start call
+        request = StartCallRequest(
+            call_station_id=station_id,
+            contact="@test_user:matrix.org"
+        )
+        
+        response = await broker.start_call(request)
+        
+        assert isinstance(response, StartCallResponse)
+        assert response.success == False
+        assert "not available" in response.message
+        assert response.call_id == ""
 
 
 @pytest.mark.asyncio

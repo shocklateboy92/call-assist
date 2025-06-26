@@ -15,6 +15,9 @@ service BrokerIntegration {
   // Broker entity streaming - broker pushes call stations and other entities to HA
   rpc StreamBrokerEntities(google.protobuf.Empty) returns (stream BrokerEntityUpdate);
   
+  // Call operations
+  rpc StartCall(StartCallRequest) returns (StartCallResponse);
+  
   // Health check for connection monitoring
   rpc HealthCheck(google.protobuf.Empty) returns (HealthCheckResponse);
 }
@@ -56,5 +59,17 @@ message HealthCheckResponse {
   bool healthy = 1;
   string message = 2;
   google.protobuf.Timestamp timestamp = 3;
+}
+
+// Call operations
+message StartCallRequest {
+  string call_station_id = 1;    // ID of the call station to use
+  string contact = 2;            // Contact to call (string for now, will be selector later)
+}
+
+message StartCallResponse {
+  bool success = 1;
+  string message = 2;
+  string call_id = 3;            // Unique call ID for tracking
 }
 
