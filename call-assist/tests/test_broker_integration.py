@@ -42,46 +42,38 @@ class TestBrokerIntegration:
         return CallAssistBroker()
 
     @pytest.fixture
-    async def mock_ha_entities(self):
-        """Create mock HA entities for testing"""
-        return [
-            HaEntityUpdate(
-                entity_id="camera.front_door",
-                domain="camera",
-                name="Front Door Camera",
-                state="idle",
-                attributes={"resolution": "1080p", "fps": "30"},
-                available=True,
-                last_updated=datetime.now(timezone.utc),
-            ),
-            HaEntityUpdate(
-                entity_id="camera.back_yard",
-                domain="camera", 
-                name="Back Yard Camera",
-                state="streaming",
-                attributes={"resolution": "720p", "fps": "15"},
-                available=True,
-                last_updated=datetime.now(timezone.utc),
-            ),
-            HaEntityUpdate(
-                entity_id="media_player.living_room",
-                domain="media_player",
-                name="Living Room Speaker",
-                state="idle",
-                attributes={"volume_level": "0.5"},
-                available=True,
-                last_updated=datetime.now(timezone.utc),
-            ),
-            HaEntityUpdate(
-                entity_id="media_player.kitchen",
-                domain="media_player",
-                name="Kitchen Display",
-                state="playing",
-                attributes={"volume_level": "0.3", "media_title": "News"},
-                available=True,
-                last_updated=datetime.now(timezone.utc),
-            ),
-        ]
+    async def mock_ha_entities(self, mock_cameras, mock_media_players):
+        """Create mock HA entities using video test fixtures"""
+        # Use the first 2 cameras and first 2 media players from video fixtures
+        cameras = mock_cameras[:2]
+        players = mock_media_players[:2]
+        
+        # Convert to HaEntityUpdate format expected by broker tests
+        entities = []
+        
+        for camera in cameras:
+            entities.append(HaEntityUpdate(
+                entity_id=camera.entity_id,
+                domain=camera.domain,
+                name=camera.name,
+                state=camera.state,
+                attributes=camera.attributes,
+                available=camera.available,
+                last_updated=camera.last_updated,
+            ))
+        
+        for player in players:
+            entities.append(HaEntityUpdate(
+                entity_id=player.entity_id,
+                domain=player.domain,
+                name=player.name,
+                state=player.state,
+                attributes=player.attributes,
+                available=player.available,
+                last_updated=player.last_updated,
+            ))
+        
+        return entities
 
     async def test_health_check(self, broker):
         """Test basic health check functionality"""
@@ -104,14 +96,14 @@ class TestBrokerIntegration:
         
         # Verify entities were stored
         assert len(broker.ha_entities) == 4
-        assert "camera.front_door" in broker.ha_entities
-        assert "media_player.living_room" in broker.ha_entities
+        assert "camera.test_front_door" in broker.ha_entities
+        assert "media_player.test_living_room_tv" in broker.ha_entities
         
         # Verify entity details
-        camera = broker.ha_entities["camera.front_door"]
+        camera = broker.ha_entities["camera.test_front_door"]
         assert camera.domain == "camera"
-        assert camera.name == "Front Door Camera"
-        assert camera.state == "idle"
+        assert camera.name == "Test Front Door Camera"
+        assert camera.state == "streaming"
 
     async def test_call_station_creation(self, broker, mock_ha_entities):
         """Test that call stations are created from camera+media_player combinations"""
@@ -126,13 +118,13 @@ class TestBrokerIntegration:
         assert len(broker.call_stations) == 4
         
         # Check specific station
-        expected_station_id = "station_camera_front_door_media_player_living_room"
+        expected_station_id = "station_camera_test_front_door_media_player_test_living_room_tv"
         assert expected_station_id in broker.call_stations
         
         station = broker.call_stations[expected_station_id]
-        assert station.camera_entity_id == "camera.front_door"
-        assert station.media_player_entity_id == "media_player.living_room"
-        assert station.name == "Front Door Camera + Living Room Speaker"
+        assert station.camera_entity_id == "camera.test_front_door"
+        assert station.media_player_entity_id == "media_player.test_living_room_tv"
+        assert station.name == "Test Front Door Camera + Test Living Room TV"
         assert station.available == True
 
     async def test_broker_entity_streaming(self, broker, mock_ha_entities):
@@ -263,13 +255,78 @@ class TestBrokerIntegration:
         assert len(broker.call_stations) == 2
 
 
+    async def test_rtsp_stream_integration(self, broker, mock_ha_entities):
+        """Test that broker works with RTSP stream entities"""
+        # Process HA entities with RTSP streams
+        async def mock_entity_stream():
+            for entity in mock_ha_entities:
+                yield entity
+
+        await broker.stream_ha_entities(mock_entity_stream())
+        
+        # Check that call stations include stream source information
+        cameras_with_streams = [
+            entity for entity in mock_ha_entities 
+            if entity.domain == "camera" and "stream_source" in entity.attributes
+        ]
+        
+        assert len(cameras_with_streams) >= 1
+        
+        # Verify stream source is preserved in call stations
+        for camera in cameras_with_streams:
+            if not camera.available:
+                continue
+                
+            stream_source = camera.attributes["stream_source"]
+            assert stream_source.startswith("rtsp://")
+            
+            # Find call stations using this camera
+            matching_stations = [
+                station for station in broker.call_stations.values()
+                if station.camera_entity_id == camera.entity_id
+            ]
+            
+            assert len(matching_stations) >= 1
+            logger.info(f"Camera {camera.entity_id} with stream {stream_source} has {len(matching_stations)} call stations")
+
+
 @pytest.mark.asyncio
-async def test_broker_integration_end_to_end():
-    """End-to-end test of the broker integration"""
+async def test_broker_integration_end_to_end(video_test_environment):
+    """End-to-end test of the broker integration with video fixtures"""
     broker = CallAssistBroker()
     
     # Test health check
     health = await broker.health_check(betterproto_lib_google.Empty())
     assert health.healthy
     
+    # Test with video environment entities
+    cameras = video_test_environment["cameras"]
+    media_players = video_test_environment["media_players"]
+    
+    # Create entity stream
+    all_entities = cameras + media_players
+    
+    async def entity_stream():
+        for entity in all_entities:
+            # Convert to HaEntityUpdate format
+            yield HaEntityUpdate(
+                entity_id=entity.entity_id,
+                domain=entity.domain,
+                name=entity.name,
+                state=entity.state,
+                attributes=entity.attributes,
+                available=entity.available,
+                last_updated=entity.last_updated,
+            )
+    
+    await broker.stream_ha_entities(entity_stream())
+    
+    # Verify integration worked
+    available_cameras = [cam for cam in cameras if cam.available]
+    available_players = [player for player in media_players if player.available]
+    expected_stations = len(available_cameras) * len(available_players)
+    
+    assert len(broker.call_stations) == expected_stations
+    
+    logger.info(f"✅ Broker integration with video fixtures: {len(broker.call_stations)} call stations created")
     logger.info("✅ Broker integration tests completed successfully")

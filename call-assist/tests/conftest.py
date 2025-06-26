@@ -6,6 +6,8 @@ This module contains broker-related fixtures that are used across multiple test 
 """
 
 import logging
+from datetime import datetime, timezone
+from typing import List
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -18,7 +20,6 @@ def stub_method(*args, **kwargs):
     logger.info(
         "pytest-socket disabled. These are integration tests that require network access."
     )
-    pass
 
 
 pytest_socket.disable_socket = stub_method
@@ -33,7 +34,7 @@ import pytest
 import pytest_asyncio
 
 from grpclib.client import Channel
-from proto_gen.callassist.broker import BrokerIntegrationStub
+from proto_gen.callassist.broker import BrokerIntegrationStub, HaEntityUpdate
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 import asyncio
@@ -222,3 +223,183 @@ def enable_custom_integrations_fixture(enable_custom_integrations):
     # Enable sockets for tests that need to connect to broker
     _enable_socket()
     yield
+
+
+@pytest.fixture(scope="session")
+def rtsp_test_server() -> str:
+    """Reference to RTSP test server running via docker-compose"""
+    import socket
+    import time
+    
+    # The RTSP server should already be running via docker-compose
+    # Just verify it's accessible
+    rtsp_host = "localhost"
+    rtsp_port = 8554
+    
+    # Wait for RTSP server to be available (up to 30 seconds)
+    for attempt in range(30):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex((rtsp_host, rtsp_port))
+                if result == 0:
+                    logger.info(f"RTSP server is available at {rtsp_host}:{rtsp_port}")
+                    break
+        except Exception:
+            pass
+        
+        if attempt == 29:
+            logger.warning("RTSP server not available - tests may fail")
+        else:
+            time.sleep(1)
+    
+    return f"rtsp://{rtsp_host}:{rtsp_port}"
+
+
+@pytest.fixture
+def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
+    """Mock Home Assistant camera entities with RTSP test streams"""
+    return [
+        HaEntityUpdate(
+            entity_id="camera.test_front_door",
+            domain="camera",
+            name="Test Front Door Camera",
+            state="streaming",
+            attributes={
+                "entity_picture": "/api/camera_proxy/camera.test_front_door",
+                "supported_features": "1",
+                "stream_source": f"{rtsp_test_server}/test_camera_1",
+                "brand": "Test Camera",
+                "model": "Virtual RTSP v1.0",
+                "friendly_name": "Test Front Door Camera"
+            },
+            available=True,
+            last_updated=datetime.now(timezone.utc),
+        ),
+        HaEntityUpdate(
+            entity_id="camera.test_back_yard",
+            domain="camera", 
+            name="Test Back Yard Camera",
+            state="streaming",
+            attributes={
+                "entity_picture": "/api/camera_proxy/camera.test_back_yard",
+                "supported_features": "1",
+                "stream_source": f"{rtsp_test_server}/test_camera_2",
+                "brand": "Test Camera",
+                "model": "Virtual RTSP v2.0",
+                "friendly_name": "Test Back Yard Camera"
+            },
+            available=True,
+            last_updated=datetime.now(timezone.utc),
+        ),
+        HaEntityUpdate(
+            entity_id="camera.test_kitchen",
+            domain="camera",
+            name="Test Kitchen Camera", 
+            state="unavailable",
+            attributes={
+                "entity_picture": "/api/camera_proxy/camera.test_kitchen",
+                "supported_features": "1",
+                "stream_source": f"{rtsp_test_server}/test_camera_offline",
+                "brand": "Test Camera",
+                "model": "Virtual RTSP v1.0",
+                "friendly_name": "Test Kitchen Camera"
+            },
+            available=False,
+            last_updated=datetime.now(timezone.utc),
+        )
+    ]
+
+
+@pytest.fixture
+def mock_media_players() -> List[HaEntityUpdate]:
+    """Mock Home Assistant media player entities that simulate Chromecast behavior"""
+    return [
+        HaEntityUpdate(
+            entity_id="media_player.test_living_room_tv",
+            domain="media_player",
+            name="Test Living Room TV",
+            state="idle",
+            attributes={
+                "supported_features": "152463",  # Cast-compatible features
+                "device_class": "tv",
+                "friendly_name": "Test Living Room TV",
+                "volume_level": "0.5",
+                "media_content_type": "",
+                "media_title": ""
+            },
+            available=True,
+            last_updated=datetime.now(timezone.utc),
+        ),
+        HaEntityUpdate(
+            entity_id="media_player.test_kitchen_display", 
+            domain="media_player",
+            name="Test Kitchen Display",
+            state="idle",
+            attributes={
+                "supported_features": "152463",
+                "device_class": "speaker", 
+                "friendly_name": "Test Kitchen Display",
+                "volume_level": "0.7",
+                "media_content_type": "",
+                "media_title": ""
+            },
+            available=True,
+            last_updated=datetime.now(timezone.utc),
+        ),
+        HaEntityUpdate(
+            entity_id="media_player.test_bedroom_speaker",
+            domain="media_player",
+            name="Test Bedroom Speaker",
+            state="unavailable",
+            attributes={
+                "supported_features": "152463",
+                "device_class": "speaker",
+                "friendly_name": "Test Bedroom Speaker",
+                "volume_level": "0.3",
+                "media_content_type": "",
+                "media_title": ""
+            },
+            available=False,
+            last_updated=datetime.now(timezone.utc),
+        )
+    ]
+
+
+@pytest.fixture
+def video_test_environment(rtsp_test_server: str, mock_cameras: List[HaEntityUpdate], mock_media_players: List[HaEntityUpdate]):
+    """Complete video testing environment with all components"""
+    import socket
+    import time
+    
+    # Verify mock Chromecast is available
+    chromecast_host = "localhost"
+    chromecast_port = 8008
+    
+    # Wait for mock Chromecast to be available (up to 10 seconds)
+    for attempt in range(10):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex((chromecast_host, chromecast_port))
+                if result == 0:
+                    logger.info(f"Mock Chromecast is available at {chromecast_host}:{chromecast_port}")
+                    break
+        except Exception:
+            pass
+        
+        if attempt == 9:
+            logger.warning("Mock Chromecast not available - some tests may fail")
+        else:
+            time.sleep(1)
+    
+    return {
+        "rtsp_base_url": rtsp_test_server,
+        "rtsp_streams": [
+            f"{rtsp_test_server}/test_camera_1",
+            f"{rtsp_test_server}/test_camera_2"
+        ],
+        "cameras": mock_cameras,
+        "media_players": mock_media_players,
+        "mock_chromecast_url": f"http://{chromecast_host}:{chromecast_port}"
+    }

@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install required packages
+RUN pip install --no-cache-dir aiohttp
+
+# Copy the mock server
+COPY mock_chromecast_server.py .
+
+# Expose port 8008
+EXPOSE 8008
+
+# Run the mock server
+CMD ["python", "mock_chromecast_server.py"]

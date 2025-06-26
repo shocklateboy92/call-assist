@@ -70,7 +70,40 @@ sudo docker-compose -f docker-compose.dev.yml restart <service-name>
 # - Home Assistant: http://homeassistant:8123
 # - Matrix Synapse: http://synapse:8008
 # - TURN Server: coturn:3478
+# - RTSP Test Server: rtsp://rtsp-server:8554 (with test cameras)
+# - Mock Chromecast: http://mock-chromecast:8008 (for testing)
 ```
+
+### Testing Guidelines
+
+- Generally, prefer integration tests over unit tests for this project
+- Use the `tests/` directory for all test files
+- There are fixtures available in `tests/conftest.py` to instantiate and give a running broker
+
+### Video Testing Infrastructure
+
+**Auto-Start Video Services**: The development environment automatically starts video testing infrastructure:
+
+```bash
+# Test video infrastructure health
+call-assist/scripts/test-video-infrastructure.sh
+
+# Run video-specific tests
+python -m pytest tests/test_video_call_e2e.py -xvs          # End-to-end video call tests
+python -m pytest tests/test_video_performance.py -xvs      # Performance and load testing
+python -m pytest tests/test_broker_integration.py::test_rtsp_stream_integration -xvs
+
+# Available test streams
+# - rtsp://localhost:8554/test_camera_1 (SMPTE color bars, 640x480@10fps)
+# - rtsp://localhost:8554/test_camera_2 (Test pattern, 640x480@10fps)
+```
+
+**Video Test Components**:
+- **RTSP Server**: `aler9/rtsp-simple-server` with synthetic video streams
+- **Mock Chromecast**: HTTP server simulating Chromecast behavior for media player testing
+- **Test Fixtures**: Camera and media player entities with RTSP streams in `conftest.py`
+- **Performance Tests**: Concurrent connections, state transitions, WebSocket load testing
+- **Resource Efficient**: Lightweight 480p@10fps streams optimized for devcontainer usage
 
 
 # Call Assist Project Plan
@@ -549,6 +582,7 @@ Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integ
 6. ✅ **Account Management**: One account per integration instance pattern
 7. ✅ **Standalone Web UI**: FastAPI + Ludic + SQLite management interface
 8. ✅ **Call Station Management**: Manual configuration system with real-time status
+9. ✅ **Video Testing Infrastructure**: Comprehensive RTSP + Chromecast testing framework
 
 ### **Architecture Achievements**
 - **Clean Separation**: Broker handles business logic, HA handles presentation
@@ -557,6 +591,7 @@ Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integ
 - **Database Persistence**: SQLite with automatic migrations
 - **Real-Time Updates**: Live status monitoring and entity streaming
 - **User Control**: Manual configuration for both accounts and call stations
+- **Comprehensive Testing**: End-to-end video call testing with RTSP streams and mock devices
 
 ### **Current Capabilities**
 - **Account Management**: Add/edit/delete protocol accounts via web UI
@@ -565,6 +600,8 @@ Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integ
 - **Status Monitoring**: Real-time availability tracking
 - **Entity Streaming**: Broker entities appear in Home Assistant
 - **Web Interface**: Complete management without Home Assistant limitations
+- **Video Testing**: End-to-end testing with synthetic RTSP streams and mock Chromecast devices
+- **Performance Validation**: Load testing for concurrent connections and state transitions
 
 ### **Next Development Priorities**
 1. 🔄 **Real WebRTC Connections**: Complete peer-to-peer video/audio streams
@@ -580,5 +617,4 @@ Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integ
 - **Type Errors**: Resolve remaining Ludic component type warnings
 - **Error Handling**: Improve exception handling in web UI routes
 - **Performance**: Optimize entity update streaming
-- **Testing**: Expand test coverage for Call Station functionality
 - **Documentation**: Add inline code documentation and examples

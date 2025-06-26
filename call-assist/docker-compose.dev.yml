@@ -1,3 +1,8 @@
+# NOTE: Don't expose ports to the host machine in this file.
+# That will prevent the devcontainer from being instantiated
+# more than once.
+# Instead, add them to the `forwardPorts` section of devcontainer.json
+
 services:
   devcontainer:
     image: mcr.microsoft.com/devcontainers/base:ubuntu
@@ -39,5 +44,37 @@ services:
     volumes:
       - ./config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
     command: ["-c", "/etc/coturn/turnserver.conf"]
+    restart: unless-stopped
+
+  rtsp-server:
+    image: aler9/rtsp-simple-server:latest
+    restart: unless-stopped
+
+  test-stream-generator:
+    image: jrottenberg/ffmpeg:6.1-alpine
+    depends_on:
+      - rtsp-server
+    command: >
+      -f lavfi -i smptebars=size=640x480:rate=10:duration=86400
+      -f lavfi -i sine=frequency=1000:duration=86400
+      -c:v libx264 -preset ultrafast -tune zerolatency
+      -c:a aac -f rtsp rtsp://rtsp-server:8554/test_camera_1
+    restart: unless-stopped
+
+  test-stream-generator-2:
+    image: jrottenberg/ffmpeg:6.1-alpine
+    depends_on:
+      - rtsp-server
+    command: >
+      -f lavfi -i testsrc=size=640x480:rate=10:duration=86400
+      -f lavfi -i sine=frequency=440:duration=86400
+      -c:v libx264 -preset ultrafast -c:a aac
+      -f rtsp rtsp://rtsp-server:8554/test_camera_2
+    restart: unless-stopped
+
+  mock-chromecast:
+    build:
+      context: ./tests/fixtures
+      dockerfile: Dockerfile.mock-chromecast
     restart: unless-stopped
 
