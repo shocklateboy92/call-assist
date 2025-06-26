@@ -40,11 +40,7 @@ Happens on devcontainer creation, but can be manually triggered if proto files c
 ### Broker Development (Python)
 ```bash
 cd call-assist/addon/broker
-./dev.sh                           # Start broker in development mode
-./run_all_tests.sh                 # Run basic integration tests
-./run_all_tests.sh --with-matrix   # Include Matrix plugin tests (builds and runs plugin)
-./run_all_tests.sh --full          # Run all tests including performance
-python -m pytest test_integration.py -v  # Run specific integration tests
+python -m pytest call-assist/tests
 ```
 
 ### Matrix Plugin Development (TypeScript)

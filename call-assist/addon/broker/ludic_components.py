@@ -167,6 +167,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                         strong("📹 Call Assist Broker"),
                         ul(
                             li(a("Accounts", href="/ui")),
+                            li(a("Call Stations", href="/ui/call-stations")),
                             li(a("Status", href="/ui/status")),
                             li(a("Call History", href="/ui/history")),
                             li(a("Settings", href="/ui/settings")),
@@ -586,6 +587,230 @@ class SettingsForm(Component[None, GlobalAttrs]):
                     ),
                     method="post",
                     action="/ui/settings",
+                ),
+                class_="form-container",
+            ),
+            **self.attrs,
+        )
+
+
+class CallStationsTable(Component[NoChildren, GlobalAttrs]):
+    """Call stations table component"""
+
+    classes = ["call-stations-table"]
+    styles = {
+        ".call-stations-table .stations-header": {
+            "display": "flex",
+            "align-items": "center",
+            "margin-bottom": "1rem",
+        },
+        ".call-stations-table .add-station-btn": {"margin-left": "auto"},
+        ".call-stations-table .station-actions": {"display": "flex", "gap": "0.5rem"},
+        ".call-stations-table .edit-btn": {"font-size": "0.875rem"},
+        ".call-stations-table .delete-btn": {
+            "font-size": "0.875rem",
+            "background": "var(--color-danger)",
+        },
+        ".call-stations-table .status-available": {"color": "green"},
+        ".call-stations-table .status-unavailable": {"color": "red"},
+        ".call-stations-table .status-disabled": {"color": "gray"},
+    }
+
+    def __init__(self, call_stations: List[Dict[str, Any]], **attrs: Any):
+        self.call_stations = call_stations
+        super().__init__(**attrs)
+
+    def render(self) -> div:
+        if not self.call_stations:
+            return div(
+                p("No call stations configured yet."),
+                a("Add Call Station", href="/ui/add-call-station", role="button"),
+                class_="form-container",
+            )
+
+        return div(
+            div(
+                h2("Call Stations"),
+                a(
+                    "Add Call Station",
+                    href="/ui/add-call-station",
+                    role="button",
+                    class_="add-station-btn",
+                ),
+                class_="stations-header",
+            ),
+            div(
+                table(
+                    thead(
+                        tr(
+                            th("Station Name"),
+                            th("Camera"),
+                            th("Media Player"),
+                            th("Enabled"),
+                            th("Status"),
+                            th("Last Updated"),
+                            th("Actions"),
+                        )
+                    ),
+                    tbody(
+                        *[self.render_station_row(station) for station in self.call_stations]
+                    ),
+                ),
+                class_="table-container",
+            ),
+            **self.attrs,
+        )
+
+    def render_station_row(self, station: Dict[str, Any]) -> tr:
+        """Render a single call station row"""
+        # Determine status
+        if not station.get("enabled", True):
+            status_class = "status-disabled"
+            status_text = "🔒 Disabled"
+        elif station.get("is_available", False):
+            status_class = "status-available"
+            status_text = "✅ Available"
+        else:
+            status_class = "status-unavailable"
+            reasons = []
+            if not station.get("camera_available", False):
+                reasons.append("camera offline")
+            if not station.get("player_available", False):
+                reasons.append("player offline")
+            status_text = f"❌ Unavailable ({', '.join(reasons)})"
+
+        enabled_text = "✓ Yes" if station.get("enabled", True) else "✗ No"
+
+        return tr(
+            td(station.get("display_name", "")),
+            td(station.get("camera_name", station.get("camera_entity_id", ""))),
+            td(station.get("player_name", station.get("media_player_entity_id", ""))),
+            td(enabled_text),
+            td(status_text, class_=status_class),
+            td(station.get("updated_at", "")),
+            td(
+                div(
+                    a(
+                        "Edit",
+                        href=f"/ui/edit-call-station/{station.get('station_id')}",
+                        role="button",
+                        class_="edit-btn",
+                    ),
+                    button(
+                        "Delete",
+                        class_="delete-btn",
+                        hx_delete=f"/ui/delete-call-station/{station.get('station_id')}",
+                        hx_confirm="Are you sure you want to delete this call station?",
+                        hx_target="closest tr",
+                        hx_swap="outerHTML",
+                    ),
+                    class_="station-actions",
+                )
+            ),
+        )
+
+
+class CallStationForm(Component[None, GlobalAttrs]):
+    """Call station configuration form component"""
+
+    def __init__(
+        self,
+        available_entities: Dict[str, List[Dict[str, str]]],
+        station_data: Optional[Dict[str, Any]] = None,
+        is_edit: bool = False,
+        **attrs: Any,
+    ):
+        self.available_entities = available_entities
+        self.station_data = station_data or {}
+        self.is_edit = is_edit
+        super().__init__(**attrs)
+
+    def render(self) -> div:
+        form_title = "Edit Call Station" if self.is_edit else "Add Call Station"
+        form_action = (
+            f"/ui/edit-call-station/{self.station_data.get('station_id')}"
+            if self.is_edit
+            else "/ui/add-call-station"
+        )
+
+        return div(
+            div(a("← Back to Call Stations", href="/ui/call-stations"), style="margin-bottom: 1rem;"),
+            div(
+                h2(form_title),
+                form(
+                    fieldset(
+                        legend("Station Information"),
+                        label("Station ID", for_="station_id"),
+                        input(
+                            type="text",
+                            name="station_id",
+                            id="station_id",
+                            value=self.station_data.get("station_id", ""),
+                            required=True,
+                            readonly=self.is_edit,
+                            placeholder="e.g., living_room_station",
+                        ),
+                        label("Display Name", for_="display_name"),
+                        input(
+                            type="text",
+                            name="display_name",
+                            id="display_name",
+                            value=self.station_data.get("display_name", ""),
+                            required=True,
+                            placeholder="e.g., Living Room Call Station",
+                        ),
+                    ),
+                    fieldset(
+                        legend("Entity Configuration"),
+                        label("Camera", for_="camera_entity_id"),
+                        select(
+                            option("Select a camera...", value="", selected=not self.station_data.get("camera_entity_id")),
+                            *[
+                                option(
+                                    f"{camera['name']} ({camera['entity_id']})",
+                                    value=camera['entity_id'],
+                                    selected=camera['entity_id'] == self.station_data.get("camera_entity_id"),
+                                )
+                                for camera in self.available_entities.get("cameras", [])
+                            ],
+                            name="camera_entity_id",
+                            id="camera_entity_id",
+                            required=True,
+                        ),
+                        label("Media Player", for_="media_player_entity_id"),
+                        select(
+                            option("Select a media player...", value="", selected=not self.station_data.get("media_player_entity_id")),
+                            *[
+                                option(
+                                    f"{player['name']} ({player['entity_id']})",
+                                    value=player['entity_id'],
+                                    selected=player['entity_id'] == self.station_data.get("media_player_entity_id"),
+                                )
+                                for player in self.available_entities.get("media_players", [])
+                            ],
+                            name="media_player_entity_id",
+                            id="media_player_entity_id",
+                            required=True,
+                        ),
+                    ),
+                    fieldset(
+                        legend("Settings"),
+                        label(
+                            input(
+                                type="checkbox",
+                                name="enabled",
+                                checked=self.station_data.get("enabled", True),
+                            ),
+                            " Enable this call station",
+                        ),
+                    ),
+                    button(
+                        "Update Call Station" if self.is_edit else "Add Call Station",
+                        type="submit",
+                        style="width: 100%; margin-top: 1rem;",
+                    ),
+                    method="post",
+                    action=form_action,
                 ),
                 class_="form-container",
             ),

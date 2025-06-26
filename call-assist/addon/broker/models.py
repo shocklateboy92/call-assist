@@ -98,3 +98,21 @@ class CallLog(SQLModel, table=True):
         return None
 
 
+class CallStation(SQLModel, table=True):
+    """SQLModel for call station configuration storage"""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    station_id: str = Field(unique=True, index=True)  # e.g., "living_room_station"
+    display_name: str
+    camera_entity_id: str = Field(index=True)  # e.g., "camera.living_room"
+    media_player_entity_id: str = Field(index=True)  # e.g., "media_player.living_room_tv"
+    enabled: bool = Field(default=True, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def unique_key(self) -> str:
+        """Generate unique key for this call station"""
+        return f"station_{hash(self.station_id)}"
+
+

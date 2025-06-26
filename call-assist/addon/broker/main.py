@@ -7,6 +7,7 @@ from grpclib.server import Server
 from typing import Dict, List, Optional, AsyncIterator, TYPE_CHECKING
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from sqlmodel import Session
 
 # Import betterproto generated classes
 from proto_gen.callassist.broker import (
@@ -18,6 +19,7 @@ from proto_gen.callassist.broker import (
 )
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from addon.broker.dependencies import app_state
+from addon.broker.queries import get_enabled_call_stations_with_session
 from addon.broker.web_server import WebUIServer
 from addon.broker.plugin_manager import PluginManager
 
@@ -161,39 +163,38 @@ class CallAssistBroker(BrokerIntegrationBase):
         )
 
     async def _update_call_stations(self):
-        """Update call stations based on available HA entities"""
-        # Get cameras and media players
-        cameras = {
-            id: entity
-            for id, entity in self.ha_entities.items()
-            if entity.domain == "camera"
-        }
-        media_players = {
-            id: entity
-            for id, entity in self.ha_entities.items()
-            if entity.domain == "media_player"
-        }
+        """Update call stations based on database configuration and HA entity availability"""
+        if not self.database_manager:
+            logger.warning("No database manager available, skipping call station update")
+            return
 
-        # Create call stations for each camera + media player combination
+        # Load call stations from database
         new_stations = {}
-        for camera_id, camera in cameras.items():
-            for player_id, player in media_players.items():
-                station_id = f"station_{camera_id}_{player_id}".replace(".", "_")
+        with self.database_manager.get_session() as session:
+            db_stations = get_enabled_call_stations_with_session(session)
+            
+            for db_station in db_stations:
+                # Create in-memory CallStation object
+                station = CallStation(
+                    station_id=db_station.station_id,
+                    name=db_station.display_name,
+                    camera_entity_id=db_station.camera_entity_id,
+                    media_player_entity_id=db_station.media_player_entity_id,
+                )
 
-                # Create or update station
-                if station_id in self.call_stations:
-                    station = self.call_stations[station_id]
-                else:
-                    station = CallStation(
-                        station_id=station_id,
-                        name=f"{camera.name} + {player.name}",
-                        camera_entity_id=camera_id,
-                        media_player_entity_id=player_id,
-                    )
+                # Update availability based on both entities existing and being available
+                camera_available = (
+                    db_station.camera_entity_id in self.ha_entities and
+                    self.ha_entities[db_station.camera_entity_id].available
+                )
+                player_available = (
+                    db_station.media_player_entity_id in self.ha_entities and
+                    self.ha_entities[db_station.media_player_entity_id].available
+                )
+                
+                station.available = camera_available and player_available
+                new_stations[db_station.station_id] = station
 
-                # Update availability based on both entities
-                station.available = camera.available and player.available
-                new_stations[station_id] = station
 
         # Check if stations changed
         if new_stations != self.call_stations:

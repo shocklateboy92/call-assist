@@ -19,6 +19,8 @@ from addon.broker.ludic_components import (
     StatusCard,
     CallHistoryTable,
     SettingsForm,
+    CallStationsTable,
+    CallStationForm,
     ErrorPage,
 )
 from addon.broker.queries import (
@@ -26,11 +28,15 @@ from addon.broker.queries import (
     save_account_with_session,
     delete_account_with_session,
     get_call_logs_with_session,
+    get_call_station_by_id_with_session,
+    save_call_station_with_session,
+    delete_call_station_with_session,
 )
 from addon.broker.account_service import get_account_service
+from addon.broker.call_station_service import get_call_station_service
 from addon.broker.settings_service import get_settings_service
 from addon.broker.database import DatabaseManager
-from addon.broker.models import Account
+from addon.broker.models import Account, CallStation
 from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager, get_database_session
 from addon.broker.plugin_manager import PluginManager
 
@@ -496,6 +502,169 @@ def create_routes(app: FastAPI):
             status_code=302,
             headers={"Location": "/ui/settings", "HX-Redirect": "/ui/settings"},
         )
+
+    # Call Station Routes
+    
+    @app.get("/ui/call-stations", response_class=HTMLResponse)
+    async def call_stations_page(
+        call_station_service = Depends(get_call_station_service),
+        broker = Depends(get_broker_instance)
+    ):
+        """Call stations management page"""
+        # Get available HA entities for status checking
+        ha_entities = broker.ha_entities if broker else {}
+        
+        # Get call stations with status
+        call_stations = call_station_service.get_call_stations_with_status(ha_entities)
+
+        return PageLayout(
+            "Call Stations - Call Assist Broker",
+            CallStationsTable(call_stations=call_stations)
+        )
+
+    @app.get("/ui/add-call-station", response_class=HTMLResponse)
+    async def add_call_station_page(
+        call_station_service = Depends(get_call_station_service),
+        broker = Depends(get_broker_instance)
+    ):
+        """Add new call station page"""
+        # Get available entities for dropdowns
+        ha_entities = broker.ha_entities if broker else {}
+        available_entities = call_station_service.get_available_entities(ha_entities)
+
+        return PageLayout(
+            "Add Call Station - Call Assist Broker",
+            CallStationForm(available_entities=available_entities)
+        )
+
+    @app.post("/ui/add-call-station")
+    async def add_call_station_submit(
+        station_id: str = Form(...),
+        display_name: str = Form(...),
+        camera_entity_id: str = Form(...),
+        media_player_entity_id: str = Form(...),
+        enabled: bool = Form(False),
+        session: Session = Depends(get_database_session),
+        call_station_service = Depends(get_call_station_service),
+        broker = Depends(get_broker_instance)
+    ):
+        """Submit new call station"""
+        # Check if station already exists
+        existing = get_call_station_by_id_with_session(session, station_id)
+        if existing:
+            raise HTTPException(status_code=400, detail="Call station already exists")
+
+        # Validate entities exist
+        ha_entities = broker.ha_entities if broker else {}
+        validation_errors = call_station_service.validate_call_station_entities(
+            camera_entity_id, media_player_entity_id, ha_entities
+        )
+        if validation_errors:
+            error_msg = "; ".join(validation_errors.values())
+            raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
+
+        # Create new call station
+        call_station = CallStation(
+            station_id=station_id,
+            display_name=display_name,
+            camera_entity_id=camera_entity_id,
+            media_player_entity_id=media_player_entity_id,
+            enabled=enabled,
+        )
+
+        save_call_station_with_session(session, call_station)
+
+        # Redirect to call stations page
+        return Response(
+            status_code=302, headers={"Location": "/ui/call-stations", "HX-Redirect": "/ui/call-stations"}
+        )
+
+    @app.get("/ui/edit-call-station/{station_id}", response_class=HTMLResponse)
+    async def edit_call_station_page(
+        station_id: str = Path(...),
+        session: Session = Depends(get_database_session),
+        call_station_service = Depends(get_call_station_service),
+        broker = Depends(get_broker_instance)
+    ):
+        """Edit existing call station page"""
+        # Load existing call station
+        existing_station = get_call_station_by_id_with_session(session, station_id)
+        if not existing_station:
+            raise HTTPException(status_code=404, detail="Call station not found")
+
+        # Get available entities for dropdowns
+        ha_entities = broker.ha_entities if broker else {}
+        available_entities = call_station_service.get_available_entities(ha_entities)
+
+        # Prepare station data
+        station_data = {
+            "station_id": existing_station.station_id,
+            "display_name": existing_station.display_name,
+            "camera_entity_id": existing_station.camera_entity_id,
+            "media_player_entity_id": existing_station.media_player_entity_id,
+            "enabled": existing_station.enabled,
+        }
+
+        return PageLayout(
+            "Edit Call Station - Call Assist Broker",
+            CallStationForm(
+                available_entities=available_entities,
+                station_data=station_data,
+                is_edit=True,
+            )
+        )
+
+    @app.post("/ui/edit-call-station/{station_id}")
+    async def edit_call_station_submit(
+        station_id: str = Path(...),
+        display_name: str = Form(...),
+        camera_entity_id: str = Form(...),
+        media_player_entity_id: str = Form(...),
+        enabled: bool = Form(False),
+        session: Session = Depends(get_database_session),
+        call_station_service = Depends(get_call_station_service),
+        broker = Depends(get_broker_instance)
+    ):
+        """Submit call station changes"""
+        # Load existing call station
+        existing_station = get_call_station_by_id_with_session(session, station_id)
+        if not existing_station:
+            raise HTTPException(status_code=404, detail="Call station not found")
+
+        # Validate entities exist
+        ha_entities = broker.ha_entities if broker else {}
+        validation_errors = call_station_service.validate_call_station_entities(
+            camera_entity_id, media_player_entity_id, ha_entities
+        )
+        if validation_errors:
+            error_msg = "; ".join(validation_errors.values())
+            raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
+
+        # Update existing call station
+        existing_station.display_name = display_name
+        existing_station.camera_entity_id = camera_entity_id
+        existing_station.media_player_entity_id = media_player_entity_id
+        existing_station.enabled = enabled
+
+        save_call_station_with_session(session, existing_station)
+
+        # Redirect to call stations page
+        return Response(
+            status_code=302, headers={"Location": "/ui/call-stations", "HX-Redirect": "/ui/call-stations"}
+        )
+
+    @app.delete("/ui/delete-call-station/{station_id}")
+    async def delete_call_station_endpoint(
+        station_id: str = Path(...),
+        session: Session = Depends(get_database_session),
+    ):
+        """Delete call station endpoint for HTMX"""
+        success = delete_call_station_with_session(session, station_id)
+        if success:
+            # Return empty response to remove the table row
+            return Response(content="", status_code=200)
+        else:
+            raise HTTPException(status_code=400, detail="Failed to delete call station")
 
     # Return the configured app
     return app

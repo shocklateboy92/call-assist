@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 import logging
 
-from addon.broker.models import Account, BrokerSettings, CallLog
+from addon.broker.models import Account, BrokerSettings, CallLog, CallStation
 
 logger = logging.getLogger(__name__)
 
@@ -143,3 +143,59 @@ def get_call_logs_with_session(session: Session) -> list[CallLog]:
 def get_call_log_by_id_with_session(session: Session, call_id: str) -> Optional[CallLog]:
     """Get call log by ID using provided session"""
     return session.exec(select(CallLog).where(CallLog.call_id == call_id)).first()
+
+
+# Call Station query functions
+
+def get_call_station_by_id_with_session(
+    session: Session, station_id: str
+) -> Optional[CallStation]:
+    """Get call station by station_id using provided session"""
+    return session.exec(
+        select(CallStation).where(CallStation.station_id == station_id)
+    ).first()
+
+
+def get_all_call_stations_with_session(session: Session) -> list[CallStation]:
+    """Get all call stations using provided session"""
+    return list(session.exec(select(CallStation)).all())
+
+
+def get_enabled_call_stations_with_session(session: Session) -> list[CallStation]:
+    """Get all enabled call stations using provided session"""
+    return list(session.exec(select(CallStation).where(CallStation.enabled == True)).all())
+
+
+def save_call_station_with_session(session: Session, call_station: CallStation) -> CallStation:
+    """Save or update call station using provided session"""
+    existing = session.exec(
+        select(CallStation).where(CallStation.station_id == call_station.station_id)
+    ).first()
+
+    if existing:
+        existing.display_name = call_station.display_name
+        existing.camera_entity_id = call_station.camera_entity_id
+        existing.media_player_entity_id = call_station.media_player_entity_id
+        existing.enabled = call_station.enabled
+        existing.updated_at = datetime.now(timezone.utc)
+        session.commit()
+        session.refresh(existing)
+        return existing
+    else:
+        session.add(call_station)
+        session.commit()
+        session.refresh(call_station)
+        return call_station
+
+
+def delete_call_station_with_session(session: Session, station_id: str) -> bool:
+    """Delete call station by station_id using provided session"""
+    call_station = session.exec(
+        select(CallStation).where(CallStation.station_id == station_id)
+    ).first()
+
+    if call_station:
+        session.delete(call_station)
+        session.commit()
+        return True
+    return False
