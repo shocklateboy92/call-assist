@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import { createServer, createChannel, createClientFactory } from 'nice-grpc';
-import { MatrixClient, createClient, MsgType, ClientEvent, RoomEvent } from 'matrix-js-sdk';
-import { promises as fs } from 'fs';
-import path from 'path';
-import { Observable, Subject } from 'rxjs';
+import { createServer } from 'nice-grpc';
+import { MatrixClient, createClient, ClientEvent, RoomEvent } from 'matrix-js-sdk';
+import { Subject } from 'rxjs';
 import * as wrtc from '@roamhq/wrtc';
+import { spawn, ChildProcess } from 'child_process';
+import { createReadStream } from 'fs';
+import { pipeline } from 'stream/promises';
 
 // WebRTC types and interfaces
 interface RTCPeerConnectionInterface {
@@ -169,6 +170,14 @@ interface MatrixConfig {
   displayName: string;
 }
 
+// Media pipeline management interface
+interface MediaPipeline {
+  ffmpegProcess?: ChildProcess;
+  mediaStream?: any; // Will hold the media stream from RTSP
+  isActive: boolean;
+  cameraStreamUrl: string;
+}
+
 // Strongly typed call info interface
 interface CallInfo {
   roomId: string;
@@ -177,6 +186,7 @@ interface CallInfo {
   remoteStreamUrl?: string;
   peerConnection?: RTCPeerConnectionInterface;
   iceCandidates: RTCIceCandidateInit[];
+  mediaPipeline?: MediaPipeline;
 }
 
 class MatrixCallPlugin {
@@ -281,7 +291,7 @@ class MatrixCallPlugin {
           this.setupPeerConnectionHandlers(peerConnection, callId);
           
           // Add camera stream to peer connection
-          await this.addCameraStreamToPeerConnection(peerConnection, request.cameraStreamUrl);
+          const mediaPipeline = await this.addCameraStreamToPeerConnection(peerConnection, request.cameraStreamUrl);
           
           // Create WebRTC offer for video call
           const offerDescription = await peerConnection.createOffer();
@@ -313,7 +323,8 @@ class MatrixCallPlugin {
             state: CallState.CALL_STATE_INITIATING,
             remoteStreamUrl: `matrix://webrtc/${callId}`,
             peerConnection,
-            iceCandidates: []
+            iceCandidates: [],
+            mediaPipeline
           });
           
           // Emit call event
@@ -872,27 +883,46 @@ class MatrixCallPlugin {
     }
   }
 
-  private async addCameraStreamToPeerConnection(peerConnection: RTCPeerConnectionInterface, cameraStreamUrl: string): Promise<void> {
+  private async addCameraStreamToPeerConnection(peerConnection: RTCPeerConnectionInterface, cameraStreamUrl: string): Promise<MediaPipeline> {
     console.log(`Adding camera stream to WebRTC: ${cameraStreamUrl}`);
     
     try {
-      // For now, we'll use a placeholder implementation
-      // In a real implementation, you would:
-      // 1. Connect to the RTSP stream using a library like node-ffmpeg or gstreamer
-      // 2. Transcode the RTSP stream to WebRTC-compatible format
-      // 3. Add the video track to the peer connection
+      // Create media pipeline for RTSP to WebRTC transcoding
+      const mediaPipeline: MediaPipeline = {
+        isActive: false,
+        cameraStreamUrl
+      };
+
+      // For real implementation, we would use FFmpeg to transcode RTSP to WebRTC
+      // This is a working foundation that can be expanded with actual FFmpeg integration
       
-      // This is a placeholder that logs the camera stream URL
-      // The actual media pipeline would be implemented here
-      console.log(`Camera stream URL: ${cameraStreamUrl}`);
-      console.log('Media pipeline placeholder - RTSP to WebRTC transcoding would happen here');
+      console.log(`🎥 Setting up media pipeline for: ${cameraStreamUrl}`);
       
-      // TODO: Implement actual RTSP → WebRTC media pipeline
-      // This could involve:
-      // - Using FFmpeg to transcode RTSP to WebRTC
-      // - Using GStreamer pipeline for media processing
-      // - Creating MediaStreamTrack from camera feed
-      // - Adding track to peer connection: peerConnection.addTrack(track, stream)
+      // Check if we have a real WRTC peer connection (not mock)
+      if ('addTrack' in peerConnection) {
+        console.log('✅ Real WebRTC peer connection detected - setting up media tracks');
+        
+        // Create a synthetic video track for now (placeholder for real RTSP stream)
+        // In a real implementation, this would be replaced with FFmpeg stream processing
+        const syntheticVideoTrack = await this.createSyntheticVideoTrack();
+        
+        if (syntheticVideoTrack) {
+          // Add the video track to the peer connection
+          (peerConnection as any).addTrack(syntheticVideoTrack);
+          console.log('✅ Video track added to peer connection');
+          
+          mediaPipeline.isActive = true;
+          mediaPipeline.mediaStream = syntheticVideoTrack;
+        }
+      } else {
+        console.log('ℹ️  Mock WebRTC peer connection - skipping real media streaming');
+        mediaPipeline.isActive = true; // Mark as active for testing
+      }
+      
+      // Start FFmpeg process for RTSP transcoding (placeholder implementation)
+      await this.startFFmpegTranscoding(mediaPipeline);
+      
+      return mediaPipeline;
       
     } catch (error) {
       console.error('Failed to add camera stream to peer connection:', error);
@@ -900,14 +930,133 @@ class MatrixCallPlugin {
     }
   }
 
+  private async createSyntheticVideoTrack(): Promise<any> {
+    console.log('Creating synthetic video track for testing...');
+    
+    try {
+      // For now, we create a black video track as a placeholder
+      // In a real implementation, this would be replaced with RTSP stream data
+      
+      // Check if we have access to real WebRTC objects
+      if (typeof wrtc !== 'undefined' && wrtc.nonstandard) {
+        console.log('✅ Creating real MediaStreamTrack using @roamhq/wrtc');
+        
+        // Create a simple video source (black screen for now)
+        // This is where we would connect the FFmpeg output
+        const videoSource = new wrtc.nonstandard.RTCVideoSource();
+        const track = videoSource.createTrack();
+        
+        // Send a black frame periodically (placeholder for real video)
+        this.startSyntheticVideoSource(videoSource);
+        
+        return track;
+      } else {
+        console.log('ℹ️  WebRTC nonStandard API not available - using mock track');
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating synthetic video track:', error);
+      return null;
+    }
+  }
+
+  private startSyntheticVideoSource(videoSource: any): void {
+    // Create a simple black frame as placeholder
+    const width = 640;
+    const height = 480;
+    const frame = {
+      width,
+      height,
+      data: new Uint8ClampedArray(width * height * 1.5).fill(0) // YUV420 black frame
+    };
+
+    // Send frames at 10 FPS
+    const interval = setInterval(() => {
+      try {
+        videoSource.onFrame(frame);
+      } catch (error) {
+        console.error('Error sending video frame:', error);
+        clearInterval(interval);
+      }
+    }, 100); // 10 FPS
+
+    // Stop after 30 seconds (placeholder for real stream)
+    setTimeout(() => {
+      clearInterval(interval);
+      console.log('Stopped synthetic video source');
+    }, 30000);
+  }
+
+  private async startFFmpegTranscoding(mediaPipeline: MediaPipeline): Promise<void> {
+    console.log(`🎬 Starting FFmpeg transcoding for: ${mediaPipeline.cameraStreamUrl}`);
+    
+    try {
+      // This is a placeholder for actual FFmpeg integration
+      // In a real implementation, you would:
+      // 1. Use ffmpeg-static to get the FFmpeg binary path
+      // 2. Spawn FFmpeg process to read RTSP stream
+      // 3. Transcode to WebRTC-compatible format (VP8/H.264)
+      // 4. Pipe the output to the WebRTC video track
+      
+      // Example FFmpeg command (not executed yet):
+      // ffmpeg -i rtsp://camera/stream -c:v libvpx -b:v 1M -c:a libopus -f webm pipe:1
+      
+      console.log('FFmpeg transcoding placeholder - would spawn process here:');
+      console.log(`  Input: ${mediaPipeline.cameraStreamUrl}`);
+      console.log(`  Output: WebRTC-compatible stream`);
+      console.log(`  Codec: VP8/H.264 video, Opus audio`);
+      
+      // For now, just mark as successful
+      // mediaPipeline.ffmpegProcess = spawn('echo', ['FFmpeg placeholder']);
+      
+    } catch (error) {
+      console.error('Error starting FFmpeg transcoding:', error);
+      throw error;
+    }
+  }
+
+  private async cleanupMediaPipeline(mediaPipeline: MediaPipeline): Promise<void> {
+    console.log('Cleaning up media pipeline...');
+    
+    try {
+      // Stop FFmpeg process if running
+      if (mediaPipeline.ffmpegProcess) {
+        console.log('Terminating FFmpeg process...');
+        mediaPipeline.ffmpegProcess.kill('SIGTERM');
+        
+        // Wait a moment for graceful shutdown
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Force kill if still running
+        if (!mediaPipeline.ffmpegProcess.killed) {
+          mediaPipeline.ffmpegProcess.kill('SIGKILL');
+        }
+      }
+      
+      // Mark pipeline as inactive
+      mediaPipeline.isActive = false;
+      
+      console.log('✅ Media pipeline cleaned up successfully');
+      
+    } catch (error) {
+      console.error('Error cleaning up media pipeline:', error);
+    }
+  }
+
   async shutdown(): Promise<void> {
     console.log('Shutting down Matrix plugin...');
     
-    // Close all active peer connections
+    // Close all active peer connections and media pipelines
     for (const [callId, callInfo] of this.activeWebRTCCalls.entries()) {
       if (callInfo.peerConnection) {
         callInfo.peerConnection.close();
         console.log(`Closed peer connection for call ${callId} during shutdown`);
+      }
+      
+      // Clean up media pipeline
+      if (callInfo.mediaPipeline) {
+        await this.cleanupMediaPipeline(callInfo.mediaPipeline);
+        console.log(`Cleaned up media pipeline for call ${callId} during shutdown`);
       }
     }
     this.activeWebRTCCalls.clear();
