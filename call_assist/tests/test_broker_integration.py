@@ -10,7 +10,6 @@ Tests for the new simplified broker interface that focuses on:
 
 import asyncio
 import pytest
-import pytest_asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List

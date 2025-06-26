@@ -6,7 +6,7 @@ Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Union, List
 from fastapi import FastAPI, Form, HTTPException, Path, Request, Depends
 from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, legend, label, input, p
@@ -39,13 +39,14 @@ from addon.broker.database import DatabaseManager
 from addon.broker.models import Account, CallStation
 from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager, get_database_session
 from addon.broker.plugin_manager import PluginManager
+from addon.broker.data_types import ProtocolSchemaDict
 
 logger = logging.getLogger(__name__)
 
 
 def get_protocol_schemas(
     plugin_manager: PluginManager = Depends(get_plugin_manager)
-) -> Dict[str, Any]:
+) -> Dict[str, ProtocolSchemaDict]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
     schemas_dict = plugin_manager.get_protocol_schemas()
     return schemas_dict
@@ -114,7 +115,7 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(protocols: Dict[str, Any] = Depends(get_protocol_schemas)):
+    async def add_account_page(protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)):
         """Add new account page"""
         return PageLayout(
             "Add Account - Call Assist Broker",
@@ -165,7 +166,7 @@ def create_routes(app: FastAPI):
         protocol: str = Path(...), 
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
-        protocols: Dict[str, Any] = Depends(get_protocol_schemas),
+        protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ):
         """Edit existing account page"""
         # Load existing account
@@ -258,7 +259,7 @@ def create_routes(app: FastAPI):
     @app.get("/ui/api/protocol-fields", response_class=HTMLResponse)
     async def get_protocol_fields(
         protocol: str | None = None,
-        protocols: Dict[str, Any] = Depends(get_protocol_schemas),
+        protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ):
         """Get protocol-specific form fields for HTMX dynamic loading"""
         if not protocol:

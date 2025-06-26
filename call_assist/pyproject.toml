@@ -51,7 +51,7 @@ include = ["proto_gen*", "addon*", "integration*"]
 call-assist-broker = "addon.broker.main:main"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -64,6 +64,20 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+    "proto_gen.*",
+    "pytest_socket.*",
+    "pytest_homeassistant_custom_component.*",
+    "dataclasses_jsonschema.*",
+    "dacite.*",
+    "betterproto.*",
+    "grpclib.*",
+    "ludic.*"
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "addon/broker/tests", "integration/tests"]

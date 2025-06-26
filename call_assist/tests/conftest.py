@@ -9,24 +9,16 @@ import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from urllib.parse import urljoin
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 import aiohttp
+
+import fixtures.disable_pytest_socket
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
 
-import pytest_socket
 
-
-def stub_method(*args, **kwargs):
-    """Stub method to disable pytest-socket"""
-    logger.info(
-        "pytest-socket disabled. These are integration tests that require network access."
-    )
-
-
-pytest_socket.disable_socket = stub_method
-
+fixtures.disable_pytest_socket.activate()
 
 class WebUITestClient:
     """Test client for interacting with the Call Assist web UI via HTTP requests"""
@@ -47,7 +39,7 @@ class WebUITestClient:
         """Get a web page and return the HTML content and parsed DOM"""
         if self.session is None:
             raise RuntimeError("Session not initialized")
-            
+
         url = urljoin(self.base_url, path)
         logger.info(f"GET {url}")
 
@@ -60,11 +52,13 @@ class WebUITestClient:
             soup = BeautifulSoup(html, "html.parser")
             return html, soup
 
-    async def post_form(self, path: str, form_data: Dict[str, Any]) -> tuple[int, str, BeautifulSoup]:
+    async def post_form(
+        self, path: str, form_data: Dict[str, Any]
+    ) -> tuple[int, str, BeautifulSoup]:
         """Submit a form to the web UI"""
         if self.session is None:
             raise RuntimeError("Session not initialized")
-            
+
         url = urljoin(self.base_url, path)
         logger.info(f"POST {url} with form data: {list(form_data.keys())}")
 
@@ -86,6 +80,7 @@ class WebUITestClient:
                     await asyncio.sleep(delay)
         return False
 
+
 import os
 import socket
 import tempfile
@@ -103,23 +98,9 @@ import asyncio
 from addon.broker.main import serve
 
 
-@pytest.fixture()
-def enable_socket():
-    """Work-around pytest-socket to allow network requests in E2E tests"""
-    _enable_socket()
-
-
-def _enable_socket():
-    socket.socket = pytest_socket._true_socket
-    socket.socket.connect = pytest_socket._true_connect
-
 
 def is_port_available(port: int) -> bool:
     """Check if a port is available for binding"""
-    # Work-around pytest-socket to allow network requests in E2E tests
-    socket.socket = pytest_socket._true_socket
-    socket.socket.connect = pytest_socket._true_connect
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         try:
             sock.bind(("localhost", port))
@@ -130,10 +111,6 @@ def is_port_available(port: int) -> bool:
 
 def find_available_port() -> int:
     """Find an available port for binding"""
-    # Work-around pytest-socket to allow network requests
-    socket.socket = pytest_socket._true_socket
-    socket.socket.connect = pytest_socket._true_connect
-
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("localhost", 0))
         return sock.getsockname()[1]
@@ -142,9 +119,6 @@ def find_available_port() -> int:
 @pytest.fixture(scope="session")
 def broker_process():
     """Session-scoped broker running in separate thread"""
-
-    # Ensure sockets are enabled for broker operations
-    _enable_socket()
 
     # Create temporary database for testing
     temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -220,9 +194,6 @@ def broker_process():
 async def broker_server(broker_process):
     """Get broker connection for each test"""
 
-    # Ensure sockets are enabled for broker operations
-    _enable_socket()
-
     # Get port from broker process info
     broker_port = broker_process["grpc_port"]
 
@@ -282,8 +253,6 @@ def setup_integration_path():
 @pytest.fixture(autouse=True)
 def enable_custom_integrations_fixture(enable_custom_integrations):
     """Enable custom integrations for each test."""
-    # Enable sockets for tests that need to connect to broker
-    _enable_socket()
     yield
 
 
@@ -292,11 +261,11 @@ def rtsp_test_server() -> str:
     """Reference to RTSP test server running via docker-compose"""
     import socket
     import time
-    
+
     # Use service name for docker-compose network
     rtsp_host = "rtsp-server"
     rtsp_port = 8554
-    
+
     logger.info(f"Using RTSP server at {rtsp_host}:{rtsp_port}")
     return f"rtsp://{rtsp_host}:{rtsp_port}"
 
@@ -316,14 +285,14 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "stream_source": f"{rtsp_test_server}/test_camera_1",
                 "brand": "Test Camera",
                 "model": "Virtual RTSP v1.0",
-                "friendly_name": "Test Front Door Camera"
+                "friendly_name": "Test Front Door Camera",
             },
             available=True,
             last_updated=datetime.now(timezone.utc),
         ),
         HaEntityUpdate(
             entity_id="camera.test_back_yard",
-            domain="camera", 
+            domain="camera",
             name="Test Back Yard Camera",
             state="streaming",
             attributes={
@@ -332,7 +301,7 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "stream_source": f"{rtsp_test_server}/test_camera_2",
                 "brand": "Test Camera",
                 "model": "Virtual RTSP v2.0",
-                "friendly_name": "Test Back Yard Camera"
+                "friendly_name": "Test Back Yard Camera",
             },
             available=True,
             last_updated=datetime.now(timezone.utc),
@@ -340,7 +309,7 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
         HaEntityUpdate(
             entity_id="camera.test_kitchen",
             domain="camera",
-            name="Test Kitchen Camera", 
+            name="Test Kitchen Camera",
             state="unavailable",
             attributes={
                 "entity_picture": "/api/camera_proxy/camera.test_kitchen",
@@ -348,11 +317,11 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "stream_source": f"{rtsp_test_server}/test_camera_offline",
                 "brand": "Test Camera",
                 "model": "Virtual RTSP v1.0",
-                "friendly_name": "Test Kitchen Camera"
+                "friendly_name": "Test Kitchen Camera",
             },
             available=False,
             last_updated=datetime.now(timezone.utc),
-        )
+        ),
     ]
 
 
@@ -371,23 +340,23 @@ def mock_media_players() -> List[HaEntityUpdate]:
                 "friendly_name": "Test Living Room TV",
                 "volume_level": "0.5",
                 "media_content_type": "",
-                "media_title": ""
+                "media_title": "",
             },
             available=True,
             last_updated=datetime.now(timezone.utc),
         ),
         HaEntityUpdate(
-            entity_id="media_player.test_kitchen_display", 
+            entity_id="media_player.test_kitchen_display",
             domain="media_player",
             name="Test Kitchen Display",
             state="idle",
             attributes={
                 "supported_features": "152463",
-                "device_class": "speaker", 
+                "device_class": "speaker",
                 "friendly_name": "Test Kitchen Display",
                 "volume_level": "0.7",
                 "media_content_type": "",
-                "media_title": ""
+                "media_title": "",
             },
             available=True,
             last_updated=datetime.now(timezone.utc),
@@ -403,35 +372,39 @@ def mock_media_players() -> List[HaEntityUpdate]:
                 "friendly_name": "Test Bedroom Speaker",
                 "volume_level": "0.3",
                 "media_content_type": "",
-                "media_title": ""
+                "media_title": "",
             },
             available=False,
             last_updated=datetime.now(timezone.utc),
-        )
+        ),
     ]
 
 
 @pytest.fixture
-def video_test_environment(rtsp_test_server: str, mock_cameras: List[HaEntityUpdate], mock_media_players: List[HaEntityUpdate]):
+def video_test_environment(
+    rtsp_test_server: str,
+    mock_cameras: List[HaEntityUpdate],
+    mock_media_players: List[HaEntityUpdate],
+):
     """Complete video testing environment with all components"""
     import socket
     import time
-    
+
     # Use service name for docker-compose network
     chromecast_host = "mock-chromecast"
     chromecast_port = 8008
-    
+
     logger.info(f"Using mock Chromecast at {chromecast_host}:{chromecast_port}")
-    
+
     return {
         "rtsp_base_url": rtsp_test_server,
         "rtsp_streams": [
             f"{rtsp_test_server}/test_camera_1",
-            f"{rtsp_test_server}/test_camera_2"
+            f"{rtsp_test_server}/test_camera_2",
         ],
         "cameras": mock_cameras,
         "media_players": mock_media_players,
-        "mock_chromecast_url": f"http://{chromecast_host}:{chromecast_port}"
+        "mock_chromecast_url": f"http://{chromecast_host}:{chromecast_port}",
     }
 
 
@@ -440,7 +413,7 @@ async def web_ui_client(broker_process):
     """Web UI test client configured for the running broker"""
     web_port = broker_process["web_port"]
     base_url = f"http://localhost:{web_port}"
-    
+
     async with WebUITestClient(base_url) as client:
         # Wait for web server to be ready
         ready = await client.wait_for_server(max_attempts=10, delay=0.5)

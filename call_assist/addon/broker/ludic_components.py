@@ -5,6 +5,11 @@ Ludic-based web UI components for Call Assist Broker
 
 from typing import Any, Dict, List, Optional, Union, override
 from datetime import datetime
+
+from addon.broker.data_types import (
+    AccountStatusData, CallStationStatusData, ProtocolSchemaDict,
+    AvailableEntitiesData
+)
 from ludic.html import (
     html,
     head,
@@ -200,7 +205,7 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
         },
     }
 
-    def __init__(self, accounts: List[Dict[str, Any]], **attrs: Any):
+    def __init__(self, accounts: List[AccountStatusData], **attrs: Any):
         self.accounts = accounts
         super().__init__(**attrs)
 
@@ -244,29 +249,29 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
             **self.attrs,
         )
 
-    def render_account_row(self, account: Dict[str, Any]) -> tr:
+    def render_account_row(self, account: AccountStatusData) -> tr:
         """Render a single account row"""
-        status_class = "status-valid" if account.get("is_valid") else "status-invalid"
-        status_text = "✅ Valid" if account.get("is_valid") else "❌ Invalid"
+        status_class = "status-valid" if account.is_valid else "status-invalid"
+        status_text = "✅ Valid" if account.is_valid else "❌ Invalid"
 
         return tr(
-            td(account.get("protocol", "").title()),
-            td(account.get("account_id", "")),
-            td(account.get("display_name", "")),
+            td(account.protocol.title()),
+            td(account.account_id),
+            td(account.display_name),
             td(status_text, class_=status_class),
-            td(account.get("updated_at", "")),
+            td(account.updated_at),
             td(
                 div(
                     a(
                         "Edit",
-                        href=f"/ui/edit-account/{account.get('protocol')}/{account.get('account_id')}",
+                        href=f"/ui/edit-account/{account.protocol}/{account.account_id}",
                         role="button",
                         class_="edit-btn",
                     ),
                     button(
                         "Delete",
                         class_="delete-btn",
-                        hx_delete=f"/ui/delete-account/{account.get('protocol')}/{account.get('account_id')}",
+                        hx_delete=f"/ui/delete-account/{account.protocol}/{account.account_id}",
                         hx_confirm="Are you sure you want to delete this account?",
                         hx_target="closest tr",
                         hx_swap="outerHTML",
@@ -282,7 +287,7 @@ class AccountForm(Component[None, GlobalAttrs]):
 
     def __init__(
         self,
-        protocols: Dict[str, Dict[str, Any]],
+        protocols: Dict[str, ProtocolSchemaDict],
         selected_protocol: Optional[str] = None,
         account_data: Optional[Dict[str, Any]] = None,
         is_edit: bool = False,
@@ -391,15 +396,16 @@ class AccountForm(Component[None, GlobalAttrs]):
         )
 
         # Protocol-specific fields
-        if "fields" in schema:
+        if "credential_fields" in schema:
             credential_fields = []
-            for field_name, field_def in schema["fields"].items():
+            for field_def in schema["credential_fields"]:
+                field_name = field_def.get("key", "")
                 if field_name in ["account_id", "display_name"]:
                     continue
 
                 field_type = field_def.get("type", "text")
                 field_label = field_def.get(
-                    "label", field_name.replace("_", " ").title()
+                    "display_name", field_name.replace("_", " ").title()
                 )
                 field_required = field_def.get("required", False)
                 field_value = self.account_data.get(field_name, "")
@@ -616,7 +622,7 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
         ".call-stations-table .status-disabled": {"color": "gray"},
     }
 
-    def __init__(self, call_stations: List[Dict[str, Any]], **attrs: Any):
+    def __init__(self, call_stations: List[CallStationStatusData], **attrs: Any):
         self.call_stations = call_stations
         super().__init__(**attrs)
 
@@ -661,45 +667,45 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
             **self.attrs,
         )
 
-    def render_station_row(self, station: Dict[str, Any]) -> tr:
+    def render_station_row(self, station: CallStationStatusData) -> tr:
         """Render a single call station row"""
         # Determine status
-        if not station.get("enabled", True):
+        if not station.enabled:
             status_class = "status-disabled"
             status_text = "🔒 Disabled"
-        elif station.get("is_available", False):
+        elif station.is_available:
             status_class = "status-available"
             status_text = "✅ Available"
         else:
             status_class = "status-unavailable"
             reasons = []
-            if not station.get("camera_available", False):
+            if not station.camera_available:
                 reasons.append("camera offline")
-            if not station.get("player_available", False):
+            if not station.player_available:
                 reasons.append("player offline")
             status_text = f"❌ Unavailable ({', '.join(reasons)})"
 
-        enabled_text = "✓ Yes" if station.get("enabled", True) else "✗ No"
+        enabled_text = "✓ Yes" if station.enabled else "✗ No"
 
         return tr(
-            td(station.get("display_name", "")),
-            td(station.get("camera_name", station.get("camera_entity_id", ""))),
-            td(station.get("player_name", station.get("media_player_entity_id", ""))),
+            td(station.display_name),
+            td(station.camera_name),
+            td(station.player_name),
             td(enabled_text),
             td(status_text, class_=status_class),
-            td(station.get("updated_at", "")),
+            td(station.updated_at),
             td(
                 div(
                     a(
                         "Edit",
-                        href=f"/ui/edit-call-station/{station.get('station_id')}",
+                        href=f"/ui/edit-call-station/{station.station_id}",
                         role="button",
                         class_="edit-btn",
                     ),
                     button(
                         "Delete",
                         class_="delete-btn",
-                        hx_delete=f"/ui/delete-call-station/{station.get('station_id')}",
+                        hx_delete=f"/ui/delete-call-station/{station.station_id}",
                         hx_confirm="Are you sure you want to delete this call station?",
                         hx_target="closest tr",
                         hx_swap="outerHTML",

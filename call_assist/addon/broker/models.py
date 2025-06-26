@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from sqlmodel import SQLModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Union, cast
 from datetime import datetime, timezone
 import json
 
@@ -20,7 +20,7 @@ class Account(SQLModel, table=True):
         """Get credentials as dictionary"""
         return json.loads(self.credentials_json) if self.credentials_json else {}
 
-    def set_credentials(self, value: Dict[str, str]):
+    def set_credentials(self, value: Dict[str, str]) -> None:
         """Set credentials from dictionary"""
         self.credentials_json = json.dumps(value)
 
@@ -29,7 +29,7 @@ class Account(SQLModel, table=True):
         return self.get_credentials()
 
     @credentials.setter
-    def credentials(self, value: Dict[str, str]):
+    def credentials(self, value: Dict[str, str]) -> None:
         self.set_credentials(value)
 
     @property
@@ -47,20 +47,20 @@ class BrokerSettings(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    def get_value(self) -> Any:
+    def get_value(self) -> Union[str, int, float, bool, None]:
         """Get value as Python object"""
-        return json.loads(self.value_json) if self.value_json else None
+        return cast(Union[str, int, float, bool, None], json.loads(self.value_json)) if self.value_json else None
 
-    def set_value(self, val: Any):
+    def set_value(self, val: Union[str, int, float, bool, None]) -> None:
         """Set value from Python object"""
         self.value_json = json.dumps(val)
 
     @property
-    def value(self) -> Any:
+    def value(self) -> Union[str, int, float, bool, None]:
         return self.get_value()
 
     @value.setter
-    def value(self, val: Any):
+    def value(self, val: Union[str, int, float, bool, None]) -> None:
         self.set_value(val)
 
 
@@ -79,11 +79,11 @@ class CallLog(SQLModel, table=True):
     final_state: str  # CallState as string
     metadata_json: Optional[str] = None  # Additional call metadata
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> Dict[str, str]:
         """Get metadata as dictionary"""
-        return json.loads(self.metadata_json) if self.metadata_json else {}
+        return cast(Dict[str, str], json.loads(self.metadata_json)) if self.metadata_json else {}
 
-    def set_metadata(self, value: Dict[str, Any]):
+    def set_metadata(self, value: Dict[str, str]) -> None:
         """Set metadata from dictionary"""
         self.metadata_json = json.dumps(value) if value else None
 
