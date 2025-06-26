@@ -5,6 +5,10 @@ import logging
 import subprocess
 import os
 import socket
+import signal
+import sys
+import atexit
+import threading
 import yaml
 from typing import Dict, Optional, List, Union, Literal
 from dataclasses import dataclass
@@ -179,7 +183,72 @@ class PluginManager:
             plugins_root = os.path.join(os.path.dirname(current_dir), "plugins")
         self.plugins_root = plugins_root
         self.plugins: Dict[str, PluginInstance] = {}
+        self._shutdown_requested = False
+        
+        # Register cleanup handlers
+        atexit.register(self._emergency_cleanup)
+        
+        # Only register signal handlers if we're in the main thread
+        if threading.current_thread() is threading.main_thread():
+            try:
+                signal.signal(signal.SIGTERM, self._signal_handler)
+                signal.signal(signal.SIGINT, self._signal_handler)
+                logger.debug("Signal handlers registered for plugin cleanup")
+            except ValueError as e:
+                logger.debug(f"Could not register signal handlers: {e}")
+        else:
+            logger.debug("Not in main thread, skipping signal handler registration")
+        
         self._discover_plugins()
+
+    def _signal_handler(self, signum: int, frame):
+        """Handle termination signals"""
+        logger.info(f"Received signal {signum}, initiating plugin shutdown...")
+        self._shutdown_requested = True
+        
+        # Run the shutdown in the event loop if it exists
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.shutdown_all())
+        except RuntimeError:
+            # No event loop running, do emergency cleanup
+            self._emergency_cleanup()
+        
+        # Exit after cleanup
+        sys.exit(0)
+
+    def _emergency_cleanup(self):
+        """Emergency cleanup of plugins without async/await"""
+        if self._shutdown_requested:
+            return  # Already cleaning up
+            
+        self._shutdown_requested = True
+        logger.warning("Emergency cleanup: forcefully terminating all plugin processes")
+        
+        for protocol, plugin in self.plugins.items():
+            if plugin.process and plugin.process.poll() is None:
+                try:
+                    logger.info(f"Force terminating plugin {protocol} (PID: {plugin.process.pid})")
+                    plugin.process.terminate()
+                    
+                    # Wait briefly for graceful termination
+                    try:
+                        plugin.process.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        logger.warning(f"Plugin {protocol} did not terminate gracefully, killing...")
+                        plugin.process.kill()
+                        plugin.process.wait()
+                    
+                    logger.info(f"Plugin {protocol} terminated")
+                except (ProcessLookupError, OSError) as e:
+                    logger.debug(f"Plugin {protocol} process cleanup error (likely already dead): {e}")
+                except Exception as e:
+                    logger.error(f"Error during emergency cleanup of plugin {protocol}: {e}")
+
+    def __del__(self):
+        """Destructor to ensure plugins are cleaned up"""
+        if hasattr(self, '_shutdown_requested') and not self._shutdown_requested:
+            self._emergency_cleanup()
 
     def _find_available_port(self, start_port: int = 50051, max_attempts: int = 100) -> int:
         """Find an available port starting from start_port"""
@@ -655,6 +724,10 @@ class PluginManager:
 
     async def shutdown_all(self):
         """Shutdown all running plugins"""
+        if self._shutdown_requested:
+            return  # Already shutting down
+            
+        self._shutdown_requested = True
         logger.info("Shutting down all plugins")
 
         tasks = []
@@ -663,6 +736,21 @@ class PluginManager:
                 tasks.append(self._stop_plugin(plugin))
 
         if tasks:
-            await asyncio.gather(*tasks, return_exceptions=True)
+            try:
+                # Wait for all plugins to stop gracefully with a timeout
+                await asyncio.wait_for(
+                    asyncio.gather(*tasks, return_exceptions=True),
+                    timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                logger.warning("Graceful shutdown timed out, forcing termination")
+                # Force terminate any remaining processes
+                for plugin in self.plugins.values():
+                    if plugin.process and plugin.process.poll() is None:
+                        try:
+                            logger.warning(f"Force killing plugin {plugin.metadata.protocol}")
+                            plugin.process.kill()
+                        except (ProcessLookupError, OSError):
+                            pass  # Process already dead
 
         logger.info("All plugins shut down")

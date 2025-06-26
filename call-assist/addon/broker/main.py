@@ -338,6 +338,8 @@ async def serve(
             grpc_server.close()
             await web_server.stop()
     finally:
+        # Clean up all resources
+        await app_state.cleanup()
         logger.info("Call Assist Broker shutdown complete")
 
 

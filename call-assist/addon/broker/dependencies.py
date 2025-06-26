@@ -65,9 +65,25 @@ class AppState:
     
     async def cleanup(self):
         """Clean up resources"""
+        logger.info("Starting application cleanup...")
+        
+        # Shutdown plugin manager first
+        if self.plugin_manager:
+            try:
+                await self.plugin_manager.shutdown_all()
+                logger.info("✅ Plugin manager shutdown complete")
+            except Exception as e:
+                logger.error(f"Error shutting down plugin manager: {e}")
+        
+        # Close database connections
         if self.database_manager:
-            self.database_manager.engine.dispose()
-            logger.info("Database connections closed")
+            try:
+                self.database_manager.engine.dispose()
+                logger.info("✅ Database connections closed")
+            except Exception as e:
+                logger.error(f"Error closing database: {e}")
+        
+        logger.info("🎉 Application cleanup complete")
 
 
 # Global app state instance
