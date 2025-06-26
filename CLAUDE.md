@@ -40,7 +40,12 @@ Happens on devcontainer creation, but can be manually triggered if proto files c
 ### Broker Development (Python)
 ```bash
 cd call-assist/addon/broker
-python -m pytest call-assist/tests
+python -m addon.broker.main                    # Start broker directly
+python -m pytest tests/ -xvs                   # Run all integration tests
+python -m pytest tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
+
+# Web UI accessible at http://localhost:8080/ui
+# Features: Account management, Call Station configuration, Status monitoring
 ```
 
 ### Matrix Plugin Development (TypeScript)
@@ -125,10 +130,11 @@ call-assist/
 │   │   ├── ludic_components.py         # Ludic web interface components
 │   │   ├── ludic_views.py              # Ludic views for all UI
 │   │   ├── web_api.py                  # FastAPI REST endpoints
-│   │   ├── models.py                   # SQLModel database schemas
+│   │   ├── models.py                   # SQLModel database schemas (Account, CallStation, etc.)
 │   │   ├── database.py                 # SQLite database management
-│   │   ├── queries.py                  # Database queries
+│   │   ├── queries.py                  # Database queries for all entities
 │   │   ├── account_service.py          # Account business logic and status checking
+│   │   ├── call_station_service.py     # Call station business logic and validation
 │   │   ├── plugin_manager.py           # Plugin loading and management logic
 │   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
 │   │   ├── web_server.py               # FastAPI web server
@@ -470,11 +476,13 @@ Broker (gRPC + Web Server) ↔ Home Assistant Integration (Simplified)
 - **Call History**: Query and analytics endpoints
 - **Health Monitoring**: System status and diagnostics
 
-#### **3. NiceGUI Web Interface** (`web_ui.py`)
+#### **3. Ludic Web Interface** (`ludic_components.py`, `ludic_views.py`)
 - **Account Dashboard**: Visual account management with status indicators
-- **Dynamic Forms**: Protocol-specific configuration forms
-- **Status Monitoring**: Real-time system health and statistics
+- **Call Station Dashboard**: Manual configuration of camera + media player combinations
+- **Dynamic Forms**: Protocol-specific configuration forms and entity selection dropdowns
+- **Status Monitoring**: Real-time system health and availability tracking
 - **Call History**: Searchable call logs with duration tracking
+- **HTMX Integration**: Interactive UI updates without page refreshes
 
 #### **4. Schema-Driven Forms** (`form_generator.py`)
 - **Protocol Schemas**: Matrix and XMPP configuration templates
@@ -492,6 +500,11 @@ Broker (gRPC + Web Server) ↔ Home Assistant Integration (Simplified)
 
 ### **Access Points:**
 - **Web UI**: `http://localhost:8080/ui` - Complete management interface
+  - **Accounts**: `http://localhost:8080/ui` - Protocol account management
+  - **Call Stations**: `http://localhost:8080/ui/call-stations` - Camera + media player configuration
+  - **Status**: `http://localhost:8080/ui/status` - System health monitoring
+  - **History**: `http://localhost:8080/ui/history` - Call logs and analytics
+  - **Settings**: `http://localhost:8080/ui/settings` - Broker configuration
 - **REST API**: `http://localhost:8080/api/` - Programmatic access
 - **API Docs**: `http://localhost:8080/docs` - Interactive documentation
 - **gRPC Server**: `localhost:50051` - Home Assistant integration
@@ -502,15 +515,70 @@ Broker (gRPC + Web Server) ↔ Home Assistant Integration (Simplified)
 - **Account Management**: Moved entirely to standalone web UI
 - **Testing**: Comprehensive test suite for all web components
 
-## Next Steps
-1. ✅ Design specific gRPC service definitions
-2. ✅ Create project scaffolding
-3. ✅ Build Matrix plugin with WebRTC support
-4. ✅ **Implement generic entity architecture** (domain-agnostic integration)
-5. ✅ **Fix integration startup issues** (NoneType errors resolved)
-6. ✅ **Simplify account management** (one account per integration instance)
-7. ✅ **Implement standalone web UI** (NiceGUI + FastAPI + SQLite)
-8. 🔄 Implement real WebRTC peer connections in Matrix plugin
-9. Implement broker capability detection logic
-10. Add configuration flow for camera/media player selection
-11. Implement contact discovery from Matrix plugin
+## Call Station Management System ✅
+
+### **Implementation Complete**
+Implemented a comprehensive Call Station management system following the same architectural pattern as account management.
+
+### **Migration from Auto-Generation:**
+**Before**: Call stations were automatically created for every camera + media player combination
+**After**: Call stations are manually configured by users, stored in database, and loaded on startup
+
+### **New Architecture:**
+```
+Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integration
+                              ↔ Web UI Management Interface
+```
+
+**Philosophy**: Give users full control over call station configurations while maintaining real-time status monitoring.
+
+### **Integration Impact:**
+- **Home Assistant**: Receives call stations as broker entities with availability status
+- **Broker**: Loads enabled stations on startup and monitors entity changes
+- **Web UI**: Provides complete management interface independent of Home Assistant
+- **Database**: Automatic table creation and migration support
+
+## Implementation Status & Roadmap
+
+### **Completed Features ✅**
+1. ✅ **Project Scaffolding**: Complete development environment setup
+2. ✅ **gRPC Service Definitions**: Protocol buffer contracts for all components
+3. ✅ **Matrix Plugin**: WebRTC-enabled Matrix client with call signaling
+4. ✅ **Generic Entity Architecture**: Domain-agnostic Home Assistant integration
+5. ✅ **Integration Startup**: Resolved NoneType errors and connection issues
+6. ✅ **Account Management**: One account per integration instance pattern
+7. ✅ **Standalone Web UI**: FastAPI + Ludic + SQLite management interface
+8. ✅ **Call Station Management**: Manual configuration system with real-time status
+
+### **Architecture Achievements**
+- **Clean Separation**: Broker handles business logic, HA handles presentation
+- **Type Safety**: Strong typing throughout with Protocol Buffers
+- **Dependency Injection**: Consistent pattern across all components
+- **Database Persistence**: SQLite with automatic migrations
+- **Real-Time Updates**: Live status monitoring and entity streaming
+- **User Control**: Manual configuration for both accounts and call stations
+
+### **Current Capabilities**
+- **Account Management**: Add/edit/delete protocol accounts via web UI
+- **Call Station Management**: Configure camera + media player combinations
+- **Protocol Support**: Matrix integration with WebRTC signaling
+- **Status Monitoring**: Real-time availability tracking
+- **Entity Streaming**: Broker entities appear in Home Assistant
+- **Web Interface**: Complete management without Home Assistant limitations
+
+### **Next Development Priorities**
+1. 🔄 **Real WebRTC Connections**: Complete peer-to-peer video/audio streams
+2. 📞 **Call Functionality**: End-to-end calling through call stations
+3. 🔍 **Contact Discovery**: Matrix contact lists and presence
+4. ⚙️ **Broker Capabilities**: Dynamic capability detection and negotiation
+5. 🎥 **Media Pipeline**: Camera feed integration with WebRTC streams
+6. 📱 **XMPP Plugin**: Second protocol implementation for validation
+7. 🧪 **Integration Testing**: Full end-to-end call scenarios
+8. 📦 **Packaging**: HACS integration and Home Assistant Add-on publishing
+
+### **Technical Debt**
+- **Type Errors**: Resolve remaining Ludic component type warnings
+- **Error Handling**: Improve exception handling in web UI routes
+- **Performance**: Optimize entity update streaming
+- **Testing**: Expand test coverage for Call Station functionality
+- **Documentation**: Add inline code documentation and examples
