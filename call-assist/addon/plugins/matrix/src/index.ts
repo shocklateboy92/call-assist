@@ -420,6 +420,11 @@ class MatrixCallPlugin {
       throw new Error('Matrix configuration not provided');
     }
 
+    // Validate required credentials
+    if (!this.config.homeserver || !this.config.accessToken || !this.config.userId) {
+      throw new Error('Missing required Matrix credentials: homeserver, accessToken, and userId are required');
+    }
+
     console.log(`Initializing Matrix client for ${this.config.userId}`);
     
     this.matrixClient = createClient({
@@ -427,6 +432,13 @@ class MatrixCallPlugin {
       accessToken: this.config.accessToken,
       userId: this.config.userId
     });
+
+    // Validate credentials by making a test API call
+    try {
+      await this.validateCredentials();
+    } catch (error) {
+      throw new Error(`Matrix credential validation failed: ${error}`);
+    }
 
     // Set up event handlers
     this.matrixClient.on(ClientEvent.Sync, (state) => {
@@ -457,6 +469,26 @@ class MatrixCallPlugin {
     await this.matrixClient.startClient();
     
     console.log('Matrix client started successfully');
+  }
+
+  private async validateCredentials(): Promise<void> {
+    if (!this.matrixClient || !this.config) {
+      throw new Error('Matrix client not initialized');
+    }
+
+    try {
+      // Test the credentials by calling the whoami endpoint
+      const response = await this.matrixClient.whoami();
+      
+      // Verify the user ID matches what we expect
+      if (response.user_id !== this.config.userId) {
+        throw new Error(`User ID mismatch: expected ${this.config.userId}, got ${response.user_id}`);
+      }
+      
+      console.log(`Matrix credentials validated for user: ${response.user_id}`);
+    } catch (error) {
+      throw new Error(`Failed to validate Matrix credentials: ${error}`);
+    }
   }
 
   private generateMockWebRTCOffer(callId: string): string {
