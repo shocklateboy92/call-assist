@@ -408,10 +408,11 @@ class MatrixCallPlugin {
     server.add(CallPluginDefinition, callPluginService);
     console.log('CallPlugin service registered successfully');
     
-    await server.listen('0.0.0.0:50052');
+    const port = process.env.PORT || '50052';
+    await server.listen(`0.0.0.0:${port}`);
     this.server = server;
-    
-    console.log('Matrix plugin gRPC server listening on port 50052');
+
+    console.log(`Matrix plugin gRPC server listening on port ${port}`);
   }
 
   private async initializeMatrixClient(): Promise<void> {

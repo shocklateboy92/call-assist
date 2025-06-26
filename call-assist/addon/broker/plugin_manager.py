@@ -4,6 +4,7 @@ import asyncio
 import logging
 import subprocess
 import os
+import socket
 import yaml
 from typing import Dict, Optional, List, Union, Literal
 from dataclasses import dataclass
@@ -180,6 +181,17 @@ class PluginManager:
         self.plugins: Dict[str, PluginInstance] = {}
         self._discover_plugins()
 
+    def _find_available_port(self, start_port: int = 50051, max_attempts: int = 100) -> int:
+        """Find an available port starting from start_port"""
+        for port in range(start_port, start_port + max_attempts):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.bind(('localhost', port))
+                    return port
+            except OSError:
+                continue
+        raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
+
     def _discover_plugins(self):
         """Discover and load plugin metadata from plugin directories"""
         if not os.path.exists(self.plugins_root):
@@ -262,10 +274,21 @@ class PluginManager:
         plugin.state = PluginState.STARTING
 
         try:
+            # Find an available port for this plugin
+            available_port = self._find_available_port()
+            logger.info(f"Assigned port {available_port} to plugin {plugin.metadata.name}")
+            
+            # Update the plugin's gRPC configuration with the new port
+            plugin.metadata.grpc.port = available_port
+
             # Build command from metadata
             exec_config = plugin.metadata.executable
             command = exec_config.command
             working_dir = os.path.join(plugin.plugin_dir, exec_config.working_directory)
+
+            # Set up environment variables
+            env = os.environ.copy()
+            env['PORT'] = str(available_port)
 
             # Start the plugin process - pipe output to same console
             plugin.process = subprocess.Popen(
@@ -273,6 +296,7 @@ class PluginManager:
                 stdout=None,  # Inherit stdout from parent process
                 stderr=None,  # Inherit stderr from parent process
                 cwd=working_dir,
+                env=env,
             )
 
             # Wait for plugin to start up
