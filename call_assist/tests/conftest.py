@@ -249,11 +249,11 @@ def setup_integration_path():
 
     # Set environment variable for custom components path
     os.environ["CUSTOM_COMPONENTS_PATH"] = (
-        "/workspaces/universal/call-assist/config/homeassistant/custom_components"
+        "/workspaces/universal/call_assist/config/homeassistant/custom_components"
     )
 
     # Add to Python path
-    config_path = "/workspaces/universal/call-assist/config/homeassistant"
+    config_path = "/workspaces/universal/call_assist/config/homeassistant"
     if config_path not in sys.path:
         sys.path.insert(0, config_path)
 
@@ -264,7 +264,7 @@ def setup_integration_path():
 
     def patched_get_test_config_dir(*add_path):
         return os.path.join(
-            "/workspaces/universal/call-assist/config/homeassistant", *add_path
+            "/workspaces/universal/call_assist/config/homeassistant", *add_path
         )
 
     common.get_test_config_dir = patched_get_test_config_dir

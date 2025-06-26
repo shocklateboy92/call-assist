@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 @pytest.mark.asyncio
 async def test_matrix_plugin_real_webrtc():
     """Test Matrix plugin with real WebRTC implementation."""
-    matrix_plugin_dir = Path("/workspaces/universal/call-assist/addon/plugins/matrix")
+    matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     
     # Ensure the plugin is built
     logger.info("Building Matrix plugin with real WebRTC...")
@@ -82,7 +82,7 @@ async def test_matrix_plugin_real_webrtc():
 @pytest.mark.asyncio  
 async def test_matrix_plugin_mock_webrtc_mode():
     """Test Matrix plugin with mock WebRTC implementation for comparison."""
-    matrix_plugin_dir = Path("/workspaces/universal/call-assist/addon/plugins/matrix")
+    matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     
     logger.info("Testing plugin startup with mock WebRTC...")
     
@@ -129,7 +129,7 @@ async def test_matrix_plugin_mock_webrtc_mode():
 @pytest.mark.asyncio
 async def test_webrtc_peer_connection_factory():
     """Test that our WebRTC factory function works correctly."""
-    matrix_plugin_dir = Path("/workspaces/universal/call-assist/addon/plugins/matrix")
+    matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     
     # Create a simple test script to verify the factory function
     test_script = """

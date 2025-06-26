@@ -1,1 +1,0 @@
-"""Generated protobuf/grpc code for Call Assist Home Assistant integration."""

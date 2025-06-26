@@ -1,6 +1,6 @@
 {
     "python.testing.pytestArgs": [
-        "call-assist"
+        "call_assist"
     ],
     "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,

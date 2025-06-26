@@ -22,22 +22,22 @@ This document describes the successful implementation of real WebRTC functionali
 
 ```bash
 # Dependencies
-call-assist/addon/plugins/matrix/package.json
+call_assist/addon/plugins/matrix/package.json
   + Added "@roamhq/wrtc": "^0.8.0"
 
 # Implementation  
-call-assist/addon/plugins/matrix/src/index.ts
+call_assist/addon/plugins/matrix/src/index.ts
   + Added real WebRTC import and factory function (lines 8, 112-133)
   + Configured STUN/TURN servers
   + Maintained mock fallback for testing
 
 # Tests
-call-assist/tests/test_matrix_webrtc_real.py (NEW)
+call_assist/tests/test_matrix_webrtc_real.py (NEW)
   + Tests real WebRTC compilation and functionality
   + Tests mock/real WebRTC switching
   + Validates factory function implementation
 
-call-assist/tests/test_matrix_call_e2e.py
+call_assist/tests/test_matrix_call_e2e.py
   + Updated with real WebRTC implementation status
   + Documented completed features and next steps
 ```
@@ -47,7 +47,7 @@ call-assist/tests/test_matrix_call_e2e.py
 ### Production Mode (Real WebRTC)
 ```bash
 # Matrix plugin will use real WebRTC by default
-cd call-assist/addon/plugins/matrix
+cd call_assist/addon/plugins/matrix
 npm run build
 npm start
 ```
@@ -56,7 +56,7 @@ npm start
 ```bash
 # Set environment variable to use mock WebRTC
 export USE_MOCK_WEBRTC=true
-cd call-assist/addon/plugins/matrix  
+cd call_assist/addon/plugins/matrix  
 npm start
 ```
 

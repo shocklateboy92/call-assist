@@ -11,7 +11,7 @@ cd /workspaces/universal
 
 # Restart Home Assistant container to pick up code changes
 echo "📦 Restarting Home Assistant container..."
-sudo docker-compose -f call-assist/docker-compose.dev.yml restart homeassistant
+sudo docker-compose -f call_assist/docker-compose.dev.yml restart homeassistant
 
 # Wait for Home Assistant to be ready
 echo "⏳ Waiting for Home Assistant to start..."

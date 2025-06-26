@@ -7,7 +7,7 @@ CONF_HOST = "host"
 CONF_PORT = "port"
 
 # Default values
-DEFAULT_HOST = "call-assist-addon"
+DEFAULT_HOST = "devcontainer" 
 DEFAULT_PORT = 50051
 
 # Monitored domains in Home Assistant

@@ -10,7 +10,7 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 ### Development Environment Setup
 
-**Auto-setup**: The development environment is automatically set up during devcontainer creation by running `call-assist/scripts/setup-dev-env.sh`, which includes:
+**Auto-setup**: The development environment is automatically set up during devcontainer creation by running `call_assist/scripts/setup-dev-env.sh`, which includes:
 - Call Assist package installation in editable mode
 - All Python dependencies (test, integration, broker)
 - Protobuf file generation
@@ -18,7 +18,7 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 **Manual setup** (for debugging or rebuilding):
 ```bash
-cd call-assist
+cd call_assist
 ./scripts/setup-dev-env.sh         # Complete development environment setup
 ```
 
@@ -39,7 +39,7 @@ Happens on devcontainer creation, but can be manually triggered if proto files c
 
 ### Broker Development (Python)
 ```bash
-cd call-assist/addon/broker
+cd call_assist/addon/broker
 python -m addon.broker.main                    # Start broker directly
 python -m pytest tests/ -xvs                   # Run all integration tests
 python -m pytest tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
@@ -50,17 +50,17 @@ python -m pytest tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
 
 ### Matrix Plugin Development (TypeScript)
 ```bash
-cd call-assist/addon/plugins/matrix
+cd call_assist/addon/plugins/matrix
 npm run proto           # Generate protobuf files
 npm run build           # Compile TypeScript
-# Plugin is run via integration tests in call-assist/addon/broker/test_matrix_plugin.py, not directly
+# Plugin is run via integration tests in call_assist/addon/broker/test_matrix_plugin.py, not directly
 ```
 
 ### Development Environment
 ```bash
 # Dependencies install automatically via devcontainer calling setup-dev-env.sh
 # For manual reinstall or debugging:
-cd call-assist && ./scripts/setup-dev-env.sh
+cd call_assist && ./scripts/setup-dev-env.sh
 
 # Services start automatically via devcontainer.json
 # To restart or interact with services at runtime, use sudo:
@@ -86,7 +86,7 @@ sudo docker-compose -f docker-compose.dev.yml restart <service-name>
 
 ```bash
 # Test video infrastructure health
-call-assist/scripts/test-video-infrastructure.sh
+call_assist/scripts/test-video-infrastructure.sh
 
 # Run video-specific tests
 python -m pytest tests/test_video_call_e2e.py -xvs          # End-to-end video call tests
@@ -155,7 +155,7 @@ Camera (RTSP) → Broker (Capability Detection) → Call Plugin (Matrix/XMPP) �
 
 ### Repository Structure (Monorepo)
 ```
-call-assist/
+call_assist/
 ├── integration/           # Home Assistant custom integration (Python)
 ├── addon/
 │   ├── broker/                         # Main orchestrator with web UI
@@ -279,7 +279,7 @@ Broker (Business Logic) → Generic Entities → HA Integration (Presentation)
 **Docker Compose Setup**: VS Code dev container automatically starts all services:
 - **devcontainer** - Development environment with Python/TypeScript support
 - **homeassistant** - Available at `localhost:8123` with integration mounted
-- **call-assist-addon** - Broker and plugins running, accessible via service name
+- **call_assist-addon** - Broker and plugins running, accessible via service name
   - **Web UI**: `http://localhost:8080/ui` - Account management interface
   - **REST API**: `http://localhost:8080/api/` - Programmatic access
   - **gRPC Server**: `localhost:50051` - Integration communication

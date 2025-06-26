@@ -2,7 +2,7 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/universal
 {
 	"name": "Call Assist Development",
-	"dockerComposeFile": "../call-assist/docker-compose.dev.yml",
+	"dockerComposeFile": "../call_assist/docker-compose.dev.yml",
 	"service": "devcontainer",
 	"workspaceFolder": "/workspaces/universal",
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -32,7 +32,7 @@
 		"mock-chromecast:8008"     // Mock Chromecast for testing
 	],
 	// Run setup script after container creation
-	"postCreateCommand": "call-assist/scripts/setup-dev-env.sh",
+	"postCreateCommand": "call_assist/scripts/setup-dev-env.sh",
 	// Configure tool-specific properties.
 	"customizations": {
 		"vscode": {

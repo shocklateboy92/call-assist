@@ -14,11 +14,11 @@ echo "� Setting up Call Assist development environment..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Install call-assist package in editable mode first
-echo "📦 Installing call-assist package in editable mode..."
+# Install call_assist package in editable mode first
+echo "📦 Installing call_assist package in editable mode..."
 cd "$PROJECT_ROOT"
 if [ -f "pyproject.toml" ]; then
-    echo "  📦 Installing call-assist package in editable mode"
+    echo "  📦 Installing call_assist package in editable mode"
     pip install -e .
     echo "  🧪 Installing test dependencies"
     pip install -e ".[test]"

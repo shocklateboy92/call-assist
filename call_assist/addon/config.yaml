@@ -2,7 +2,7 @@ name: Call Assist
 version: "0.1.0"
 slug: call_assist
 description: Video calling integration for Home Assistant
-url: https://github.com/shocklateboy92/call-assist
+url: https://github.com/shocklateboy92/call_assist
 arch:
   - aarch64
   - amd64
