@@ -3,30 +3,27 @@ set -e
 
 echo "🔍 Testing Video Infrastructure..."
 
-# Test RTSP server availability
-echo "📡 Testing RTSP server..."
-if timeout 5 bash -c '</dev/tcp/localhost/8554'; then
-    echo "✅ RTSP server is accessible on port 8554"
+# Check docker-compose services are running
+echo "📋 Checking docker-compose services..."
+if docker-compose -f docker-compose.dev.yml ps --services --filter status=running | grep -q rtsp-server; then
+    echo "✅ RTSP server service is running"
 else
-    echo "❌ RTSP server is not accessible"
+    echo "❌ RTSP server service is not running"
+    echo "💡 Try: docker-compose -f docker-compose.dev.yml up -d rtsp-server"
     exit 1
 fi
 
-# Test mock Chromecast availability
-echo "📱 Testing mock Chromecast..."
-if timeout 5 bash -c '</dev/tcp/localhost/8008'; then
-    echo "✅ Mock Chromecast is accessible on port 8008"
-    
-    # Test HTTP endpoint
-    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8008/status | grep -q "200"; then
-        echo "✅ Mock Chromecast HTTP API is working"
-    else
-        echo "❌ Mock Chromecast HTTP API is not responding"
-    fi
+if docker-compose -f docker-compose.dev.yml ps --services --filter status=running | grep -q mock-chromecast; then
+    echo "✅ Mock Chromecast service is running"
 else
-    echo "❌ Mock Chromecast is not accessible"
+    echo "❌ Mock Chromecast service is not running"
+    echo "💡 Try: docker-compose -f docker-compose.dev.yml up -d mock-chromecast"
     exit 1
 fi
+
+# Show service health
+echo "🔍 Service health:"
+docker-compose -f docker-compose.dev.yml ps rtsp-server test-stream-generator test-stream-generator-2 mock-chromecast
 
 # Test streams (requires FFprobe if available)
 if command -v ffprobe &> /dev/null; then
@@ -48,12 +45,13 @@ else
 fi
 
 echo ""
+echo ""
 echo "🚀 Video infrastructure test complete!"
-echo "📍 Available services:"
-echo "   - RTSP Server: rtsp://localhost:8554"
-echo "   - Test Camera 1: rtsp://localhost:8554/test_camera_1"
-echo "   - Test Camera 2: rtsp://localhost:8554/test_camera_2"
-echo "   - Mock Chromecast: http://localhost:8008"
+echo "📍 Available services (via docker-compose network):"
+echo "   - RTSP Server: rtsp://rtsp-server:8554"
+echo "   - Test Camera 1: rtsp://rtsp-server:8554/test_camera_1"
+echo "   - Test Camera 2: rtsp://rtsp-server:8554/test_camera_2"
+echo "   - Mock Chromecast: http://mock-chromecast:8008"
 echo ""
 echo "🧪 Run video tests with:"
 echo "   python -m pytest tests/test_video_call_e2e.py::test_video_infrastructure_health_check -v"

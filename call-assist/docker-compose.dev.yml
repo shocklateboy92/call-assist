@@ -47,17 +47,24 @@ services:
     restart: unless-stopped
 
   rtsp-server:
-    image: aler9/rtsp-simple-server:latest
+    image: bluenviron/mediamtx:latest
     restart: unless-stopped
+    environment:
+      - MTX_PROTOCOLS=tcp
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 /bin/echo > /dev/tcp/localhost/8554 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   test-stream-generator:
     image: jrottenberg/ffmpeg:6.1-alpine
     depends_on:
       - rtsp-server
     command: >
-      -f lavfi -i smptebars=size=640x480:rate=10:duration=86400
+      -re -f lavfi -i smptebars=size=640x480:rate=10:duration=86400
       -f lavfi -i sine=frequency=1000:duration=86400
-      -c:v libx264 -preset ultrafast -tune zerolatency
+      -c:v libx264 -preset ultrafast -tune zerolatency -g 30
       -c:a aac -f rtsp rtsp://rtsp-server:8554/test_camera_1
     restart: unless-stopped
 
@@ -66,9 +73,9 @@ services:
     depends_on:
       - rtsp-server
     command: >
-      -f lavfi -i testsrc=size=640x480:rate=10:duration=86400
+      -re -f lavfi -i testsrc=size=640x480:rate=10:duration=86400
       -f lavfi -i sine=frequency=440:duration=86400
-      -c:v libx264 -preset ultrafast -c:a aac
+      -c:v libx264 -preset ultrafast -g 30 -c:a aac
       -f rtsp rtsp://rtsp-server:8554/test_camera_2
     restart: unless-stopped
 

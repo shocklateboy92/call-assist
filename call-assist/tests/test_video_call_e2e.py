@@ -20,8 +20,8 @@ import pytest
 import pytest_asyncio
 import aiohttp
 
-from proto_gen.callassist.common import HaEntityUpdate
-from tests.conftest import WebUITestClient
+from proto_gen.callassist.broker import HaEntityUpdate
+from conftest import WebUITestClient
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +110,9 @@ class TestVideoCallE2E:
         for player in available_players:
             assert player.domain == "media_player"
             assert player.state == "idle"
-            assert player.attributes["supported_features"] == 152463  # Cast features
+            assert player.attributes["supported_features"] == "152463"  # Cast features
             assert "device_class" in player.attributes
-            assert player.attributes["volume_level"] > 0
+            assert float(player.attributes["volume_level"]) > 0
         
         # Test unavailable media player
         unavailable_players = [player for player in mock_media_players if not player.available]
@@ -274,6 +274,15 @@ class TestVideoCallE2E:
         
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect(ws_url) as ws:
+                # Receive initial state update (sent automatically on connection)
+                msg = await ws.receive()
+                assert msg.type == aiohttp.WSMsgType.TEXT
+                data = json.loads(msg.data)
+                assert data["type"] == "state_update"
+                assert "state" in data
+                assert "timestamp" in data
+                logger.info(f"Initial WebSocket state received: {data}")
+                
                 # Send ping to test connection
                 await ws.send_str(json.dumps({"command": "ping"}))
                 
@@ -282,6 +291,7 @@ class TestVideoCallE2E:
                 assert msg.type == aiohttp.WSMsgType.TEXT
                 data = json.loads(msg.data)
                 assert data["type"] == "pong"
+                logger.info(f"Ping/pong test successful")
                 
                 # Request status
                 await ws.send_str(json.dumps({"command": "get_status"}))
@@ -345,7 +355,7 @@ async def test_video_infrastructure_health_check(video_test_environment: Dict[st
     
     # Check RTSP server availability (indirect)
     rtsp_base = video_test_environment["rtsp_base_url"]
-    assert rtsp_base.startswith("rtsp://localhost:8554")
+    assert rtsp_base.startswith("rtsp://rtsp-server:8554")
     
     # Check mock Chromecast availability
     chromecast_url = video_test_environment["mock_chromecast_url"]

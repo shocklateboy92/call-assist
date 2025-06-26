@@ -37,7 +37,9 @@
       "Bash(pip install:*)",
       "WebFetch(domain:getludic.dev)",
       "WebFetch(domain:andreasphil.github.io)",
-      "WebFetch(domain:cdn.jsdelivr.net)"
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "Bash(./scripts/test-video-infrastructure.sh:*)",
+      "Bash(docker exec:*)"
     ],
     "deny": []
   }

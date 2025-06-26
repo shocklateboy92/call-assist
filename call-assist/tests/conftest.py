@@ -7,7 +7,10 @@ This module contains broker-related fixtures that are used across multiple test 
 
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Dict, Any, Optional
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup, Tag
+import aiohttp
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -23,6 +26,65 @@ def stub_method(*args, **kwargs):
 
 
 pytest_socket.disable_socket = stub_method
+
+
+class WebUITestClient:
+    """Test client for interacting with the Call Assist web UI via HTTP requests"""
+
+    def __init__(self, base_url: str = "http://localhost:8080"):
+        self.base_url = base_url
+        self.session: Optional[aiohttp.ClientSession] = None
+
+    async def __aenter__(self):
+        self.session = aiohttp.ClientSession()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.session:
+            await self.session.close()
+
+    async def get_page(self, path: str) -> tuple[str, BeautifulSoup]:
+        """Get a web page and return the HTML content and parsed DOM"""
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+            
+        url = urljoin(self.base_url, path)
+        logger.info(f"GET {url}")
+
+        async with self.session.get(url) as resp:
+            if resp.status != 200:
+                text = await resp.text()
+                raise Exception(f"HTTP {resp.status}: {text}")
+
+            html = await resp.text()
+            soup = BeautifulSoup(html, "html.parser")
+            return html, soup
+
+    async def post_form(self, path: str, form_data: Dict[str, Any]) -> tuple[int, str, BeautifulSoup]:
+        """Submit a form to the web UI"""
+        if self.session is None:
+            raise RuntimeError("Session not initialized")
+            
+        url = urljoin(self.base_url, path)
+        logger.info(f"POST {url} with form data: {list(form_data.keys())}")
+
+        async with self.session.post(url, data=form_data) as resp:
+            text = await resp.text()
+            soup = BeautifulSoup(text, "html.parser")
+            return resp.status, text, soup
+
+    async def wait_for_server(self, max_attempts: int = 30, delay: float = 1.0):
+        """Wait for the web server to be ready"""
+        for attempt in range(max_attempts):
+            try:
+                html, soup = await self.get_page("/ui")
+                logger.info(f"Server ready after {attempt + 1} attempts")
+                return True
+            except Exception as e:
+                logger.debug(f"Attempt {attempt + 1}: {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(delay)
+        return False
 
 import os
 import socket
@@ -231,28 +293,11 @@ def rtsp_test_server() -> str:
     import socket
     import time
     
-    # The RTSP server should already be running via docker-compose
-    # Just verify it's accessible
-    rtsp_host = "localhost"
+    # Use service name for docker-compose network
+    rtsp_host = "rtsp-server"
     rtsp_port = 8554
     
-    # Wait for RTSP server to be available (up to 30 seconds)
-    for attempt in range(30):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(1)
-                result = sock.connect_ex((rtsp_host, rtsp_port))
-                if result == 0:
-                    logger.info(f"RTSP server is available at {rtsp_host}:{rtsp_port}")
-                    break
-        except Exception:
-            pass
-        
-        if attempt == 29:
-            logger.warning("RTSP server not available - tests may fail")
-        else:
-            time.sleep(1)
-    
+    logger.info(f"Using RTSP server at {rtsp_host}:{rtsp_port}")
     return f"rtsp://{rtsp_host}:{rtsp_port}"
 
 
@@ -372,26 +417,11 @@ def video_test_environment(rtsp_test_server: str, mock_cameras: List[HaEntityUpd
     import socket
     import time
     
-    # Verify mock Chromecast is available
-    chromecast_host = "localhost"
+    # Use service name for docker-compose network
+    chromecast_host = "mock-chromecast"
     chromecast_port = 8008
     
-    # Wait for mock Chromecast to be available (up to 10 seconds)
-    for attempt in range(10):
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(1)
-                result = sock.connect_ex((chromecast_host, chromecast_port))
-                if result == 0:
-                    logger.info(f"Mock Chromecast is available at {chromecast_host}:{chromecast_port}")
-                    break
-        except Exception:
-            pass
-        
-        if attempt == 9:
-            logger.warning("Mock Chromecast not available - some tests may fail")
-        else:
-            time.sleep(1)
+    logger.info(f"Using mock Chromecast at {chromecast_host}:{chromecast_port}")
     
     return {
         "rtsp_base_url": rtsp_test_server,
@@ -403,3 +433,17 @@ def video_test_environment(rtsp_test_server: str, mock_cameras: List[HaEntityUpd
         "media_players": mock_media_players,
         "mock_chromecast_url": f"http://{chromecast_host}:{chromecast_port}"
     }
+
+
+@pytest_asyncio.fixture
+async def web_ui_client(broker_process):
+    """Web UI test client configured for the running broker"""
+    web_port = broker_process["web_port"]
+    base_url = f"http://localhost:{web_port}"
+    
+    async with WebUITestClient(base_url) as client:
+        # Wait for web server to be ready
+        ready = await client.wait_for_server(max_attempts=10, delay=0.5)
+        if not ready:
+            raise RuntimeError("Web UI server failed to start")
+        yield client

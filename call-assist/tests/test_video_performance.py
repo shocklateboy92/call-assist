@@ -17,7 +17,7 @@ import pytest
 import pytest_asyncio
 import aiohttp
 
-from proto_gen.callassist.common import HaEntityUpdate
+from proto_gen.callassist.broker import HaEntityUpdate
 
 logger = logging.getLogger(__name__)
 
