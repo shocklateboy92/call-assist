@@ -81,7 +81,7 @@ module = [
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = "proto_gen.*"
+module = ["proto_gen.*", "call_assist.integration.proto_gen.*"]
 ignore_errors = true
 disable_error_code = [
     "attr-defined",
