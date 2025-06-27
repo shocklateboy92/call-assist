@@ -554,7 +554,7 @@ def video_test_environment(
     )
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 async def web_ui_client(
     broker_process: BrokerProcessInfo,
 ) -> AsyncIterator[WebUITestClient]:
