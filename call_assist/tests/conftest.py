@@ -15,15 +15,37 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import aiohttp
 
+import os
+import socket
+import tempfile
+import threading
+import time
+
+import pytest
+
+from grpclib.client import Channel
+from call_assist.proto_gen.callassist.broker import (
+    BrokerIntegrationStub,
+    HaEntityUpdate,
+)
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
+
+from call_assist.addon.broker.main import serve
+
 import fixtures.disable_pytest_socket
 
-from call_assist.tests.types import BrokerProcessInfo, VideoTestEnvironment, CustomIntegrationsFixture
+from call_assist.tests.types import (
+    BrokerProcessInfo,
+    VideoTestEnvironment,
+    CustomIntegrationsFixture,
+)
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
 
 
 fixtures.disable_pytest_socket.activate()
+
 
 class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", None]):
     """Test client for interacting with the Call Assist web UI via HTTP requests"""
@@ -38,10 +60,10 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
 
     @override
     async def __aexit__(
-        self, 
-        exc_type: type[BaseException] | None, 
-        exc_value: BaseException | None, 
-        traceback: TracebackType | None
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         if self.session:
             await self.session.close()
@@ -90,23 +112,6 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(delay)
         return False
-
-
-import os
-import socket
-import tempfile
-import threading
-import time
-
-import pytest
-import pytest_asyncio
-
-from grpclib.client import Channel
-from proto_gen.callassist.broker import BrokerIntegrationStub, HaEntityUpdate
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
-
-from addon.broker.main import serve
-
 
 
 def is_port_available(port: int) -> bool:
@@ -200,8 +205,10 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
     logger.info("Broker thread shutdown complete")
 
 
-@pytest_asyncio.fixture(scope="function")
-async def broker_server(broker_process: BrokerProcessInfo) -> AsyncIterator[BrokerIntegrationStub]:
+@pytest.fixture(scope="function")
+async def broker_server(
+    broker_process: BrokerProcessInfo,
+) -> AsyncIterator[BrokerIntegrationStub]:
     """Get broker connection for each test"""
 
     # Get port from broker process info
@@ -261,7 +268,9 @@ def setup_integration_path():
 
 
 @pytest.fixture(autouse=True)
-def enable_custom_integrations_fixture(enable_custom_integrations: CustomIntegrationsFixture) -> Iterator[None]:
+def enable_custom_integrations_fixture(
+    enable_custom_integrations: CustomIntegrationsFixture,
+) -> Iterator[None]:
     """Enable custom integrations for each test."""
     _ = enable_custom_integrations  # Use the parameter to avoid unused warning
     yield
@@ -413,8 +422,10 @@ def video_test_environment(
     )
 
 
-@pytest_asyncio.fixture
-async def web_ui_client(broker_process: BrokerProcessInfo) -> AsyncIterator[WebUITestClient]:
+@pytest.fixture
+async def web_ui_client(
+    broker_process: BrokerProcessInfo,
+) -> AsyncIterator[WebUITestClient]:
     """Web UI test client configured for the running broker"""
     web_port = broker_process.web_port
     base_url = f"http://localhost:{web_port}"
