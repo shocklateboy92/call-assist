@@ -32,7 +32,6 @@ import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_goog
 
 from call_assist.addon.broker.main import serve
 
-from call_assist.tests.fixtures import disable_pytest_socket
 from call_assist.tests.types import (
     BrokerProcessInfo,
     VideoTestEnvironment,
@@ -40,9 +39,6 @@ from call_assist.tests.types import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-disable_pytest_socket.activate()
 
 
 class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", None]):
@@ -105,7 +101,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
                 _ = await self.get_page("/ui")
                 logger.info(f"Server ready after {attempt + 1} attempts")
                 return True
-            except Exception as e:
+            except ConnectionError as e:
                 logger.debug(f"Attempt {attempt + 1}: {e}")
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(delay)
@@ -558,7 +554,7 @@ def video_test_environment(
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 async def web_ui_client(
     broker_process: BrokerProcessInfo,
 ) -> AsyncIterator[WebUITestClient]:

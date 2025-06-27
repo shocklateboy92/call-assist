@@ -38,9 +38,8 @@ test = [
     "beautifulsoup4>=4.12.2",
 ]
 integration = [
-    "pytest-homeassistant-custom-component>=0.13.252",
+    "pytest-homeassistant-custom-component @ git+https://github.com/shocklateboy92/pytest-homeassistant-custom-component@fixes/opt-socket",
     "homeassistant>=2025.6.1",
-    "pytest-socket>=0.6.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -68,7 +67,6 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
-    "pytest_socket.*",
     "pytest_homeassistant_custom_component.*",
     "dataclasses_jsonschema.*",
     "dacite.*",
@@ -96,7 +94,7 @@ testpaths = ["tests", "addon/broker/tests", "integration/tests"]
 asyncio_mode = "auto"
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short --force-enable-socket"
+addopts = "-v --tb=short"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
