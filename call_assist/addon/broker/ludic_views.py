@@ -560,8 +560,8 @@ def create_routes(app: FastAPI):
         validation_errors = call_station_service.validate_call_station_entities(
             camera_entity_id, media_player_entity_id, ha_entities
         )
-        if validation_errors:
-            error_msg = "; ".join(validation_errors.values())
+        if validation_errors.has_errors:
+            error_msg = "; ".join(validation_errors.to_dict().values())
             raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
 
         # Create new call station
@@ -637,8 +637,8 @@ def create_routes(app: FastAPI):
         validation_errors = call_station_service.validate_call_station_entities(
             camera_entity_id, media_player_entity_id, ha_entities
         )
-        if validation_errors:
-            error_msg = "; ".join(validation_errors.values())
+        if validation_errors.has_errors:
+            error_msg = "; ".join(validation_errors.to_dict().values())
             raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
 
         # Update existing call station

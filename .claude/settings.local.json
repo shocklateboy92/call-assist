@@ -41,7 +41,8 @@
       "Bash(./scripts/test-video-infrastructure.sh:*)",
       "Bash(docker exec:*)",
       "Bash(npm install)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(./scripts/setup-dev-env.sh:*)"
     ],
     "deny": []
   }

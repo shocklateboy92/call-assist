@@ -773,11 +773,11 @@ class CallStationForm(Component[None, GlobalAttrs]):
                             option("Select a camera...", value="", selected=not self.station_data.get("camera_entity_id")),
                             *[
                                 option(
-                                    f"{camera['name']} ({camera['entity_id']})",
-                                    value=camera['entity_id'],
-                                    selected=camera['entity_id'] == self.station_data.get("camera_entity_id"),
+                                    f"{camera.name} ({camera.entity_id})",
+                                    value=camera.entity_id,
+                                    selected=camera.entity_id == self.station_data.get("camera_entity_id"),
                                 )
-                                for camera in self.available_entities.get("cameras", [])
+                                for camera in self.available_entities.cameras
                             ],
                             name="camera_entity_id",
                             id="camera_entity_id",
@@ -788,11 +788,11 @@ class CallStationForm(Component[None, GlobalAttrs]):
                             option("Select a media player...", value="", selected=not self.station_data.get("media_player_entity_id")),
                             *[
                                 option(
-                                    f"{player['name']} ({player['entity_id']})",
-                                    value=player['entity_id'],
-                                    selected=player['entity_id'] == self.station_data.get("media_player_entity_id"),
+                                    f"{player.name} ({player.entity_id})",
+                                    value=player.entity_id,
+                                    selected=player.entity_id == self.station_data.get("media_player_entity_id"),
                                 )
-                                for player in self.available_entities.get("media_players", [])
+                                for player in self.available_entities.media_players
                             ],
                             name="media_player_entity_id",
                             id="media_player_entity_id",
