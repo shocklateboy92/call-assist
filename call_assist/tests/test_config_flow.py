@@ -1,16 +1,14 @@
 """Test the Call Assist config flow."""
 
-import pytest
-from typing import Any
-
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
-from integration.const import DOMAIN, CONF_HOST, CONF_PORT, DEFAULT_HOST, DEFAULT_PORT
+from call_assist.integration.const import DOMAIN, CONF_HOST, CONF_PORT
+from call_assist.tests.types import BrokerProcessInfo
 
 
-async def test_form(broker_process: Any, hass: HomeAssistant) -> None:
+async def test_form(broker_process: BrokerProcessInfo, hass: HomeAssistant) -> None:
     """Test we get the form."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -19,7 +17,7 @@ async def test_form(broker_process: Any, hass: HomeAssistant) -> None:
     assert result["errors"] == {}
 
 
-async def test_form_valid_connection(broker_process: Any, hass: HomeAssistant) -> None:
+async def test_form_valid_connection(broker_process: BrokerProcessInfo, hass: HomeAssistant) -> None:
     """Test we can successfully connect to broker."""
     
     result = await hass.config_entries.flow.async_init(
@@ -30,7 +28,7 @@ async def test_form_valid_connection(broker_process: Any, hass: HomeAssistant) -
         result["flow_id"],
         {
             CONF_HOST: "localhost",
-            CONF_PORT: broker_process["grpc_port"],
+            CONF_PORT: broker_process.grpc_port,
         },
     )
     await hass.async_block_till_done()
@@ -42,7 +40,7 @@ async def test_form_valid_connection(broker_process: Any, hass: HomeAssistant) -
     assert result2["title"] == "Call Assist (localhost)"
     assert result2["data"] == {
         CONF_HOST: "localhost",
-        CONF_PORT: broker_process["grpc_port"],
+        CONF_PORT: broker_process.grpc_port,
     }
 
 
@@ -64,7 +62,7 @@ async def test_form_cannot_connect(hass: HomeAssistant) -> None:
     assert result2["errors"] == {"base": "cannot_connect"}
 
 
-async def test_form_duplicate_connection(broker_process, hass: HomeAssistant) -> None:
+async def test_form_duplicate_connection(broker_process: BrokerProcessInfo, hass: HomeAssistant) -> None:
     """Test we handle duplicate connections."""
     # Create the first entry
     result = await hass.config_entries.flow.async_init(
@@ -75,7 +73,7 @@ async def test_form_duplicate_connection(broker_process, hass: HomeAssistant) ->
         result["flow_id"],
         {
             CONF_HOST: "localhost",
-            CONF_PORT: broker_process["grpc_port"],
+            CONF_PORT: broker_process.grpc_port,
         },
     )
     await hass.async_block_till_done()
@@ -91,7 +89,7 @@ async def test_form_duplicate_connection(broker_process, hass: HomeAssistant) ->
         result3["flow_id"],
         {
             CONF_HOST: "localhost",
-            CONF_PORT: broker_process["grpc_port"],
+            CONF_PORT: broker_process.grpc_port,
         },
     )
 
@@ -107,6 +105,7 @@ async def test_default_values(hass: HomeAssistant) -> None:
     
     # Check the form has the expected default values
     data_schema = result["data_schema"]
+    assert data_schema is not None, "Data schema should not be None"
     schema_dict = {str(key): key.default() for key in data_schema.schema}
     
     assert CONF_HOST in schema_dict

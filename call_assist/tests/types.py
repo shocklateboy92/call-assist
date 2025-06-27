@@ -47,3 +47,12 @@ class WebUITestClientProtocol(Protocol):
 class CustomIntegrationsFixture(Protocol):
     """Protocol for the pytest-homeassistant custom integrations fixture"""
     pass
+
+
+@dataclass 
+class MatrixApiResponse:
+    """Represents a Matrix API response"""
+    access_token: str = ""
+    user_id: str = ""
+    error: str = ""
+    room_id: str = ""

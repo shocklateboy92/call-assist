@@ -10,7 +10,7 @@ import asyncio
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, List
+from typing import List
 from datetime import datetime, timezone
 
 import pytest
@@ -18,6 +18,7 @@ import pytest_asyncio
 import aiohttp
 
 from proto_gen.callassist.broker import HaEntityUpdate
+from call_assist.tests.types import VideoTestEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +27,9 @@ class TestVideoPerformance:
     """Performance testing for video call system"""
     
     @pytest.mark.asyncio
-    async def test_concurrent_chromecast_connections(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_concurrent_chromecast_connections(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test multiple concurrent connections to mock Chromecast"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         rtsp_streams = video_test_environment["rtsp_streams"]
         
         num_concurrent = 10
@@ -62,9 +63,9 @@ class TestVideoPerformance:
                 logger.warning(f"Task {i} failed: {result}")
 
     @pytest.mark.asyncio
-    async def test_rapid_state_transitions(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_rapid_state_transitions(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test rapid play/pause/stop state transitions"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         test_stream = video_test_environment["rtsp_streams"][0]
         
         async with aiohttp.ClientSession() as session:
@@ -105,9 +106,9 @@ class TestVideoPerformance:
             assert avg_transition_time < 0.5  # Average transition should be under 500ms
 
     @pytest.mark.asyncio
-    async def test_websocket_connection_load(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_websocket_connection_load(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test multiple concurrent WebSocket connections"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         ws_url = chromecast_url.replace("http://", "ws://") + "/ws"
         
         num_connections = 20
@@ -133,9 +134,9 @@ class TestVideoPerformance:
         assert total_time < 45  # Should complete within 45 seconds
 
     @pytest.mark.asyncio
-    async def test_memory_usage_simulation(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_memory_usage_simulation(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test system behavior under simulated memory pressure"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         
         # Create large payloads to simulate memory usage
         large_media_urls = []
@@ -182,9 +183,9 @@ class TestVideoPerformance:
             assert successful_requests > 50  # At least 50 successful requests
 
     @pytest.mark.asyncio
-    async def test_cpu_intensive_background_load(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_cpu_intensive_background_load(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test video operations under CPU load"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         test_stream = video_test_environment["rtsp_streams"][0]
         
         # Create CPU load in background
@@ -250,9 +251,9 @@ class TestVideoPerformance:
                         pass  # Ignore CPU task results
 
     @pytest.mark.asyncio
-    async def test_long_running_connections(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_long_running_connections(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test stability of long-running connections"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         ws_url = chromecast_url.replace("http://", "ws://") + "/ws"
         test_stream = video_test_environment["rtsp_streams"][0]
         
@@ -376,9 +377,9 @@ class TestVideoPerformance:
 
 
 @pytest.mark.asyncio
-async def test_performance_baseline(video_test_environment: Dict[str, Any]) -> None:
+async def test_performance_baseline(video_test_environment: VideoTestEnvironment) -> None:
     """Establish performance baseline for video operations"""
-    chromecast_url = video_test_environment["mock_chromecast_url"]
+    chromecast_url = video_test_environment.mock_chromecast_url
     test_stream = video_test_environment["rtsp_streams"][0]
     
     # Simple performance baseline test

@@ -14,14 +14,15 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, List
+from typing import Dict, List
 
 import pytest
 import pytest_asyncio
 import aiohttp
 
 from proto_gen.callassist.broker import HaEntityUpdate
-from conftest import WebUITestClient
+from call_assist.tests.conftest import WebUITestClient
+from call_assist.tests.types import VideoTestEnvironment
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,9 @@ class TestVideoCallE2E:
     """End-to-end video call testing suite"""
     
     @pytest.mark.asyncio
-    async def test_rtsp_streams_availability(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_rtsp_streams_availability(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test that RTSP test streams are available and serving content"""
-        rtsp_streams = video_test_environment["rtsp_streams"]
+        rtsp_streams = video_test_environment.rtsp_streams
         
         # We can't directly test RTSP streams without additional tools,
         # but we can verify the URLs are properly formatted
@@ -42,9 +43,9 @@ class TestVideoCallE2E:
             logger.info(f"RTSP stream URL available: {stream_url}")
 
     @pytest.mark.asyncio
-    async def test_mock_chromecast_server(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_mock_chromecast_server(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test mock Chromecast server functionality"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         
         async with aiohttp.ClientSession() as session:
             # Test status endpoint
@@ -120,7 +121,7 @@ class TestVideoCallE2E:
         assert unavailable_players[0].state == "unavailable"
 
     @pytest.mark.asyncio
-    async def test_video_test_environment_integration(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_video_test_environment_integration(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test complete video test environment integration"""
         # Verify all components are present
         assert "rtsp_base_url" in video_test_environment
@@ -130,8 +131,8 @@ class TestVideoCallE2E:
         assert "mock_chromecast_url" in video_test_environment
         
         # Verify RTSP configuration
-        rtsp_base = video_test_environment["rtsp_base_url"]
-        rtsp_streams = video_test_environment["rtsp_streams"]
+        rtsp_base = video_test_environment.rtsp_base_url
+        rtsp_streams = video_test_environment.rtsp_streams
         
         assert rtsp_base.startswith("rtsp://")
         assert len(rtsp_streams) == 2
@@ -139,7 +140,7 @@ class TestVideoCallE2E:
             assert stream.startswith(rtsp_base)
         
         # Verify camera/stream alignment
-        cameras = video_test_environment["cameras"]
+        cameras = video_test_environment.cameras
         available_cameras = [cam for cam in cameras if cam.available]
         
         for i, camera in enumerate(available_cameras):
@@ -148,7 +149,7 @@ class TestVideoCallE2E:
             assert actual_stream == expected_stream
         
         # Verify Chromecast URL format
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         assert chromecast_url.startswith("http://")
         assert ":8008" in chromecast_url
 
@@ -156,11 +157,11 @@ class TestVideoCallE2E:
     async def test_call_station_with_video_entities(
         self, 
         web_ui_client: "WebUITestClient", 
-        video_test_environment: Dict[str, Any]
+        video_test_environment: VideoTestEnvironment
     ) -> None:
         """Test call station creation with video test entities"""
-        cameras = video_test_environment["cameras"]
-        media_players = video_test_environment["media_players"]
+        cameras = video_test_environment.cameras
+        media_players = video_test_environment.media_players
         
         # Get available entities
         available_camera = next(cam for cam in cameras if cam.available)
@@ -182,10 +183,10 @@ class TestVideoCallE2E:
         logger.info(f"Camera stream source: {available_camera.attributes['stream_source']}")
 
     @pytest.mark.asyncio
-    async def test_capability_negotiation_simulation(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_capability_negotiation_simulation(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test simulated capability negotiation between components"""
-        cameras = video_test_environment["cameras"]
-        media_players = video_test_environment["media_players"]
+        cameras = video_test_environment.cameras
+        media_players = video_test_environment.media_players
         
         # Simulate capability detection
         for camera in cameras:
@@ -267,9 +268,9 @@ class TestVideoCallE2E:
         }
 
     @pytest.mark.asyncio
-    async def test_websocket_state_updates(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_websocket_state_updates(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test WebSocket state updates from mock Chromecast"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
+        chromecast_url = video_test_environment.mock_chromecast_url
         ws_url = chromecast_url.replace("http://", "ws://") + "/ws"
         
         async with aiohttp.ClientSession() as session:
@@ -307,10 +308,10 @@ class TestVideoCallE2E:
                 logger.info(f"WebSocket status received: {data}")
 
     @pytest.mark.asyncio 
-    async def test_multiple_concurrent_streams(self, video_test_environment: Dict[str, Any]) -> None:
+    async def test_multiple_concurrent_streams(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test handling multiple concurrent video streams"""
-        chromecast_url = video_test_environment["mock_chromecast_url"]
-        rtsp_streams = video_test_environment["rtsp_streams"]
+        chromecast_url = video_test_environment.mock_chromecast_url
+        rtsp_streams = video_test_environment.rtsp_streams
         
         # Simulate multiple concurrent play requests
         tasks = []
@@ -349,16 +350,16 @@ class TestVideoCallE2E:
 
 
 @pytest.mark.asyncio
-async def test_video_infrastructure_health_check(video_test_environment: Dict[str, Any]) -> None:
+async def test_video_infrastructure_health_check(video_test_environment: VideoTestEnvironment) -> None:
     """Standalone test to verify video infrastructure is healthy"""
     logger.info("Running video infrastructure health check...")
     
     # Check RTSP server availability (indirect)
-    rtsp_base = video_test_environment["rtsp_base_url"]
+    rtsp_base = video_test_environment.rtsp_base_url
     assert rtsp_base.startswith("rtsp://rtsp-server:8554")
     
     # Check mock Chromecast availability
-    chromecast_url = video_test_environment["mock_chromecast_url"]
+    chromecast_url = video_test_environment.mock_chromecast_url
     
     async with aiohttp.ClientSession() as session:
         try:
@@ -373,8 +374,8 @@ async def test_video_infrastructure_health_check(video_test_environment: Dict[st
             pytest.skip(f"Mock Chromecast server connection failed: {e}")
     
     # Verify fixture data integrity
-    cameras = video_test_environment["cameras"]
-    media_players = video_test_environment["media_players"]
+    cameras = video_test_environment.cameras
+    media_players = video_test_environment.media_players
     
     assert len(cameras) >= 2
     assert len(media_players) >= 2

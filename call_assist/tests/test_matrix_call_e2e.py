@@ -10,20 +10,21 @@ Tests the complete flow:
 import pytest
 import asyncio
 import uuid
-from typing import Dict, Any
+from typing import Dict, AsyncIterator
 import logging
 import pytest_asyncio
 
-from addon.broker.main import CallAssistBroker
-from proto_gen.callassist.broker import BrokerIntegrationStub, BrokerEntityType
+from call_assist.addon.broker.main import CallAssistBroker
+from proto_gen.callassist.broker import BrokerIntegrationStub, BrokerEntityType, HaEntityUpdate
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-from conftest import video_test_environment, web_ui_client, WebUITestClient
+from call_assist.tests.conftest import video_test_environment, web_ui_client, WebUITestClient
+from call_assist.tests.types import VideoTestEnvironment
 
 logger = logging.getLogger(__name__)
 
 
 @pytest_asyncio.fixture
-async def matrix_test_users() -> Dict[str, Dict[str, Any]]:
+async def matrix_test_users() -> Dict[str, Dict[str, str]]:
     """Mock Matrix test users for testing purposes"""
     return {
         "caller": {
@@ -42,7 +43,7 @@ async def matrix_test_users() -> Dict[str, Dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_matrix_call_end_to_end(broker_server, video_test_environment):
+async def test_matrix_call_end_to_end(broker_server: BrokerIntegrationStub, video_test_environment: VideoTestEnvironment) -> None:
     """Test complete Matrix call flow with real infrastructure."""
     integration_client = broker_server
     
@@ -119,8 +120,8 @@ async def test_matrix_call_end_to_end(broker_server, video_test_environment):
     
     logger.info(f"Matrix call infrastructure test completed!")
     logger.info(f"🎯 Ready for Matrix call {call_id} to room {target_room_id}")
-    logger.info(f"📹 Video Infrastructure: {video_test_environment['rtsp_base_url']}")
-    logger.info(f"📺 Mock Chromecast: {video_test_environment['mock_chromecast_url']}")
+    logger.info(f"📹 Video Infrastructure: {video_test_environment.rtsp_base_url}")
+    logger.info(f"📺 Mock Chromecast: {video_test_environment.mock_chromecast_url}")
     
     # TODO: Now that real WebRTC is implemented, let's implement the actual call flow:
     # ✅ Real WebRTC is now available, so we can proceed with full integration testing
@@ -130,7 +131,7 @@ async def test_matrix_call_end_to_end(broker_server, video_test_environment):
 
 
 @pytest.mark.asyncio
-async def test_matrix_call_with_real_webrtc_flow(broker_server: Any, video_test_environment: Dict[str, Any], matrix_test_users: Dict[str, Dict[str, Any]], web_ui_client: WebUITestClient) -> None:
+async def test_matrix_call_with_real_webrtc_flow(broker_server: BrokerIntegrationStub, video_test_environment: VideoTestEnvironment, matrix_test_users: Dict[str, Dict[str, str]], web_ui_client: WebUITestClient) -> None:
     """Test actual Matrix call flow with real WebRTC and Matrix accounts."""
     integration_client = broker_server
     
@@ -179,13 +180,13 @@ async def test_matrix_call_with_real_webrtc_flow(broker_server: Any, video_test_
     
     # Step 3: Stream HA camera and media player entities to broker
     # Send camera entities from video test environment to broker
-    cameras = video_test_environment["cameras"]
-    media_players = video_test_environment["media_players"]
+    cameras = video_test_environment.cameras
+    media_players = video_test_environment.media_players
     
     logger.info(f"Streaming {len(cameras)} cameras and {len(media_players)} media players to broker...")
     
     # Create entity generator for streaming
-    async def entity_generator() -> Any:
+    async def entity_generator() -> AsyncIterator[HaEntityUpdate]:
         """Stream all HA entities to broker"""
         for camera in cameras:
             logger.info(f"Sending camera entity: {camera.entity_id}")

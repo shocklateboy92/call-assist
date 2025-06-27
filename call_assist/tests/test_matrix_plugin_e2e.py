@@ -14,10 +14,11 @@ import logging
 import pytest
 import pytest_asyncio
 import aiohttp
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Optional, Union, Any
+from types import TracebackType
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
-from conftest import WebUITestClient
+from call_assist.tests.conftest import WebUITestClient
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -36,7 +37,12 @@ class MatrixTestClient:
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+    async def __aexit__(
+        self, 
+        exc_type: type[BaseException] | None, 
+        exc_val: BaseException | None, 
+        exc_tb: TracebackType | None
+    ) -> None:
         if self.session:
             await self.session.close()
 
