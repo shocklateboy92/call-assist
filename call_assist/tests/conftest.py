@@ -282,11 +282,15 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
 
     loop = asyncio.new_event_loop()
 
+    server_task: Optional[asyncio.Task] = None
+
     def run_thread() -> None:
+        nonlocal server_task
         asyncio.set_event_loop(loop)
-        loop.run_until_complete(
+        server_task = loop.create_task(
             serve(grpc_port=grpc_port, web_port=web_port, db_path=db_path)
         )
+        loop.run_until_complete(server_task)
 
     # Start broker in separate thread
     broker_thread = threading.Thread(target=run_thread, daemon=True)
@@ -320,6 +324,11 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
     )
 
     yield broker_info
+
+    # Cancelling the current task should shut down the broker gracefully
+    if server_task:
+        logger.info("Cancelling broker task...")
+        server_task.cancel()
 
     # Cleanup
     logger.info("Shutting down broker thread...")

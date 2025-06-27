@@ -479,6 +479,11 @@ async def serve(
         try:
             # Wait for termination signals
             await asyncio.gather(grpc_task, web_task)
+        except asyncio.CancelledError:
+            logger.info("Received cancellation signal, shutting down...")
+            grpc_task.cancel()
+            web_task.cancel()
+            await asyncio.gather(grpc_task, web_task, return_exceptions=True)
         finally:
             logger.info("Shutting down servers...")
             grpc_server.close()
