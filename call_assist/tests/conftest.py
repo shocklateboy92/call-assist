@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional, Iterator, AsyncIterator, override
 from types import TracebackType
 from urllib.parse import urljoin
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 import aiohttp
 
 import os
@@ -32,19 +32,17 @@ import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_goog
 
 from call_assist.addon.broker.main import serve
 
-import fixtures.disable_pytest_socket
-
+from call_assist.tests.fixtures import disable_pytest_socket
 from call_assist.tests.types import (
     BrokerProcessInfo,
     VideoTestEnvironment,
     CustomIntegrationsFixture,
 )
 
-# Set up logging for tests
 logger = logging.getLogger(__name__)
 
 
-fixtures.disable_pytest_socket.activate()
+disable_pytest_socket.activate()
 
 
 class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", None]):
@@ -112,6 +110,140 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
                 if attempt < max_attempts - 1:
                     await asyncio.sleep(delay)
         return False
+
+    def extract_accounts_from_table(self, soup: BeautifulSoup) -> list[Dict[str, str]]:
+        """Extract account information from the accounts table in the UI"""
+        accounts = []
+
+        # First validate that we have proper HTML structure
+        body = soup.find("body")
+        if body and hasattr(body, "attrs") and "children" in body.attrs:
+            # This indicates malformed HTML where server sent string as attribute
+            raise AssertionError(
+                f"Malformed HTML detected: body tag has 'children' attribute instead of proper child elements"
+            )
+
+        # Look for table rows in the accounts table
+        table_rows = soup.find_all("tr")
+
+        for row in table_rows:
+            if isinstance(row, Tag):
+                cells = row.find_all("td")
+                if (
+                    len(cells) >= 5
+                ):  # protocol, account_id, display_name, status, updated, actions
+                    account = {
+                        "protocol": cells[0].get_text(strip=True).lower(),
+                        "account_id": cells[1].get_text(strip=True),
+                        "display_name": cells[2].get_text(strip=True),
+                        "status": cells[3].get_text(strip=True),
+                        "updated": cells[4].get_text(strip=True),
+                    }
+                    accounts.append(account)
+
+        # Filter out header row and empty rows
+        accounts = [
+            acc for acc in accounts if acc["protocol"] and acc["protocol"] != "protocol"
+        ]
+        return accounts
+
+    def extract_protocol_options(self, soup: BeautifulSoup) -> list[str]:
+        """Extract available protocols from a protocol selection dropdown"""
+        protocols = []
+
+        # Look for select options (skip empty/placeholder options)
+        options = soup.find_all("option")
+        for option in options:
+            if isinstance(option, Tag):
+                value = option.get("value")
+                if value and isinstance(value, str) and value.strip() and value != "":
+                    protocols.append(value.strip())
+
+        return protocols
+
+    def find_form_inputs(self, soup: BeautifulSoup) -> Dict[str, str]:
+        """Find all form input fields and their names/types"""
+        inputs = {}
+
+        # Find input elements
+        for input_elem in soup.find_all("input"):
+            if isinstance(input_elem, Tag):
+                name = input_elem.get("name")
+                input_type = input_elem.get("type", "text")
+                if name and isinstance(name, str):
+                    inputs[name] = str(input_type) if input_type else "text"
+
+        # Find select elements
+        for select_elem in soup.find_all("select"):
+            if isinstance(select_elem, Tag):
+                name = select_elem.get("name")
+                if name and isinstance(name, str):
+                    inputs[name] = "select"
+
+        # Find textarea elements
+        for textarea_elem in soup.find_all("textarea"):
+            if isinstance(textarea_elem, Tag):
+                name = textarea_elem.get("name")
+                if name and isinstance(name, str):
+                    inputs[name] = "textarea"
+
+        return inputs
+
+    def validate_html_structure(
+        self, soup: BeautifulSoup, page_name: str = "page"
+    ) -> None:
+        """Validate that the HTML structure is properly formed and not malformed by server errors"""
+        # Check for malformed body tag with string content as attribute
+        body = soup.find("body")
+        assert body
+
+        if hasattr(body, "attrs") and "children" in body.attrs:
+            raise AssertionError(
+                f"Malformed HTML in {page_name}: body tag has 'children' attribute containing string content instead of proper child elements"
+            )
+
+        # Body should have actual HTML child elements, not just raw text
+        child_elements = body.find_all(recursive=False)  # Direct children only
+        if len(child_elements) == 0:
+            # Check if body only contains text (which might indicate serialization error)
+            body_text = body.get_text(strip=True)
+            if (
+                body_text and len(body_text) > 100
+            ):  # Suspiciously long text without structure
+                raise AssertionError(
+                    f"Malformed HTML in {page_name}: body contains only text content without proper HTML structure"
+                )
+
+        # Check for common error patterns in the HTML
+        html_text = str(soup).lower()
+        error_patterns = [
+            "children=",  # Ludic serialization error
+            "internal server error",
+            "500 internal server error",
+            "traceback",
+            "exception occurred",
+        ]
+
+        for pattern in error_patterns:
+            if pattern in html_text:
+                raise AssertionError(
+                    f"HTML structure error in {page_name}: found error pattern '{pattern}'"
+                )
+
+    def extract_visible_text_content(self, soup: BeautifulSoup) -> str:
+        """Extract all user-visible text from the page for content validation"""
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+
+        # Get text content and clean it up
+        text = soup.get_text()
+        # Normalize whitespace
+        lines = (line.strip() for line in text.splitlines())
+        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+        text = " ".join(chunk for chunk in chunks if chunk)
+
+        return text
 
 
 def is_port_available(port: int) -> bool:

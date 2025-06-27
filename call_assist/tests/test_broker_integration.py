@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from typing import List, AsyncIterator
 
 # Test imports
-from proto_gen.callassist.broker import (
+from call_assist.proto_gen.callassist.broker import (
     HaEntityUpdate,
     BrokerEntityUpdate,
     BrokerEntityType,
