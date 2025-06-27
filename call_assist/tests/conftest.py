@@ -6,16 +6,18 @@ This module contains broker-related fixtures that are used across multiple test 
 """
 
 import asyncio
+import contextlib
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Iterator, AsyncIterator
+from typing import List, Dict, Optional, Iterator, AsyncIterator, override
+from types import TracebackType
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import aiohttp
 
 import fixtures.disable_pytest_socket
 
-from call_assist.tests.types import BrokerProcessInfo, VideoTestEnvironment
+from call_assist.tests.types import BrokerProcessInfo, VideoTestEnvironment, CustomIntegrationsFixture
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -23,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 fixtures.disable_pytest_socket.activate()
 
-class WebUITestClient:
+class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", None]):
     """Test client for interacting with the Call Assist web UI via HTTP requests"""
 
     def __init__(self, base_url: str = "http://localhost:8080"):
@@ -34,7 +36,13 @@ class WebUITestClient:
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    @override
+    async def __aexit__(
+        self, 
+        exc_type: type[BaseException] | None, 
+        exc_value: BaseException | None, 
+        traceback: TracebackType | None
+    ) -> None:
         if self.session:
             await self.session.close()
 
@@ -70,11 +78,11 @@ class WebUITestClient:
             soup = BeautifulSoup(text, "html.parser")
             return resp.status, text, soup
 
-    async def wait_for_server(self, max_attempts: int = 30, delay: float = 1.0):
+    async def wait_for_server(self, max_attempts: int = 30, delay: float = 1.0) -> bool:
         """Wait for the web server to be ready"""
         for attempt in range(max_attempts):
             try:
-                html, soup = await self.get_page("/ui")
+                _ = await self.get_page("/ui")
                 logger.info(f"Server ready after {attempt + 1} attempts")
                 return True
             except Exception as e:
@@ -137,7 +145,7 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
 
     loop = asyncio.new_event_loop()
 
-    def run_thread():
+    def run_thread() -> None:
         asyncio.set_event_loop(loop)
         loop.run_until_complete(
             serve(grpc_port=grpc_port, web_port=web_port, db_path=db_path)
@@ -235,7 +243,7 @@ def setup_integration_path():
 
     original_get_test_config_dir = common.get_test_config_dir
 
-    def patched_get_test_config_dir(*add_path):
+    def patched_get_test_config_dir(*add_path: str) -> str:
         return os.path.join(
             "/workspaces/universal/call_assist/config/homeassistant", *add_path
         )
@@ -253,7 +261,7 @@ def setup_integration_path():
 
 
 @pytest.fixture(autouse=True)
-def enable_custom_integrations_fixture(enable_custom_integrations):
+def enable_custom_integrations_fixture(enable_custom_integrations: CustomIntegrationsFixture) -> Iterator[None]:
     """Enable custom integrations for each test."""
     _ = enable_custom_integrations  # Use the parameter to avoid unused warning
     yield

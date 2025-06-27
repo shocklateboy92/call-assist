@@ -1,0 +1,39 @@
+{
+  "include": [
+    "addon",
+    "integration", 
+    "tests",
+    "proto_gen"
+  ],
+  "exclude": [
+    "**/__pycache__",
+    "**/*.pyc"
+  ],
+  "pythonVersion": "3.13",
+  "pythonPlatform": "Linux",
+  "typeCheckingMode": "strict",
+  "reportMissingImports": "error",
+  "reportMissingTypeStubs": "warning",
+  "reportUnknownMemberType": "error",
+  "reportUnknownArgumentType": "error",
+  "reportUnknownVariableType": "error",
+  "reportUnknownParameterType": "error",
+  "reportUnknownLambdaType": "error",
+  "reportPrivateUsage": "warning",
+  "reportUndefinedVariable": "error",
+  "reportUnboundVariable": "error",
+  "reportUnusedVariable": "error",
+  "reportUnusedCoroutine": "error",
+  "reportUnusedExpression": "error",
+  "executionEnvironments": [
+    {
+      "root": "proto_gen",
+      "reportUnknownMemberType": "none",
+      "reportUnknownArgumentType": "none", 
+      "reportUnknownVariableType": "none",
+      "reportUnknownParameterType": "none",
+      "reportUnknownLambdaType": "none",
+      "reportMissingTypeStubs": "none"
+    }
+  ]
+}

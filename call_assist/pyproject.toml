@@ -68,16 +68,28 @@ strict = true
 
 [[tool.mypy.overrides]]
 module = [
-    "proto_gen.*",
     "pytest_socket.*",
     "pytest_homeassistant_custom_component.*",
     "dataclasses_jsonschema.*",
     "dacite.*",
     "betterproto.*",
     "grpclib.*",
-    "ludic.*"
+    "ludic.*",
+    "fixtures.*",
+    "addon.*"
 ]
 ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "proto_gen.*"
+ignore_errors = true
+disable_error_code = [
+    "attr-defined",
+    "no-untyped-def",
+    "no-untyped-call",
+    "type-arg",
+    "no-any-return"
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "addon/broker/tests", "integration/tests"]
