@@ -80,7 +80,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
             return html, soup
 
     async def post_form(
-        self, path: str, form_data: Dict[str, str]
+        self, path: str, form_data: Dict[str, object]
     ) -> tuple[int, str, BeautifulSoup]:
         """Submit a form to the web UI"""
         if self.session is None:
