@@ -18,15 +18,14 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 **Manual setup** (for debugging or rebuilding):
 ```bash
-cd call_assist
-./scripts/setup-dev-env.sh         # Complete development environment setup
+./call_assist/scripts/setup-dev-env.sh         # Complete development environment setup
 ```
 
 This enables clean imports without `sys.path` manipulations:
-- `proto_gen.*` for protobuf generated code  
-- `addon.broker.*` for broker functionality
-- `integration.*` for Home Assistant integration
-- `tests.*` for test utilities
+- `call_assist.proto_gen.*` for protobuf generated code  
+- `call_assist.addon.broker.*` for broker functionality
+- `call_assist.integration.*` for Home Assistant integration
+- `call_assist.tests.*` for test utilities
 
 ### Protobuf Generation
 
@@ -34,13 +33,12 @@ Happens on devcontainer creation, but can be manually triggered if proto files c
 
 ```bash
 # Must run after proto file changes - generates Python, TypeScript, and C++ files
-./scripts/build-proto.sh
+./call_assist/scripts/build-proto.sh
 ```
 
 ### Broker Development (Python)
 ```bash
-cd call_assist/addon/broker
-python -m addon.broker.main                    # Start broker directly
+./run_broker.sh                                # Start broker directly
 python -m pytest tests/ -xvs                   # Run all integration tests
 python -m pytest tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
 
@@ -89,9 +87,9 @@ sudo docker-compose -f docker-compose.dev.yml restart <service-name>
 call_assist/scripts/test-video-infrastructure.sh
 
 # Run video-specific tests
-python -m pytest tests/test_video_call_e2e.py -xvs          # End-to-end video call tests
-python -m pytest tests/test_video_performance.py -xvs      # Performance and load testing
-python -m pytest tests/test_broker_integration.py::test_rtsp_stream_integration -xvs
+python -m pytest call_assist/tests/test_video_call_e2e.py -xvs          # End-to-end video call tests
+python -m pytest call_assist/tests/test_video_performance.py -xvs      # Performance and load testing
+python -m pytest call_assist/tests/test_broker_integration.py::test_rtsp_stream_integration -xvs
 
 # Available test streams
 # - rtsp://localhost:8554/test_camera_1 (SMPTE color bars, 640x480@10fps)
