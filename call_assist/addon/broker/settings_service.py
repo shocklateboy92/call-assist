@@ -4,7 +4,8 @@ Settings service module for managing broker settings with dependency injection.
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any
+
 from fastapi import Depends
 from sqlmodel import Session
 
@@ -16,11 +17,11 @@ logger = logging.getLogger(__name__)
 
 class SettingsService:
     """Settings service with dependency injection"""
-    
+
     def __init__(self, session: Session = Depends(get_database_session)):
         self.session = session
 
-    async def get_all_settings(self) -> Dict[str, Any]:
+    async def get_all_settings(self) -> dict[str, Any]:
         """Get all current settings"""
         return {
             "web_ui_port": get_setting_with_session(self.session, "web_ui_port") or 8080,
@@ -30,7 +31,7 @@ class SettingsService:
             "auto_cleanup_logs": get_setting_with_session(self.session, "auto_cleanup_logs") or True,
         }
 
-    async def update_settings(self, settings: Dict[str, Any]) -> bool:
+    async def update_settings(self, settings: dict[str, Any]) -> bool:
         """Update settings"""
         try:
             for key, value in settings.items():

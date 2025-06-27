@@ -1,7 +1,7 @@
 """Sensor platform for Call Assist integration."""
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -22,31 +22,31 @@ async def async_setup_entry(
 ) -> None:
     """Set up Call Assist sensors from a config entry."""
     coordinator: CallAssistCoordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
-    
+
     entities = []
-    
+
     # Create sensors for all broker entities
     for entity_id, entity_data in coordinator.broker_entities.items():
         entities.append(CallAssistBrokerEntity(coordinator, entity_id, entity_data))
-    
+
     if entities:
         async_add_entities(entities)
-    
+
     # Set up listener for new entities
     @callback
     def handle_coordinator_update():
         """Handle coordinator data updates."""
         new_entities = []
         existing_entity_ids = {entity.unique_id for entity in entities}
-        
+
         for entity_id, entity_data in coordinator.broker_entities.items():
             if entity_id not in existing_entity_ids:
                 new_entities.append(CallAssistBrokerEntity(coordinator, entity_id, entity_data))
-        
+
         if new_entities:
             async_add_entities(new_entities)
             entities.extend(new_entities)
-    
+
     # Listen for coordinator updates
     coordinator.async_add_listener(handle_coordinator_update)
 
@@ -58,7 +58,7 @@ class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
         self,
         coordinator: CallAssistCoordinator,
         entity_id: str,
-        entity_data: Dict[str, Any],
+        entity_data: dict[str, Any],
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator)
@@ -75,12 +75,12 @@ class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
         return entity_data["state"] if entity_data else "unavailable"
 
     @property
-    def extra_state_attributes(self) -> Dict[str, Any]:
+    def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
         entity_data = self.coordinator.get_entity_data(self._entity_id)
         if not entity_data:
             return {}
-        
+
         attributes = dict(entity_data.get("attributes", {}))
         attributes.update({
             "entity_type": entity_data.get("type"),
@@ -88,7 +88,7 @@ class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
             "last_updated": entity_data.get("last_updated"),
             "broker_entity_id": self._entity_id,
         })
-        
+
         return attributes
 
     @property
@@ -98,7 +98,7 @@ class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
         return entity_data.get("available", False) if entity_data else False
 
     @property
-    def device_info(self) -> Dict[str, Any]:
+    def device_info(self) -> dict[str, Any]:
         """Return device info for this entity."""
         return {
             "identifiers": {(DOMAIN, f"broker_{self.coordinator.host}:{self.coordinator.port}")},

@@ -1,35 +1,33 @@
 #!/usr/bin/env python3
 
 import asyncio
-import logging
-import subprocess
-import os
-import socket
-import signal
-import sys
 import atexit
+import logging
+import os
+import signal
+import socket
+import subprocess
+import sys
 import threading
-import yaml
-from typing import Dict, Optional, List, Union, Literal
 from dataclasses import dataclass
-from enum import Enum
-from dataclasses_jsonschema import JsonSchemaMixin
-from dacite import from_dict
 from datetime import datetime
+from enum import Enum
+from typing import Literal, Optional
 
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
+import yaml
+from dacite import from_dict
+from dataclasses_jsonschema import JsonSchemaMixin
 from grpclib.client import Channel
 
 from proto_gen.callassist.plugin import (
+    CallEndRequest,
+    CallEndResponse,
     CallPluginStub,
     CallStartRequest,
     CallStartResponse,
-    CallEndRequest,
-    CallEndResponse,
     PluginConfig,
-    PluginStatus,
 )
-from proto_gen.callassist.common import CallState
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +51,7 @@ class FieldDefinition(JsonSchemaMixin):
     required: bool = False
     default_value: str = ""
     sensitive: bool = False  # Whether to mask the field in UI
-    allowed_values: Optional[List[str]] = None  # For SELECT type
+    allowed_values: list[str] | None = None  # For SELECT type
     placeholder: str = ""  # Placeholder text for UI
     validation_pattern: str = ""  # Regex pattern for validation
 
@@ -63,7 +61,7 @@ class ExecutableConfig(JsonSchemaMixin):
     """Configuration for plugin executable"""
 
     type: Literal["node", "python", "binary"]
-    command: List[str]
+    command: list[str]
     working_directory: str = "."
 
 
@@ -89,11 +87,11 @@ class ResolutionConfig(JsonSchemaMixin):
 class CapabilitiesConfig(JsonSchemaMixin):
     """Configuration for plugin capabilities"""
 
-    video_codecs: List[str]
-    audio_codecs: List[str]
-    supported_resolutions: List[ResolutionConfig]
+    video_codecs: list[str]
+    audio_codecs: list[str]
+    supported_resolutions: list[ResolutionConfig]
     webrtc_support: bool
-    features: Optional[List[str]] = None
+    features: list[str] | None = None
 
 
 @dataclass
@@ -107,10 +105,10 @@ class PluginMetadata(JsonSchemaMixin):
     capabilities: CapabilitiesConfig
     version: str = "1.0.0"
     description: str = ""
-    required_credentials: Optional[List[str]] = None
-    optional_settings: Optional[List[str]] = None
-    credential_fields: Optional[List[FieldDefinition]] = None  # UI metadata for credentials
-    setting_fields: Optional[List[FieldDefinition]] = None  # UI metadata for settings
+    required_credentials: list[str] | None = None
+    optional_settings: list[str] | None = None
+    credential_fields: list[FieldDefinition] | None = None  # UI metadata for credentials
+    setting_fields: list[FieldDefinition] | None = None  # UI metadata for settings
 
     def __post_init__(self):
         # Handle None values for lists
@@ -155,9 +153,9 @@ class PluginConfiguration:
     """Configuration state for an initialized plugin"""
 
     protocol: str
-    credentials: Dict[str, str]
-    settings: Dict[str, str]
-    initialized_at: Optional[str] = None  # ISO timestamp
+    credentials: dict[str, str]
+    settings: dict[str, str]
+    initialized_at: str | None = None  # ISO timestamp
     is_initialized: bool = True
 
 
@@ -165,29 +163,29 @@ class PluginConfiguration:
 class PluginInstance:
     metadata: PluginMetadata
     plugin_dir: str
-    process: Optional[subprocess.Popen] = None
-    channel: Optional[Channel] = None
-    stub: Optional[CallPluginStub] = None
+    process: subprocess.Popen | None = None
+    channel: Channel | None = None
+    stub: CallPluginStub | None = None
     state: PluginState = PluginState.STOPPED
-    last_error: Optional[str] = None
-    configuration: Optional[PluginConfiguration] = None
+    last_error: str | None = None
+    configuration: PluginConfiguration | None = None
 
 
 class PluginManager:
     """Generic plugin manager that loads plugins based on metadata files"""
 
-    def __init__(self, plugins_root: Optional[str] = None):
+    def __init__(self, plugins_root: str | None = None):
         if plugins_root is None:
             # Default to relative path in dev environment, absolute in production
             current_dir = os.path.dirname(os.path.abspath(__file__))
             plugins_root = os.path.join(os.path.dirname(current_dir), "plugins")
         self.plugins_root = plugins_root
-        self.plugins: Dict[str, PluginInstance] = {}
+        self.plugins: dict[str, PluginInstance] = {}
         self._shutdown_requested = False
-        
+
         # Register cleanup handlers
         atexit.register(self._emergency_cleanup)
-        
+
         # Only register signal handlers if we're in the main thread
         if threading.current_thread() is threading.main_thread():
             try:
@@ -198,14 +196,14 @@ class PluginManager:
                 logger.debug(f"Could not register signal handlers: {e}")
         else:
             logger.debug("Not in main thread, skipping signal handler registration")
-        
+
         self._discover_plugins()
 
     def _signal_handler(self, signum: int, frame):
         """Handle termination signals"""
         logger.info(f"Received signal {signum}, initiating plugin shutdown...")
         self._shutdown_requested = True
-        
+
         # Run the shutdown in the event loop if it exists
         try:
             loop = asyncio.get_running_loop()
@@ -213,7 +211,7 @@ class PluginManager:
         except RuntimeError:
             # No event loop running, do emergency cleanup
             self._emergency_cleanup()
-        
+
         # Exit after cleanup
         sys.exit(0)
 
@@ -221,16 +219,16 @@ class PluginManager:
         """Emergency cleanup of plugins without async/await"""
         if self._shutdown_requested:
             return  # Already cleaning up
-            
+
         self._shutdown_requested = True
         logger.warning("Emergency cleanup: forcefully terminating all plugin processes")
-        
+
         for protocol, plugin in self.plugins.items():
             if plugin.process and plugin.process.poll() is None:
                 try:
                     logger.info(f"Force terminating plugin {protocol} (PID: {plugin.process.pid})")
                     plugin.process.terminate()
-                    
+
                     # Wait briefly for graceful termination
                     try:
                         plugin.process.wait(timeout=2)
@@ -238,7 +236,7 @@ class PluginManager:
                         logger.warning(f"Plugin {protocol} did not terminate gracefully, killing...")
                         plugin.process.kill()
                         plugin.process.wait()
-                    
+
                     logger.info(f"Plugin {protocol} terminated")
                 except (ProcessLookupError, OSError) as e:
                     logger.debug(f"Plugin {protocol} process cleanup error (likely already dead): {e}")
@@ -292,7 +290,7 @@ class PluginManager:
 
     def _load_plugin_metadata(self, metadata_file: str) -> PluginMetadata:
         """Load and validate plugin metadata from YAML file"""
-        with open(metadata_file, "r") as f:
+        with open(metadata_file) as f:
             data = yaml.safe_load(f)
 
         # Use dacite to automatically deserialize into strongly typed dataclasses
@@ -313,11 +311,10 @@ class PluginManager:
             # Verify it's actually responsive
             if await self._health_check(plugin):
                 return True
-            else:
-                logger.warning(
-                    f"Plugin {protocol} was marked running but failed health check"
-                )
-                await self._stop_plugin(plugin)
+            logger.warning(
+                f"Plugin {protocol} was marked running but failed health check"
+            )
+            await self._stop_plugin(plugin)
 
         if plugin.state in [PluginState.STOPPED, PluginState.ERROR]:
             return await self._start_plugin(plugin)
@@ -346,7 +343,7 @@ class PluginManager:
             # Find an available port for this plugin
             available_port = self._find_available_port()
             logger.info(f"Assigned port {available_port} to plugin {plugin.metadata.name}")
-            
+
             # Update the plugin's gRPC configuration with the new port
             plugin.metadata.grpc.port = available_port
 
@@ -392,7 +389,7 @@ class PluginManager:
                         timeout=1.0,
                     )
                     break
-                except (Exception, asyncio.TimeoutError):
+                except (TimeoutError, Exception):
                     if attempt == (health_timeout * 2 - 1):
                         raise
                     await asyncio.sleep(0.5)
@@ -426,7 +423,7 @@ class PluginManager:
                         ),
                         timeout=5.0,
                     )
-                except (Exception, asyncio.TimeoutError):
+                except (TimeoutError, Exception):
                     logger.warning(
                         f"Graceful shutdown failed for {plugin.metadata.protocol}"
                     )
@@ -481,8 +478,8 @@ class PluginManager:
     async def initialize_plugin(
         self,
         protocol: str,
-        credentials: Dict[str, str],
-        settings: Optional[Dict[str, str]] = None,
+        credentials: dict[str, str],
+        settings: dict[str, str] | None = None,
     ) -> bool:
         """Initialize a plugin with credentials"""
         if not await self.ensure_plugin_running(protocol):
@@ -524,11 +521,10 @@ class PluginManager:
                 )
                 logger.info(f"Plugin {protocol} initialized successfully")
                 return True
-            else:
-                logger.error(
-                    f"Plugin {protocol} initialization failed: {response.message}"
-                )
-                return False
+            logger.error(
+                f"Plugin {protocol} initialization failed: {response.message}"
+            )
+            return False
 
         except Exception as e:
             logger.error(f"Failed to initialize plugin {protocol}: {e}")
@@ -536,7 +532,7 @@ class PluginManager:
 
     async def start_call(
         self, protocol: str, call_request: CallStartRequest
-    ) -> Optional[CallStartResponse]:
+    ) -> CallStartResponse | None:
         """Start a call using the specified protocol plugin"""
         if not await self.ensure_plugin_running(protocol):
             return None
@@ -554,7 +550,7 @@ class PluginManager:
 
     async def end_call(
         self, protocol: str, call_request: CallEndRequest
-    ) -> Optional[CallEndResponse]:
+    ) -> CallEndResponse | None:
         """End a call using the specified protocol plugin"""
         if protocol not in self.plugins:
             return None
@@ -570,24 +566,24 @@ class PluginManager:
             logger.error(f"Failed to end call on {protocol}: {e}")
             return None
 
-    def get_plugin_capabilities(self, protocol: str) -> Optional[CapabilitiesConfig]:
+    def get_plugin_capabilities(self, protocol: str) -> CapabilitiesConfig | None:
         """Get capabilities from plugin metadata"""
         if protocol not in self.plugins:
             return None
 
         return self.plugins[protocol].metadata.capabilities
 
-    def get_available_protocols(self) -> List[str]:
+    def get_available_protocols(self) -> list[str]:
         """Get list of available protocol plugins"""
         return list(self.plugins.keys())
 
-    def get_plugin_state(self, protocol: str) -> Optional[PluginState]:
+    def get_plugin_state(self, protocol: str) -> PluginState | None:
         """Get the current state of a plugin"""
         if protocol in self.plugins:
             return self.plugins[protocol].state
         return None
 
-    def get_plugin_info(self, protocol: str) -> Optional[PluginMetadata]:
+    def get_plugin_info(self, protocol: str) -> PluginMetadata | None:
         """Get plugin metadata"""
         if protocol in self.plugins:
             return self.plugins[protocol].metadata
@@ -598,7 +594,7 @@ class PluginManager:
         protocol: str,
         account_id: str,
         display_name: str,
-        credentials: Dict[str, str],
+        credentials: dict[str, str],
     ) -> bool:
         """Initialize a plugin account with specific account details"""
         if not await self.ensure_plugin_running(protocol):
@@ -642,11 +638,10 @@ class PluginManager:
                     f"Plugin {protocol} account {account_id} initialized successfully"
                 )
                 return True
-            else:
-                logger.error(
-                    f"Plugin {protocol} account {account_id} initialization failed: {response.message}"
-                )
-                return False
+            logger.error(
+                f"Plugin {protocol} account {account_id} initialization failed: {response.message}"
+            )
+            return False
 
         except Exception as e:
             logger.error(
@@ -664,13 +659,13 @@ class PluginManager:
             return self.plugins[protocol]
         return None
 
-    def get_protocol_schemas(self) -> Dict[str, Dict]:
+    def get_protocol_schemas(self) -> dict[str, dict]:
         """Get UI schemas for all available protocols"""
         schemas = {}
-        
+
         for protocol, plugin_instance in self.plugins.items():
             metadata = plugin_instance.metadata
-            
+
             # Convert plugin metadata to UI schema format
             schema = {
                 "protocol": protocol,
@@ -708,7 +703,7 @@ class PluginManager:
                 ],
                 "example_account_ids": [
                     f"user@{protocol}.example.com",
-                    f"example_user"
+                    "example_user"
                 ],
                 "capabilities": {
                     "video_codecs": metadata.capabilities.video_codecs,
@@ -717,16 +712,16 @@ class PluginManager:
                     "features": metadata.capabilities.features or []
                 }
             }
-            
+
             schemas[protocol] = schema
-            
+
         return schemas
 
     async def shutdown_all(self):
         """Shutdown all running plugins"""
         if self._shutdown_requested:
             return  # Already shutting down
-            
+
         self._shutdown_requested = True
         logger.info("Shutting down all plugins")
 
@@ -742,7 +737,7 @@ class PluginManager:
                     asyncio.gather(*tasks, return_exceptions=True),
                     timeout=10.0
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("Graceful shutdown timed out, forcing termination")
                 # Force terminate any remaining processes
                 for plugin in self.plugins.values():

@@ -42,7 +42,8 @@
       "Bash(docker exec:*)",
       "Bash(npm install)",
       "Bash(pkill:*)",
-      "Bash(./scripts/setup-dev-env.sh:*)"
+      "Bash(./scripts/setup-dev-env.sh:*)",
+      "Bash(ruff check:*)"
     ],
     "deny": []
   }

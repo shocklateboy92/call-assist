@@ -8,32 +8,30 @@ Tests the complete flow:
 4. Verify call signaling and WebRTC flow
 """
 
-import pytest
 import asyncio
-import uuid
-from typing import Dict, AsyncIterator
 import logging
-import pytest_asyncio
+import uuid
+from collections.abc import AsyncIterator
 
-from call_assist.addon.broker.main import CallAssistBroker
-from proto_gen.callassist.broker import (
-    BrokerIntegrationStub,
-    BrokerEntityType,
-    HaEntityUpdate,
-)
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+import pytest
+import pytest_asyncio
 from call_assist.tests.conftest import (
-    video_test_environment,
-    web_ui_client,
     WebUITestClient,
 )
 from call_assist.tests.types import VideoTestEnvironment
+
+from proto_gen.callassist.broker import (
+    BrokerEntityType,
+    BrokerIntegrationStub,
+    HaEntityUpdate,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @pytest_asyncio.fixture
-async def matrix_test_users() -> Dict[str, Dict[str, str]]:
+async def matrix_test_users() -> dict[str, dict[str, str]]:
     """Mock Matrix test users for testing purposes"""
     return {
         "caller": {
@@ -149,7 +147,7 @@ async def test_matrix_call_end_to_end(
     target_room_id = "!testroom:synapse"  # Mock Matrix room
     call_id = str(uuid.uuid4())
 
-    logger.info(f"Matrix call infrastructure test completed!")
+    logger.info("Matrix call infrastructure test completed!")
     logger.info(f"🎯 Ready for Matrix call {call_id} to room {target_room_id}")
     logger.info(f"📹 Video Infrastructure: {video_test_environment.rtsp_base_url}")
     logger.info(f"📺 Mock Chromecast: {video_test_environment.mock_chromecast_url}")
@@ -165,7 +163,7 @@ async def test_matrix_call_end_to_end(
 async def test_matrix_call_with_real_webrtc_flow(
     broker_server: BrokerIntegrationStub,
     video_test_environment: VideoTestEnvironment,
-    matrix_test_users: Dict[str, Dict[str, str]],
+    matrix_test_users: dict[str, dict[str, str]],
     web_ui_client: WebUITestClient,
 ) -> None:
     """Test actual Matrix call flow with real WebRTC and Matrix accounts."""
@@ -202,7 +200,7 @@ async def test_matrix_call_with_real_webrtc_flow(
     )
 
     # Submit Matrix account form
-    account_form_data: Dict[str, object] = {
+    account_form_data: dict[str, object] = {
         "protocol": "matrix",
         "user_id": caller_user["user_id"],
         "homeserver": caller_user["homeserver"],
@@ -330,14 +328,14 @@ async def test_matrix_call_with_real_webrtc_flow(
     target_room_id = f"!testroom_{int(asyncio.get_event_loop().time())}:synapse"
     call_id = str(uuid.uuid4())
 
-    logger.info(f"🎯 Prepared for Matrix call:")
+    logger.info("🎯 Prepared for Matrix call:")
     logger.info(f"   📞 Call ID: {call_id}")
     logger.info(f"   👤 Caller: {caller_user['user_id']}")
     logger.info(f"   👤 Receiver: {receiver_user['user_id']}")
     logger.info(f"   🏠 Target Room: {target_room_id}")
     logger.info(f"   📹 Camera: {camera_entity_id}")
     logger.info(f"   📺 Player: {chromecast_entity_id}")
-    logger.info(f"   🔧 WebRTC: Real implementation with @roamhq/wrtc")
+    logger.info("   🔧 WebRTC: Real implementation with @roamhq/wrtc")
 
     # Step 7: Actually initiate the call through broker start_call method
     if call_station_found:
@@ -356,7 +354,7 @@ async def test_matrix_call_with_real_webrtc_flow(
             call_response = await integration_client.start_call(call_request)
 
             if call_response.success:
-                logger.info(f"✅ Call started successfully!")
+                logger.info("✅ Call started successfully!")
                 logger.info(f"   📞 Call ID: {call_response.call_id}")
                 logger.info(f"   💬 Message: {call_response.message}")
                 logger.info(f"   👤 To Contact: {receiver_user['user_id']}")
@@ -438,8 +436,8 @@ async def test_matrix_call_with_real_webrtc_flow(
     logger.info("🏗️ Infrastructure Ready:")
     logger.info(f"   📹 Camera Stream: {camera_entity_id}")
     logger.info(f"   📺 Media Player: {chromecast_entity_id}")
-    logger.info(f"   🌐 WebRTC: Real peer connections with media tracks")
-    logger.info(f"   ⚡ FFmpeg: Foundation for RTSP → WebRTC transcoding")
+    logger.info("   🌐 WebRTC: Real peer connections with media tracks")
+    logger.info("   ⚡ FFmpeg: Foundation for RTSP → WebRTC transcoding")
 
 
 @pytest.mark.asyncio

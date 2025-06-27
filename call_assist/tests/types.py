@@ -3,13 +3,13 @@
 Strong types for test fixtures to replace Any type usage
 """
 
-from dataclasses import dataclass
 import threading
-from typing import Dict, List, Protocol, Any
-import aiohttp
+from dataclasses import dataclass
+from typing import Any, Protocol
+
 from bs4 import BeautifulSoup
 
-from proto_gen.callassist.broker import BrokerIntegrationStub, HaEntityUpdate
+from proto_gen.callassist.broker import HaEntityUpdate
 
 
 @dataclass
@@ -25,9 +25,9 @@ class BrokerProcessInfo:
 class VideoTestEnvironment:
     """Complete video testing environment configuration"""
     rtsp_base_url: str
-    rtsp_streams: List[str]
-    cameras: List[HaEntityUpdate]
-    media_players: List[HaEntityUpdate]
+    rtsp_streams: list[str]
+    cameras: list[HaEntityUpdate]
+    media_players: list[HaEntityUpdate]
     mock_chromecast_url: str
 
 
@@ -40,16 +40,15 @@ class BrokerStub(Protocol):
 class WebUITestClientProtocol(Protocol):
     """Protocol for the web UI test client"""
     async def get_page(self, path: str) -> tuple[str, BeautifulSoup]: ...
-    async def post_form(self, path: str, form_data: Dict[str, str]) -> tuple[int, str, BeautifulSoup]: ...
+    async def post_form(self, path: str, form_data: dict[str, str]) -> tuple[int, str, BeautifulSoup]: ...
     async def wait_for_server(self, max_attempts: int = 30, delay: float = 1.0) -> bool: ...
 
 
 class CustomIntegrationsFixture(Protocol):
     """Protocol for the pytest-homeassistant custom integrations fixture"""
-    pass
 
 
-@dataclass 
+@dataclass
 class MatrixApiResponse:
     """Represents a Matrix API response"""
     access_token: str = ""

@@ -5,16 +5,16 @@ This script validates that all dependency files and installed packages
 use the same versions of gRPC and protobuf.
 """
 
+import os
+import re
 import subprocess
 import sys
-import re
-import os
 
 
 def get_version_from_file(filepath, pattern):
     """Extract version from a file using regex pattern"""
     try:
-        with open(filepath, "r") as f:
+        with open(filepath) as f:
             content = f.read()
             match = re.search(pattern, content)
             return match.group(1) if match else None

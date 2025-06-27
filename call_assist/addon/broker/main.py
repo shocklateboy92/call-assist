@@ -2,28 +2,29 @@
 
 import asyncio
 import logging
-import grpclib
-from grpclib.server import Server
-from typing import Dict, List, Optional, AsyncIterator, TYPE_CHECKING
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from sqlmodel import Session
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+from grpclib.server import Server
+
+from addon.broker.dependencies import app_state
+from addon.broker.plugin_manager import PluginManager
+from addon.broker.queries import get_enabled_call_stations_with_session
+from addon.broker.web_server import WebUIServer
 
 # Import betterproto generated classes
 from proto_gen.callassist.broker import (
+    BrokerEntityType,
+    BrokerEntityUpdate,
     BrokerIntegrationBase,
     HaEntityUpdate,
-    BrokerEntityUpdate,
-    BrokerEntityType,
     HealthCheckResponse,
     StartCallRequest,
     StartCallResponse,
 )
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-from addon.broker.dependencies import app_state
-from addon.broker.queries import get_enabled_call_stations_with_session
-from addon.broker.web_server import WebUIServer
-from addon.broker.plugin_manager import PluginManager
 
 if TYPE_CHECKING:
     # Forward reference for type hints
@@ -42,7 +43,7 @@ class HAEntity:
     domain: str
     name: str
     state: str
-    attributes: Dict[str, str]
+    attributes: dict[str, str]
     available: bool
     last_updated: datetime
 
@@ -59,7 +60,7 @@ class CallStation:
     available: bool = True
 
     @property
-    def attributes(self) -> Dict[str, str]:
+    def attributes(self) -> dict[str, str]:
         return {
             "camera_entity": self.camera_entity_id,
             "media_player_entity": self.media_player_entity_id,
@@ -75,22 +76,22 @@ class CallAssistBroker(BrokerIntegrationBase):
     - Basic health check
     """
 
-    def __init__(self, plugin_manager: Optional[PluginManager] = None, database_manager=None):
+    def __init__(self, plugin_manager: PluginManager | None = None, database_manager=None):
         # Store HA entities we receive
-        self.ha_entities: Dict[str, HAEntity] = {}
+        self.ha_entities: dict[str, HAEntity] = {}
 
         # Store call stations we create
-        self.call_stations: Dict[str, CallStation] = {}
+        self.call_stations: dict[str, CallStation] = {}
 
         # Track broker entity update subscribers
-        self.broker_entity_subscribers: List[asyncio.Queue] = []
+        self.broker_entity_subscribers: list[asyncio.Queue] = []
 
         # Startup time for health check
-        self.startup_time = datetime.now(timezone.utc)
-        
+        self.startup_time = datetime.now(UTC)
+
         # Initialize plugin manager (injected or create new)
         self.plugin_manager = plugin_manager or PluginManager()
-        
+
         # Store database manager reference (injected or None)
         self.database_manager = database_manager
 
@@ -156,18 +157,18 @@ class CallAssistBroker(BrokerIntegrationBase):
         betterproto_lib_pydantic_google_protobuf_empty: betterproto_lib_google.Empty,
     ) -> HealthCheckResponse:
         """Simple health check"""
-        uptime = datetime.now(timezone.utc) - self.startup_time
+        uptime = datetime.now(UTC) - self.startup_time
 
         return HealthCheckResponse(
             healthy=True,
             message=f"Broker running for {uptime.total_seconds():.0f} seconds",
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
         )
 
     async def start_call(self, start_call_request: StartCallRequest) -> StartCallResponse:
         """Start a call using the specified call station and contact."""
         logger.info(f"Starting call from {start_call_request.call_station_id} to {start_call_request.contact}")
-        
+
         # Validate call station exists
         if start_call_request.call_station_id not in self.call_stations:
             return StartCallResponse(
@@ -175,9 +176,9 @@ class CallAssistBroker(BrokerIntegrationBase):
                 message=f"Call station '{start_call_request.call_station_id}' not found",
                 call_id="",
             )
-        
+
         station = self.call_stations[start_call_request.call_station_id]
-        
+
         # Check if call station is available
         if not station.available:
             return StartCallResponse(
@@ -185,20 +186,20 @@ class CallAssistBroker(BrokerIntegrationBase):
                 message=f"Call station '{start_call_request.call_station_id}' is not available",
                 call_id="",
             )
-        
+
         # Generate a unique call ID
         call_id = f"call_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{start_call_request.call_station_id}"
-        
+
         try:
             # Update call station state
             station.state = "calling"
-            
+
             # Notify subscribers of state change
             await self._notify_entity_changes()
-            
+
             # Implement actual call logic via plugin manager
             success = await self._initiate_plugin_call(call_id, station, start_call_request.contact)
-            
+
             if not success:
                 station.state = "idle"  # Reset state on failure
                 await self._notify_entity_changes()
@@ -207,15 +208,15 @@ class CallAssistBroker(BrokerIntegrationBase):
                     message="Failed to initiate call through protocol plugins",
                     call_id="",
                 )
-            
+
             logger.info(f"Call {call_id} started successfully")
-            
+
             return StartCallResponse(
                 success=True,
                 message=f"Call started successfully to {start_call_request.contact}",
                 call_id=call_id,
             )
-            
+
         except Exception as ex:
             logger.error(f"Failed to start call: {ex}")
             return StartCallResponse(
@@ -234,7 +235,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         new_stations = {}
         with self.database_manager.get_session() as session:
             db_stations = get_enabled_call_stations_with_session(session)
-            
+
             for db_station in db_stations:
                 # Create in-memory CallStation object
                 station = CallStation(
@@ -253,7 +254,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                     db_station.media_player_entity_id in self.ha_entities and
                     self.ha_entities[db_station.media_player_entity_id].available
                 )
-                
+
                 station.available = camera_available and player_available
                 new_stations[db_station.station_id] = station
 
@@ -279,7 +280,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 icon="mdi:video-account",
                 available=station.available,
                 capabilities=["make_call"],
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             )
             await update_queue.put(entity_update)
 
@@ -304,13 +305,13 @@ class CallAssistBroker(BrokerIntegrationBase):
                 ),
                 "call_stations": str(len(self.call_stations)),
                 "uptime_seconds": str(
-                    (datetime.now(timezone.utc) - self.startup_time).total_seconds()
+                    (datetime.now(UTC) - self.startup_time).total_seconds()
                 ),
             },
             icon="mdi:video-switch",
             available=True,
             capabilities=[],
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         )
         await update_queue.put(broker_status)
 
@@ -329,7 +330,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                         icon="mdi:video-account",
                         available=station.available,
                         capabilities=["make_call"],
-                        last_updated=datetime.now(timezone.utc),
+                        last_updated=datetime.now(UTC),
                     )
                     await update_queue.put(entity_update)
 
@@ -362,8 +363,8 @@ class CallAssistBroker(BrokerIntegrationBase):
                 return False
 
             # Import CallStartRequest here to avoid circular imports
-            from proto_gen.callassist.plugin import CallStartRequest
             from proto_gen.callassist.common import MediaCapabilities, Resolution
+            from proto_gen.callassist.plugin import CallStartRequest
 
             # Create basic media capabilities using correct structure
             camera_capabilities = MediaCapabilities(
@@ -377,7 +378,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 webrtc_support=True,
                 max_bandwidth_kbps=2000
             )
-            
+
             player_capabilities = MediaCapabilities(
                 video_codecs=["H264", "VP8", "VP9"],
                 audio_codecs=["OPUS", "AAC"],
@@ -401,14 +402,13 @@ class CallAssistBroker(BrokerIntegrationBase):
 
             # Call the plugin manager
             response = await self.plugin_manager.start_call(protocol, call_request)
-            
+
             if response and response.success:
                 logger.info(f"Plugin call started successfully: {response.message}")
                 return True
-            else:
-                error_msg = response.message if response else "No response from plugin"
-                logger.error(f"Plugin call failed: {error_msg}")
-                return False
+            error_msg = response.message if response else "No response from plugin"
+            logger.error(f"Plugin call failed: {error_msg}")
+            return False
 
         except Exception as e:
             logger.error(f"Exception during plugin call initiation: {e}")
@@ -418,10 +418,9 @@ class CallAssistBroker(BrokerIntegrationBase):
         """Detect protocol from contact format"""
         if contact.startswith("@") and ":" in contact:
             return "matrix"  # Matrix user ID format: @user:server
-        elif "@" in contact and "." in contact:
+        if "@" in contact and "." in contact:
             return "xmpp"    # XMPP JID format: user@domain
-        else:
-            return ""  # Unknown format
+        return ""  # Unknown format
 
 
 async def serve(
@@ -453,7 +452,7 @@ async def serve(
         # Initialize gRPC server
         grpc_server = Server([broker])  # grpclib server
 
-        logger.info(f"Starting Call Assist Broker:")
+        logger.info("Starting Call Assist Broker:")
         logger.info(f"  - gRPC server: {grpc_host}:{grpc_port}")
         logger.info(f"  - Web UI: {web_host}:{web_port}")
         logger.info(f"  - Database: {db_path}")

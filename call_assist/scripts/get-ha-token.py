@@ -6,9 +6,9 @@ Logs in with test credentials and creates a token programmatically.
 """
 
 import asyncio
-import aiohttp
 import logging
-import json
+
+import aiohttp
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -94,9 +94,8 @@ async def login_and_get_token():
                                 f"✅ Token is valid - HA version: {api_info.get('version')}"
                             )
                             return access_token
-                        else:
-                            logger.error(f"Token validation failed: {resp.status}")
-                            return None
+                        logger.error(f"Token validation failed: {resp.status}")
+                        return None
                 else:
                     logger.error("No access token in response")
                     return None

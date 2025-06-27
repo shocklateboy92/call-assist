@@ -4,15 +4,15 @@ Post-process generated protobuf files to fix relative imports.
 This script converts absolute imports to relative imports for proto_gen package.
 """
 
-import os
 import glob
+import os
 import re
 import sys
 
 
 def fix_proto_file(filepath):
     """Fix imports in a single protobuf file"""
-    with open(filepath, "r") as f:
+    with open(filepath) as f:
         content = f.read()
 
     # Fix imports in _pb2.py files

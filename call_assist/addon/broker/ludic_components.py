@@ -3,67 +3,59 @@
 Ludic-based web UI components for Call Assist Broker
 """
 
-from typing import Any, Dict, List, Optional, Union, override
-from datetime import datetime
+from typing import Any, override
 
-from addon.broker.data_types import (
-    AccountStatusData, CallStationStatusData, ProtocolSchemaDict,
-    AvailableEntitiesData
-)
+from ludic import Component
+from ludic.attrs import GlobalAttrs
 from ludic.html import (
-    html,
-    head,
+    a,
     body,
-    title,
-    meta,
-    link,
-    script,
-    style,
+    button,
+    dd,
+    details,
     div,
-    nav,
-    main,
-    header,
-    footer,
-    section,
-    article,
+    dl,
+    dt,
+    fieldset,
+    form,
     h1,
     h2,
     h3,
-    h4,
-    h5,
-    h6,
-    p,
-    span,
-    strong,
-    a,
-    button,
-    form,
+    head,
+    header,
+    html,
     input,
     label,
-    select,
-    option,
-    textarea,
-    fieldset,
     legend,
-    table,
-    thead,
-    tbody,
-    tr,
-    th,
-    td,
-    ul,
-    ol,
     li,
-    dl,
-    dt,
-    dd,
-    details,
+    link,
+    main,
+    meta,
+    nav,
+    option,
+    p,
+    script,
+    section,
+    select,
+    strong,
     summary,
+    table,
+    tbody,
+    td,
+    th,
+    thead,
+    title,
+    tr,
+    ul,
 )
-from ludic.attrs import GlobalAttrs
-from ludic import Component
-from ludic.types import AnyChildren, NoChildren
 from ludic.styles import CSSProperties
+from ludic.types import AnyChildren, NoChildren
+
+from addon.broker.data_types import (
+    AccountStatusData,
+    CallStationStatusData,
+    ProtocolSchemaDict,
+)
 
 
 class ErrorPage(Component[NoChildren, GlobalAttrs]):
@@ -98,7 +90,7 @@ class ErrorPage(Component[NoChildren, GlobalAttrs]):
         error_message: str = "Something went wrong",
         error_code: int = 500,
         show_details: bool = False,
-        error_details: Optional[str] = None,
+        error_details: str | None = None,
         **attrs: Any,
     ):
         self.error_title = error_title
@@ -205,7 +197,7 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
         },
     }
 
-    def __init__(self, accounts: List[AccountStatusData], **attrs: Any):
+    def __init__(self, accounts: list[AccountStatusData], **attrs: Any):
         self.accounts = accounts
         super().__init__(**attrs)
 
@@ -287,9 +279,9 @@ class AccountForm(Component[None, GlobalAttrs]):
 
     def __init__(
         self,
-        protocols: Dict[str, ProtocolSchemaDict],
-        selected_protocol: Optional[str] = None,
-        account_data: Optional[Dict[str, Any]] = None,
+        protocols: dict[str, ProtocolSchemaDict],
+        selected_protocol: str | None = None,
+        account_data: dict[str, Any] | None = None,
         is_edit: bool = False,
         **attrs: Any,
     ):
@@ -364,7 +356,7 @@ class AccountForm(Component[None, GlobalAttrs]):
             ),
         )
 
-    def render_account_fields(self) -> List[fieldset]:
+    def render_account_fields(self) -> list[fieldset]:
         """Render account-specific fields for editing"""
         if not self.selected_protocol or self.selected_protocol not in self.protocols:
             return []
@@ -453,7 +445,7 @@ class AccountForm(Component[None, GlobalAttrs]):
 class StatusCard(Component[None, GlobalAttrs]):
     """Status information card component"""
 
-    def __init__(self, title: str, status_data: Dict[str, Any], **attrs: Any):
+    def __init__(self, title: str, status_data: dict[str, Any], **attrs: Any):
         self.title = title
         self.status_data = status_data
         super().__init__(**attrs)
@@ -475,7 +467,7 @@ class StatusCard(Component[None, GlobalAttrs]):
 class CallHistoryTable(Component[None, GlobalAttrs]):
     """Call history table component"""
 
-    def __init__(self, call_logs: List[Dict[str, Any]], **attrs: Any):
+    def __init__(self, call_logs: list[dict[str, Any]], **attrs: Any):
         self.call_logs = call_logs
         super().__init__(**attrs)
 
@@ -506,7 +498,7 @@ class CallHistoryTable(Component[None, GlobalAttrs]):
             **self.attrs,
         )
 
-    def render_call_row(self, log: Dict[str, Any]) -> tr:
+    def render_call_row(self, log: dict[str, Any]) -> tr:
         """Render a single call history row"""
         duration = log.get("duration_seconds", 0)
         if duration:
@@ -529,7 +521,7 @@ class CallHistoryTable(Component[None, GlobalAttrs]):
 class SettingsForm(Component[None, GlobalAttrs]):
     """Settings configuration form component"""
 
-    def __init__(self, settings: Dict[str, Any], **attrs: Any):
+    def __init__(self, settings: dict[str, Any], **attrs: Any):
         self.settings = settings
         super().__init__(**attrs)
 
@@ -622,7 +614,7 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
         ".call-stations-table .status-disabled": {"color": "gray"},
     }
 
-    def __init__(self, call_stations: List[CallStationStatusData], **attrs: Any):
+    def __init__(self, call_stations: list[CallStationStatusData], **attrs: Any):
         self.call_stations = call_stations
         super().__init__(**attrs)
 
@@ -721,8 +713,8 @@ class CallStationForm(Component[None, GlobalAttrs]):
 
     def __init__(
         self,
-        available_entities: Dict[str, List[Dict[str, str]]],
-        station_data: Optional[Dict[str, Any]] = None,
+        available_entities: dict[str, list[dict[str, str]]],
+        station_data: dict[str, Any] | None = None,
         is_edit: bool = False,
         **attrs: Any,
     ):

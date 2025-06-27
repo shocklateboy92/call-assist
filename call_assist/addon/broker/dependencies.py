@@ -7,8 +7,9 @@ using FastAPI's dependency injection system for clean separation of concerns.
 """
 
 import logging
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 from functools import lru_cache
+
 from fastapi import Depends
 from sqlmodel import Session
 
@@ -28,45 +29,45 @@ _app_state = {
 
 class AppState:
     """Container for application-wide state and dependencies"""
-    
+
     def __init__(self):
-        self.database_manager: Optional[DatabaseManager] = None
+        self.database_manager: DatabaseManager | None = None
         self.broker_instance = None  # Will be set to CallAssistBroker instance
-        self.plugin_manager: Optional[PluginManager] = None
+        self.plugin_manager: PluginManager | None = None
         self.db_path: str = "broker_data.db"
         self._initialized = False
-    
+
     async def initialize(self, db_path: str = "broker_data.db"):
         """Initialize all dependencies in the correct order"""
         if self._initialized:
             return
-            
+
         logger.info("Initializing application dependencies...")
-        
+
         # Set database path
         self.db_path = db_path
-        
+
         # Initialize database manager
         self.database_manager = DatabaseManager(db_path)
         await self.database_manager.initialize()
         logger.info("✅ Database manager initialized")
-        
+
         # Initialize plugin manager
         self.plugin_manager = PluginManager()
         logger.info("✅ Plugin manager initialized")
-        
+
         self._initialized = True
         logger.info("🎉 All dependencies initialized successfully")
-    
+
     def set_broker_instance(self, broker):
         """Set the broker instance after it's created"""
         self.broker_instance = broker
         logger.info("✅ Broker instance registered")
-    
+
     async def cleanup(self):
         """Clean up resources"""
         logger.info("Starting application cleanup...")
-        
+
         # Shutdown plugin manager first
         if self.plugin_manager:
             try:
@@ -74,7 +75,7 @@ class AppState:
                 logger.info("✅ Plugin manager shutdown complete")
             except Exception as e:
                 logger.error(f"Error shutting down plugin manager: {e}")
-        
+
         # Close database connections
         if self.database_manager:
             try:
@@ -82,7 +83,7 @@ class AppState:
                 logger.info("✅ Database connections closed")
             except Exception as e:
                 logger.error(f"Error closing database: {e}")
-        
+
         logger.info("🎉 Application cleanup complete")
 
 
@@ -91,7 +92,7 @@ app_state = AppState()
 
 
 # Dependency functions for FastAPI
-@lru_cache()
+@lru_cache
 def get_app_state() -> AppState:
     """Get the application state (cached)"""
     return app_state
@@ -108,7 +109,7 @@ async def get_database_manager(
 
 async def get_database_session(
     db_manager: DatabaseManager = Depends(get_database_manager)
-) -> AsyncGenerator[Session, None]:
+) -> AsyncGenerator[Session]:
     """Get a database session (automatically managed)"""
     session = db_manager.get_session()
     try:

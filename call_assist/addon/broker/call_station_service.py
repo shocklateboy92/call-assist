@@ -7,35 +7,37 @@ using dependency injection for clean separation of concerns.
 """
 
 import logging
-from typing import Dict, List
+
 from fastapi import Depends
 from sqlmodel import Session
 
+from addon.broker.data_types import (
+    AvailableEntitiesData,
+    CallStationStatusData,
+    EntityInfo,
+    EntityOption,
+    ValidationErrors,
+)
 from addon.broker.dependencies import get_database_session
 from addon.broker.queries import get_all_call_stations_with_session
-from addon.broker.models import CallStation
-from addon.broker.data_types import (
-    CallStationStatusData, EntityInfo, AvailableEntitiesData, 
-    EntityOption, ValidationErrors
-)
 
 logger = logging.getLogger(__name__)
 
 
 class CallStationService:
     """Call Station service with dependency injection"""
-    
+
     def __init__(
         self,
         session: Session = Depends(get_database_session)
     ):
         self.session = session
 
-    def get_call_stations_with_status(self, available_entities: Dict[str, EntityInfo]) -> List[CallStationStatusData]:
+    def get_call_stations_with_status(self, available_entities: dict[str, EntityInfo]) -> list[CallStationStatusData]:
         """Get all call stations with availability status based on HA entities"""
         call_stations = get_all_call_stations_with_session(self.session)
         stations_with_status = []
-        
+
         for station in call_stations:
             # Check if both entities are available
             camera_available = (
@@ -46,18 +48,18 @@ class CallStationService:
                 station.media_player_entity_id in available_entities and
                 available_entities[station.media_player_entity_id].available
             )
-            
+
             # Get entity names for display
             if station.camera_entity_id in available_entities:
                 camera_name = available_entities[station.camera_entity_id].name
             else:
                 camera_name = f"{station.camera_entity_id} (not found)"
-                
+
             if station.media_player_entity_id in available_entities:
                 player_name = available_entities[station.media_player_entity_id].name
             else:
                 player_name = f"{station.media_player_entity_id} (not found)"
-            
+
             station_status = CallStationStatusData(
                 id=station.id,
                 station_id=station.station_id,
@@ -74,14 +76,14 @@ class CallStationService:
                 player_name=player_name
             )
             stations_with_status.append(station_status)
-        
+
         return stations_with_status
 
-    def get_available_entities(self, ha_entities: Dict[str, EntityInfo]) -> AvailableEntitiesData:
+    def get_available_entities(self, ha_entities: dict[str, EntityInfo]) -> AvailableEntitiesData:
         """Get available camera and media player entities for form dropdowns"""
         cameras = []
         media_players = []
-        
+
         for entity_id, entity in ha_entities.items():
             if entity.domain == "camera":
                 cameras.append(EntityOption(
@@ -93,29 +95,29 @@ class CallStationService:
                     entity_id=entity_id,
                     name=entity.name
                 ))
-        
+
         return AvailableEntitiesData(
             cameras=sorted(cameras, key=lambda x: x.name),
             media_players=sorted(media_players, key=lambda x: x.name)
         )
 
-    def validate_call_station_entities(self, camera_entity_id: str, media_player_entity_id: str, ha_entities: Dict[str, EntityInfo]) -> ValidationErrors:
+    def validate_call_station_entities(self, camera_entity_id: str, media_player_entity_id: str, ha_entities: dict[str, EntityInfo]) -> ValidationErrors:
         """Validate that the specified entities exist and are of correct types"""
         camera_error = None
         player_error = None
-        
+
         # Check camera entity
         if camera_entity_id not in ha_entities:
             camera_error = "Camera entity not found"
         elif ha_entities[camera_entity_id].domain != "camera":
             camera_error = "Entity is not a camera"
-        
+
         # Check media player entity
         if media_player_entity_id not in ha_entities:
             player_error = "Media player entity not found"
         elif ha_entities[media_player_entity_id].domain != "media_player":
             player_error = "Entity is not a media player"
-        
+
         return ValidationErrors(
             camera_entity_id=camera_error,
             media_player_entity_id=player_error

@@ -37,6 +37,9 @@ test = [
     "sqlmodel>=0.0.14",
     "beautifulsoup4>=4.12.2",
 ]
+dev = [
+    "ruff>=0.8.0",
+]
 integration = [
     "pytest-homeassistant-custom-component @ git+https://github.com/shocklateboy92/pytest-homeassistant-custom-component@fixes/opt-socket",
     "homeassistant>=2025.6.1",
@@ -88,6 +91,39 @@ disable_error_code = [
     "type-arg",
     "no-any-return"
 ]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "BLE",  # flake8-blind-except (prevents catching Exception/BaseException)
+    "UP",   # pyupgrade
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "T20",  # flake8-print
+    "RET",  # flake8-return
+    "SIM",  # flake8-simplify
+    "TID",  # flake8-tidy-imports
+    "ARG",  # flake8-unused-arguments
+    "PTH",  # flake8-use-pathlib
+]
+
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "T201",   # print found (allow prints in scripts)
+    "ARG002", # unused method argument (common in event handlers)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["ARG001", "ARG002"]  # Allow unused args in tests
+"**/__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "addon/broker/tests", "integration/tests"]

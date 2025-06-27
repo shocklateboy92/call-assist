@@ -2,9 +2,10 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
-from sqlmodel import create_engine, Session, select
-from addon.broker.models import SQLModel, Account, BrokerSettings, CallLog, CallStation
+
+from sqlmodel import Session, create_engine, select
+
+from addon.broker.models import Account, BrokerSettings, CallLog, SQLModel
 from addon.broker.queries import get_setting_with_session, save_setting_with_session
 
 logger = logging.getLogger(__name__)

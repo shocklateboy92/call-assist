@@ -8,35 +8,31 @@ This module contains broker-related fixtures that are used across multiple test 
 import asyncio
 import contextlib
 import logging
-from datetime import datetime, timezone
-from typing import List, Dict, Optional, Iterator, AsyncIterator
-from types import TracebackType
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup, Tag
-import aiohttp
-
 import os
 import socket
 import tempfile
 import threading
 import time
+from collections.abc import AsyncIterator, Iterator
+from datetime import UTC, datetime
+from types import TracebackType
+from urllib.parse import urljoin
 
+import aiohttp
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 import pytest
-
-from grpclib.client import Channel
+from bs4 import BeautifulSoup, Tag
+from call_assist.addon.broker.main import serve
 from call_assist.proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     HaEntityUpdate,
 )
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
-
-from call_assist.addon.broker.main import serve
-
 from call_assist.tests.types import (
     BrokerProcessInfo,
-    VideoTestEnvironment,
     CustomIntegrationsFixture,
+    VideoTestEnvironment,
 )
+from grpclib.client import Channel
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +42,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
 
     def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self):
         self.session = aiohttp.ClientSession()
@@ -80,7 +76,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
             return html, soup
 
     async def post_form(
-        self, path: str, form_data: Dict[str, object]
+        self, path: str, form_data: dict[str, object]
     ) -> tuple[int, str, BeautifulSoup]:
         """Submit a form to the web UI"""
         if self.session is None:
@@ -107,7 +103,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
                     await asyncio.sleep(delay)
         return False
 
-    def extract_accounts_from_table(self, soup: BeautifulSoup) -> list[Dict[str, str]]:
+    def extract_accounts_from_table(self, soup: BeautifulSoup) -> list[dict[str, str]]:
         """Extract account information from the accounts table in the UI"""
         accounts = []
 
@@ -116,7 +112,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
         if isinstance(body, Tag) and "children" in body.attrs:
             # This indicates malformed HTML where server sent string as attribute
             raise AssertionError(
-                f"Malformed HTML detected: body tag has 'children' attribute instead of proper child elements"
+                "Malformed HTML detected: body tag has 'children' attribute instead of proper child elements"
             )
 
         # Look for table rows in the accounts table
@@ -157,7 +153,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
 
         return protocols
 
-    def find_form_inputs(self, soup: BeautifulSoup) -> Dict[str, str]:
+    def find_form_inputs(self, soup: BeautifulSoup) -> dict[str, str]:
         """Find all form input fields and their names/types"""
         inputs = {}
 
@@ -282,7 +278,7 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
 
     loop = asyncio.new_event_loop()
 
-    server_task: Optional[asyncio.Task] = None
+    server_task: asyncio.Task | None = None
 
     def run_thread() -> None:
         nonlocal server_task
@@ -429,7 +425,7 @@ def rtsp_test_server() -> str:
 
 
 @pytest.fixture
-def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
+def mock_cameras(rtsp_test_server: str) -> list[HaEntityUpdate]:
     """Mock Home Assistant camera entities with RTSP test streams"""
     return [
         HaEntityUpdate(
@@ -446,7 +442,7 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "friendly_name": "Test Front Door Camera",
             },
             available=True,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
         HaEntityUpdate(
             entity_id="camera.test_back_yard",
@@ -462,7 +458,7 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "friendly_name": "Test Back Yard Camera",
             },
             available=True,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
         HaEntityUpdate(
             entity_id="camera.test_kitchen",
@@ -478,13 +474,13 @@ def mock_cameras(rtsp_test_server: str) -> List[HaEntityUpdate]:
                 "friendly_name": "Test Kitchen Camera",
             },
             available=False,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
     ]
 
 
 @pytest.fixture
-def mock_media_players() -> List[HaEntityUpdate]:
+def mock_media_players() -> list[HaEntityUpdate]:
     """Mock Home Assistant media player entities that simulate Chromecast behavior"""
     return [
         HaEntityUpdate(
@@ -501,7 +497,7 @@ def mock_media_players() -> List[HaEntityUpdate]:
                 "media_title": "",
             },
             available=True,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
         HaEntityUpdate(
             entity_id="media_player.test_kitchen_display",
@@ -517,7 +513,7 @@ def mock_media_players() -> List[HaEntityUpdate]:
                 "media_title": "",
             },
             available=True,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
         HaEntityUpdate(
             entity_id="media_player.test_bedroom_speaker",
@@ -533,7 +529,7 @@ def mock_media_players() -> List[HaEntityUpdate]:
                 "media_title": "",
             },
             available=False,
-            last_updated=datetime.now(timezone.utc),
+            last_updated=datetime.now(UTC),
         ),
     ]
 
@@ -541,8 +537,8 @@ def mock_media_players() -> List[HaEntityUpdate]:
 @pytest.fixture
 def video_test_environment(
     rtsp_test_server: str,
-    mock_cameras: List[HaEntityUpdate],
-    mock_media_players: List[HaEntityUpdate],
+    mock_cameras: list[HaEntityUpdate],
+    mock_media_players: list[HaEntityUpdate],
 ) -> VideoTestEnvironment:
     """Complete video testing environment with all components"""
     # Use service name for docker-compose network

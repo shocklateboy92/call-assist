@@ -2,11 +2,11 @@
 
 import asyncio
 import logging
-from typing import Optional
+
+import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from ludic.contrib.fastapi import LudicRoute
-import uvicorn
 
 from addon.broker.ludic_views import create_routes
 
@@ -18,10 +18,10 @@ class WebUIServer:
 
     def __init__(self):
         """Initialize web server (dependencies will be injected via FastAPI DI)"""
-        self.server_task: Optional[asyncio.Task] = None
+        self.server_task: asyncio.Task | None = None
         self.host = "0.0.0.0"
         self.port = 8080
-        self.app: Optional[FastAPI] = None
+        self.app: FastAPI | None = None
 
     async def initialize(self):
         """Initialize web server settings"""
@@ -29,12 +29,12 @@ class WebUIServer:
             # Create FastAPI app with Ludic route class
             self.app = FastAPI(title="Call Assist Broker")
             self.app.router.route_class = LudicRoute
-            
+
             # Add redirect from index to /ui
             @self.app.get("/")
             async def redirect_to_ui():
                 return RedirectResponse(url="/ui", status_code=302)
-            
+
             # Setup Ludic routes (dependencies will be injected automatically)
             create_routes(self.app)
 
@@ -48,7 +48,7 @@ class WebUIServer:
         """Start the web UI server"""
         try:
             await self.initialize()
-            
+
             if not self.app:
                 raise RuntimeError("App not initialized")
 
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     async def test_server():
         server = WebUIServer()
         await server.start()
-        
+
         # Keep server running
         try:
             if server.server_task:

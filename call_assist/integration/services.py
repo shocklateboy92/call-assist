@@ -1,9 +1,14 @@
 """Services for Call Assist integration."""
 
 import logging
-import voluptuous as vol
 
-from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+import voluptuous as vol
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    ServiceResponse,
+    SupportsResponse,
+)
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
@@ -22,14 +27,14 @@ START_CALL_SCHEMA = vol.Schema({
 
 async def async_setup_services(hass: HomeAssistant) -> None:
     """Set up services for Call Assist."""
-    
+
     async def async_start_call(call: ServiceCall) -> ServiceResponse:
         """Start a call using the specified call station and contact."""
         call_station_id = call.data["call_station_id"]
         contact = call.data["contact"]
-        
+
         _LOGGER.info("Starting call from %s to %s", call_station_id, contact)
-        
+
         # Find the coordinator for this call station
         coordinator = None
         for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
@@ -39,16 +44,16 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                 if call_station_id in coord.broker_entities:
                     coordinator = coord
                     break
-        
+
         if not coordinator:
             raise ServiceValidationError(
                 f"Call station '{call_station_id}' not found in any Call Assist integration"
             )
-        
+
         try:
             # Call the broker to start the call
             response = await coordinator.grpc_client.start_call(call_station_id, contact)
-            
+
             if response.success:
                 _LOGGER.info("Call started successfully: %s", response.message)
                 return {
@@ -56,14 +61,13 @@ async def async_setup_services(hass: HomeAssistant) -> None:
                     "message": response.message,
                     "call_id": response.call_id,
                 }
-            else:
-                _LOGGER.error("Call failed to start: %s", response.message)
-                raise ServiceValidationError(f"Call failed to start: {response.message}")
-                
+            _LOGGER.error("Call failed to start: %s", response.message)
+            raise ServiceValidationError(f"Call failed to start: {response.message}")
+
         except Exception as ex:
             _LOGGER.error("Error starting call: %s", ex)
             raise ServiceValidationError(f"Error starting call: {ex}") from ex
-    
+
     # Register the service
     hass.services.async_register(
         DOMAIN,
@@ -72,7 +76,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         schema=START_CALL_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
-    
+
     _LOGGER.info("Call Assist services registered")
 
 

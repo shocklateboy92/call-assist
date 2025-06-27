@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-from sqlmodel import Session, select
-from typing import Optional, Dict, Any
-from datetime import datetime, timezone
-import json
 import logging
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlmodel import Session, select
 
 from addon.broker.models import Account, BrokerSettings, CallLog, CallStation
 
@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 def get_account_by_protocol_and_id_with_session(
     session: Session, protocol: str, account_id: str
-) -> Optional[Account]:
+) -> Account | None:
     """Get account by protocol and account_id using provided session"""
     return session.exec(
         select(Account).where(Account.protocol == protocol, Account.account_id == account_id)
     ).first()
 
 
-def get_setting_with_session(session: Session, key: str) -> Optional[Any]:
+def get_setting_with_session(session: Session, key: str) -> Any | None:
     """Get setting value using provided session"""
     setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
     return setting.get_value() if setting else None
@@ -31,15 +31,15 @@ def get_setting_with_session(session: Session, key: str) -> Optional[Any]:
 def save_setting_with_session(session: Session, key: str, value: Any) -> BrokerSettings:
     """Save setting value using provided session"""
     setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
-    
+
     if setting:
         setting.set_value(value)
-        setting.updated_at = datetime.now(timezone.utc)
+        setting.updated_at = datetime.now(UTC)
     else:
         setting = BrokerSettings(key=key, value_json="{}")
         setting.set_value(value)
         session.add(setting)
-    
+
     session.commit()
     session.refresh(setting)
     return setting
@@ -66,15 +66,14 @@ def save_account_with_session(session: Session, account: Account) -> Account:
     if existing:
         existing.display_name = account.display_name
         existing.credentials_json = account.credentials_json
-        existing.updated_at = datetime.now(timezone.utc)
+        existing.updated_at = datetime.now(UTC)
         session.commit()
         session.refresh(existing)
         return existing
-    else:
-        session.add(account)
-        session.commit()
-        session.refresh(account)
-        return account
+    session.add(account)
+    session.commit()
+    session.refresh(account)
+    return account
 
 
 def delete_account_with_session(session: Session, protocol: str, account_id: str) -> bool:
@@ -117,14 +116,14 @@ def log_call_start_with_session(
 
 
 def update_call_log_with_session(
-    session: Session, call_id: str, final_state: str, error_message: Optional[str] = None
-) -> Optional[CallLog]:
+    session: Session, call_id: str, final_state: str, error_message: str | None = None
+) -> CallLog | None:
     """Update call log with final state using provided session"""
     call_log = session.exec(select(CallLog).where(CallLog.call_id == call_id)).first()
 
     if call_log:
         call_log.final_state = final_state
-        call_log.end_time = datetime.now(timezone.utc)
+        call_log.end_time = datetime.now(UTC)
         if error_message:
             call_log.error_message = error_message
         session.commit()
@@ -140,7 +139,7 @@ def get_call_logs_with_session(session: Session) -> list[CallLog]:
     return list(session.exec(select(CallLog).order_by(desc(CallLog.start_time))).all())
 
 
-def get_call_log_by_id_with_session(session: Session, call_id: str) -> Optional[CallLog]:
+def get_call_log_by_id_with_session(session: Session, call_id: str) -> CallLog | None:
     """Get call log by ID using provided session"""
     return session.exec(select(CallLog).where(CallLog.call_id == call_id)).first()
 
@@ -149,7 +148,7 @@ def get_call_log_by_id_with_session(session: Session, call_id: str) -> Optional[
 
 def get_call_station_by_id_with_session(
     session: Session, station_id: str
-) -> Optional[CallStation]:
+) -> CallStation | None:
     """Get call station by station_id using provided session"""
     return session.exec(
         select(CallStation).where(CallStation.station_id == station_id)
@@ -177,15 +176,14 @@ def save_call_station_with_session(session: Session, call_station: CallStation) 
         existing.camera_entity_id = call_station.camera_entity_id
         existing.media_player_entity_id = call_station.media_player_entity_id
         existing.enabled = call_station.enabled
-        existing.updated_at = datetime.now(timezone.utc)
+        existing.updated_at = datetime.now(UTC)
         session.commit()
         session.refresh(existing)
         return existing
-    else:
-        session.add(call_station)
-        session.commit()
-        session.refresh(call_station)
-        return call_station
+    session.add(call_station)
+    session.commit()
+    session.refresh(call_station)
+    return call_station
 
 
 def delete_call_station_with_session(session: Session, station_id: str) -> bool:

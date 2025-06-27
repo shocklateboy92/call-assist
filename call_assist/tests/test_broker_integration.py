@@ -9,25 +9,25 @@ Tests for the new simplified broker interface that focuses on:
 """
 
 import asyncio
-import pytest
 import logging
-from datetime import datetime, timezone
-from typing import List, AsyncIterator
+from collections.abc import AsyncIterator
+from datetime import UTC, datetime
+
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+import pytest
+from call_assist.addon.broker.main import CallAssistBroker
 
 # Test imports
 from call_assist.proto_gen.callassist.broker import (
-    HaEntityUpdate,
-    BrokerEntityUpdate,
     BrokerEntityType,
+    BrokerEntityUpdate,
+    HaEntityUpdate,
     HealthCheckResponse,
     StartCallRequest,
     StartCallResponse,
 )
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
-
-from call_assist.addon.broker.main import CallAssistBroker
-from call_assist.tests.types import VideoTestEnvironment
 from call_assist.tests.conftest import WebUITestClient
+from call_assist.tests.types import VideoTestEnvironment
 
 # Set up logging for tests
 logging.basicConfig(level=logging.INFO)
@@ -45,9 +45,9 @@ class TestBrokerIntegration:
     @pytest.fixture
     async def mock_ha_entities(
         self,
-        mock_cameras: List[HaEntityUpdate],
-        mock_media_players: List[HaEntityUpdate],
-    ) -> List[HaEntityUpdate]:
+        mock_cameras: list[HaEntityUpdate],
+        mock_media_players: list[HaEntityUpdate],
+    ) -> list[HaEntityUpdate]:
         """Create mock HA entities using video test fixtures"""
         # Use the first 2 cameras and first 2 media players from video fixtures
         cameras = mock_cameras[:2]
@@ -77,7 +77,7 @@ class TestBrokerIntegration:
         assert response.timestamp is not None
 
     async def test_ha_entity_storage(
-        self, broker: CallAssistBroker, mock_ha_entities: List[HaEntityUpdate]
+        self, broker: CallAssistBroker, mock_ha_entities: list[HaEntityUpdate]
     ) -> None:
         """Test that broker correctly stores HA entities"""
 
@@ -103,7 +103,7 @@ class TestBrokerIntegration:
     async def test_call_station_creation_via_web_ui(
         self,
         broker: CallAssistBroker,
-        mock_ha_entities: List[HaEntityUpdate],
+        mock_ha_entities: list[HaEntityUpdate],
         web_ui_client: WebUITestClient,
     ) -> None:
         """Test that call stations are created via web UI, not automatically"""
@@ -160,7 +160,7 @@ class TestBrokerIntegration:
             # This test shows that call stations must be manually created, not auto-generated
 
     async def test_broker_entity_streaming(
-        self, broker: CallAssistBroker, mock_ha_entities: List[HaEntityUpdate]
+        self, broker: CallAssistBroker, mock_ha_entities: list[HaEntityUpdate]
     ) -> None:
         """Test that broker streams entities correctly"""
 
@@ -172,7 +172,7 @@ class TestBrokerIntegration:
         await broker.stream_ha_entities(mock_entity_stream())
 
         # Now test entity streaming (note: no call stations auto-created)
-        entities_received: List[BrokerEntityUpdate] = []
+        entities_received: list[BrokerEntityUpdate] = []
 
         async def collect_entities() -> None:
             async for entity_update in broker.stream_broker_entities(
@@ -218,7 +218,7 @@ class TestBrokerIntegration:
                 state="unavailable",
                 attributes={},
                 available=False,  # Camera unavailable
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
             HaEntityUpdate(
                 entity_id="media_player.test",
@@ -227,7 +227,7 @@ class TestBrokerIntegration:
                 state="idle",
                 attributes={},
                 available=True,  # Player available
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
         ]
 
@@ -262,7 +262,7 @@ class TestBrokerIntegration:
                 state="idle",
                 attributes={},
                 available=True,
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
             HaEntityUpdate(
                 entity_id="media_player.dynamic",
@@ -271,7 +271,7 @@ class TestBrokerIntegration:
                 state="idle",
                 attributes={},
                 available=True,
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
         ]
 
@@ -294,7 +294,7 @@ class TestBrokerIntegration:
                 state="idle",
                 attributes={},
                 available=True,
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
         ]
 
@@ -309,7 +309,7 @@ class TestBrokerIntegration:
         assert len(broker.call_stations) == 0
 
     async def test_rtsp_stream_integration(
-        self, broker: CallAssistBroker, mock_ha_entities: List[HaEntityUpdate]
+        self, broker: CallAssistBroker, mock_ha_entities: list[HaEntityUpdate]
     ) -> None:
         """Test that broker properly stores RTSP stream entities for later call station creation"""
 
@@ -350,7 +350,7 @@ class TestBrokerIntegration:
         assert len(broker.call_stations) == 0
 
     async def test_start_call_service_requires_manual_station(
-        self, broker: CallAssistBroker, mock_ha_entities: List[HaEntityUpdate]
+        self, broker: CallAssistBroker, mock_ha_entities: list[HaEntityUpdate]
     ) -> None:
         """Test the start_call service functionality (requires manual call station creation)"""
 
@@ -407,7 +407,7 @@ class TestBrokerIntegration:
                 state="unavailable",
                 attributes={},
                 available=False,
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
             HaEntityUpdate(
                 entity_id="media_player.available",
@@ -416,7 +416,7 @@ class TestBrokerIntegration:
                 state="idle",
                 attributes={},
                 available=True,
-                last_updated=datetime.now(timezone.utc),
+                last_updated=datetime.now(UTC),
             ),
         ]
 
@@ -487,6 +487,6 @@ async def test_broker_integration_end_to_end(
         f"✅ Broker integration with video fixtures: {len(available_cameras)} cameras and {len(available_players)} media players stored"
     )
     logger.info(
-        f"✅ No automatic call stations created - requires manual configuration via web UI"
+        "✅ No automatic call stations created - requires manual configuration via web UI"
     )
     logger.info("✅ Broker integration tests completed successfully")

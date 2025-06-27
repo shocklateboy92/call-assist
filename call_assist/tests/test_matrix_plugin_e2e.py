@@ -10,12 +10,11 @@ This serves as a true end-to-end test that mimics the actual user experience
 without touching any broker internal methods directly.
 """
 import logging
-import pytest
-import aiohttp
-from typing import Dict, Optional, Union, Any
 from types import TracebackType
-from urllib.parse import urljoin
-from bs4 import BeautifulSoup, Tag
+from typing import Any
+
+import aiohttp
+import pytest
 from call_assist.tests.conftest import WebUITestClient
 
 # Set up logging for tests
@@ -27,9 +26,9 @@ class MatrixTestClient:
 
     def __init__(self, homeserver_url: str = "http://synapse:8008"):
         self.homeserver_url = homeserver_url
-        self.access_token: Optional[str] = None
-        self.user_id: Optional[str] = None
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.access_token: str | None = None
+        self.user_id: str | None = None
+        self.session: aiohttp.ClientSession | None = None
 
     async def __aenter__(self) -> "MatrixTestClient":
         self.session = aiohttp.ClientSession()
@@ -44,7 +43,7 @@ class MatrixTestClient:
         if self.session:
             await self.session.close()
 
-    async def register_user(self, username: str, password: str) -> Dict[str, Any]:
+    async def register_user(self, username: str, password: str) -> dict[str, Any]:
         """Register a test user on the Matrix homeserver, or login if already exists"""
         # First try to login in case user already exists
         login_result = await self.login(username, password)
@@ -74,7 +73,7 @@ class MatrixTestClient:
                     return login_result
             return result
 
-    async def login(self, username: str, password: str) -> Dict[str, Any]:
+    async def login(self, username: str, password: str) -> dict[str, Any]:
         """Login with existing user credentials"""
         if self.session is None:
             raise RuntimeError("Session not initialized")
@@ -90,15 +89,15 @@ class MatrixTestClient:
             return result
 
     async def create_room(
-        self, name: Optional[str] = None, is_direct: bool = False
-    ) -> Dict[str, Any]:
+        self, name: str | None = None, is_direct: bool = False
+    ) -> dict[str, Any]:
         """Create a Matrix room"""
         if self.session is None or self.access_token is None:
             raise RuntimeError("Session or access token not initialized")
 
         url = f"{self.homeserver_url}/_matrix/client/r0/createRoom"
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        data: Dict[str, Any] = {"visibility": "private"}
+        data: dict[str, Any] = {"visibility": "private"}
 
         if is_direct:
             data["preset"] = "trusted_private_chat"
@@ -119,7 +118,7 @@ TEST_HOMESERVER = "http://synapse:8008"
 
 
 @pytest.fixture
-async def matrix_test_users() -> Dict[str, Dict[str, Any]]:
+async def matrix_test_users() -> dict[str, dict[str, Any]]:
     """Create test users on the Matrix homeserver"""
     users = {}
 
@@ -234,7 +233,7 @@ class TestMatrixPluginWebUIE2E:
     async def test_add_matrix_account_via_web_ui(
         self,
         web_ui_client: WebUITestClient,
-        matrix_test_users: Dict[str, Dict[str, Any]],
+        matrix_test_users: dict[str, dict[str, Any]],
     ) -> None:
         """Test adding a Matrix account through the web UI form submission"""
         if "caller" not in matrix_test_users:
@@ -542,7 +541,7 @@ class TestMatrixPluginWebUIE2E:
     async def test_valid_matrix_account_status_checking(
         self,
         web_ui_client: WebUITestClient,
-        matrix_test_users: Dict[str, Dict[str, Any]],
+        matrix_test_users: dict[str, dict[str, Any]],
     ) -> None:
         """Test that valid Matrix account credentials show as valid status in the UI"""
         if "caller" not in matrix_test_users:

@@ -2,20 +2,21 @@
 
 import asyncio
 import logging
-from typing import AsyncIterator, Dict, Any
+from collections.abc import AsyncIterator
+from typing import Any
 
+import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 from grpclib.client import Channel
 
 # Import betterproto generated files
 from .proto_gen.callassist.broker import (
+    BrokerEntityUpdate,
     BrokerIntegrationStub,
     HaEntityUpdate,
-    BrokerEntityUpdate,
     HealthCheckResponse,
     StartCallRequest,
     StartCallResponse,
 )
-import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -109,7 +110,7 @@ class CallAssistGrpcClient:
             _LOGGER.error("Health check failed: %s", ex)
             raise
 
-    async def send_ha_entity_update(self, entity_data: Dict[str, Any]) -> None:
+    async def send_ha_entity_update(self, entity_data: dict[str, Any]) -> None:
         """Queue an HA entity update to be sent to broker."""
         entity_update = HaEntityUpdate(
             entity_id=entity_data["entity_id"],
@@ -120,7 +121,7 @@ class CallAssistGrpcClient:
             available=entity_data["available"],
             last_updated=entity_data["last_updated"],
         )
-        
+
         # Add to queue for streaming
         await self._ha_stream_queue.put(entity_update)
 
@@ -158,7 +159,7 @@ class CallAssistGrpcClient:
             async for entity_update in self.stub.stream_broker_entities(request):
                 yield entity_update
 
-        except Exception as ex:
+        except Exception:
             _LOGGER.warning("Broker entity streaming connection lost")
             self._connected = False
             raise

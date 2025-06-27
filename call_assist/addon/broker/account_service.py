@@ -7,21 +7,21 @@ using dependency injection for clean separation of concerns.
 """
 
 import logging
-from typing import Dict, List
+
 from fastapi import Depends
 from sqlmodel import Session
 
-from addon.broker.dependencies import get_plugin_manager, get_database_session
+from addon.broker.data_types import AccountStatusData
+from addon.broker.dependencies import get_database_session, get_plugin_manager
 from addon.broker.plugin_manager import PluginManager
 from addon.broker.queries import get_all_accounts_with_session
-from addon.broker.data_types import AccountStatusData
 
 logger = logging.getLogger(__name__)
 
 
 class AccountService:
     """Account service with dependency injection"""
-    
+
     def __init__(
         self,
         plugin_manager: PluginManager = Depends(get_plugin_manager),
@@ -30,11 +30,11 @@ class AccountService:
         self.plugin_manager = plugin_manager
         self.session = session
 
-    async def get_accounts_with_status(self) -> List[AccountStatusData]:
+    async def get_accounts_with_status(self) -> list[AccountStatusData]:
         """Get all accounts with real-time status check from plugins"""
         accounts = get_all_accounts_with_session(self.session)
         accounts_with_status = []
-        
+
         for account in accounts:
             # Check real-time status using plugin manager
             try:
@@ -49,7 +49,7 @@ class AccountService:
             except Exception as e:
                 logger.error(f"Error checking status for account {account.account_id}: {e}")
                 is_valid = False
-            
+
             account_status = AccountStatusData(
                 id=account.id,
                 protocol=account.protocol,
@@ -60,15 +60,15 @@ class AccountService:
                 is_valid=is_valid
             )
             accounts_with_status.append(account_status)
-        
+
         return accounts_with_status
 
     async def check_account_status(
-        self, 
-        protocol: str, 
-        account_id: str, 
-        display_name: str, 
-        credentials: Dict[str, str]
+        self,
+        protocol: str,
+        account_id: str,
+        display_name: str,
+        credentials: dict[str, str]
     ) -> bool:
         """Check the status of a single account using the plugin manager"""
         try:
@@ -79,10 +79,10 @@ class AccountService:
                 display_name=display_name,
                 credentials=credentials
             )
-            
+
             logger.debug(f"Account {account_id} status check: {'valid' if is_valid else 'invalid'}")
             return is_valid
-            
+
         except Exception as e:
             logger.error(f"Error checking status for account {account_id}: {e}")
             return False

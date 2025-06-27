@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Data types module for strongly-typed internal state objects.
 
@@ -7,30 +6,29 @@ throughout the broker application.
 """
 
 from dataclasses import dataclass
-from typing import Optional, Dict, List, TypedDict, Union
-from datetime import datetime
+from typing import TypedDict
 
 
 @dataclass(frozen=True)
 class CredentialsData:
     """Strongly typed credentials for different protocols"""
-    homeserver: Optional[str] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    access_token: Optional[str] = None
-    device_id: Optional[str] = None
+    homeserver: str | None = None
+    username: str | None = None
+    password: str | None = None
+    access_token: str | None = None
+    device_id: str | None = None
     # XMPP specific
-    server: Optional[str] = None
-    port: Optional[int] = None
-    jid: Optional[str] = None
+    server: str | None = None
+    port: int | None = None
+    jid: str | None = None
     # Generic additional fields
-    extra_fields: Optional[Dict[str, str]] = None
+    extra_fields: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
 class AccountStatusData:
     """Account data with status information"""
-    id: Optional[int]
+    id: int | None
     protocol: str
     account_id: str
     display_name: str
@@ -51,7 +49,7 @@ class EntityInfo:
 @dataclass(frozen=True)
 class CallStationStatusData:
     """Call station data with availability status"""
-    id: Optional[int]
+    id: int | None
     station_id: str
     display_name: str
     camera_entity_id: str
@@ -76,22 +74,22 @@ class EntityOption:
 @dataclass(frozen=True)
 class AvailableEntitiesData:
     """Available entities grouped by type"""
-    cameras: List[EntityOption]
-    media_players: List[EntityOption]
+    cameras: list[EntityOption]
+    media_players: list[EntityOption]
 
 
 @dataclass(frozen=True)
 class ValidationErrors:
     """Validation error results"""
-    camera_entity_id: Optional[str] = None
-    media_player_entity_id: Optional[str] = None
-    
+    camera_entity_id: str | None = None
+    media_player_entity_id: str | None = None
+
     @property
     def has_errors(self) -> bool:
         """Check if there are any validation errors"""
         return self.camera_entity_id is not None or self.media_player_entity_id is not None
-    
-    def to_dict(self) -> Dict[str, str]:
+
+    def to_dict(self) -> dict[str, str]:
         """Convert to dictionary for backward compatibility"""
         result = {}
         if self.camera_entity_id:
@@ -104,12 +102,12 @@ class ValidationErrors:
 @dataclass(frozen=True)
 class CallMetadata:
     """Metadata for call logs"""
-    webrtc_connection_type: Optional[str] = None
-    ice_connection_state: Optional[str] = None
-    media_negotiation_duration_ms: Optional[int] = None
-    call_end_reason: Optional[str] = None
-    quality_score: Optional[float] = None
-    extra_data: Optional[Dict[str, str]] = None
+    webrtc_connection_type: str | None = None
+    ice_connection_state: str | None = None
+    media_negotiation_duration_ms: int | None = None
+    call_end_reason: str | None = None
+    quality_score: float | None = None
+    extra_data: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -117,7 +115,7 @@ class SettingsValue:
     """Typed settings value container"""
     key: str
     value: str  # JSON string
-    description: Optional[str] = None
+    description: str | None = None
 
 
 @dataclass(frozen=True)
@@ -127,8 +125,8 @@ class FieldDefinition:
     label: str
     field_type: str  # "text", "password", "url", etc.
     required: bool = True
-    placeholder: Optional[str] = None
-    help_text: Optional[str] = None
+    placeholder: str | None = None
+    help_text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -136,7 +134,7 @@ class ProtocolSchema:
     """Protocol configuration schema"""
     name: str
     display_name: str
-    fields: List[FieldDefinition]
+    fields: list[FieldDefinition]
 
 
 class CredentialFieldDict(TypedDict):
@@ -148,7 +146,7 @@ class CredentialFieldDict(TypedDict):
     required: bool
     default_value: str
     sensitive: bool
-    allowed_values: List[str]
+    allowed_values: list[str]
     placeholder: str
     validation_pattern: str
 
@@ -158,4 +156,4 @@ class ProtocolSchemaDict(TypedDict):
     protocol: str
     display_name: str
     description: str
-    credential_fields: List[CredentialFieldDict]
+    credential_fields: list[CredentialFieldDict]

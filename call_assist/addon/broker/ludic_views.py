@@ -6,47 +6,52 @@ Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
-from typing import Dict, Union, List
-from fastapi import FastAPI, Form, HTTPException, Path, Request, Depends
+
+from fastapi import Depends, FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
-from ludic.html import div, fieldset, legend, label, input, p
+from ludic.html import div, fieldset, input, label, legend
 from sqlmodel import Session
 
-from addon.broker.ludic_components import (
-    PageLayout,
-    AccountsTable,
-    AccountForm,
-    StatusCard,
-    CallHistoryTable,
-    SettingsForm,
-    CallStationsTable,
-    CallStationForm,
-    ErrorPage,
-)
-from addon.broker.queries import (
-    get_account_by_protocol_and_id_with_session,
-    save_account_with_session,
-    delete_account_with_session,
-    get_call_logs_with_session,
-    get_call_station_by_id_with_session,
-    save_call_station_with_session,
-    delete_call_station_with_session,
-)
 from addon.broker.account_service import get_account_service
 from addon.broker.call_station_service import get_call_station_service
-from addon.broker.settings_service import get_settings_service
-from addon.broker.database import DatabaseManager
-from addon.broker.models import Account, CallStation
-from addon.broker.dependencies import get_plugin_manager, get_broker_instance, get_database_manager, get_database_session
-from addon.broker.plugin_manager import PluginManager
 from addon.broker.data_types import ProtocolSchemaDict
+from addon.broker.database import DatabaseManager
+from addon.broker.dependencies import (
+    get_broker_instance,
+    get_database_manager,
+    get_database_session,
+    get_plugin_manager,
+)
+from addon.broker.ludic_components import (
+    AccountForm,
+    AccountsTable,
+    CallHistoryTable,
+    CallStationForm,
+    CallStationsTable,
+    ErrorPage,
+    PageLayout,
+    SettingsForm,
+    StatusCard,
+)
+from addon.broker.models import Account, CallStation
+from addon.broker.plugin_manager import PluginManager
+from addon.broker.queries import (
+    delete_account_with_session,
+    delete_call_station_with_session,
+    get_account_by_protocol_and_id_with_session,
+    get_call_logs_with_session,
+    get_call_station_by_id_with_session,
+    save_account_with_session,
+    save_call_station_with_session,
+)
+from addon.broker.settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 
 
 def get_protocol_schemas(
     plugin_manager: PluginManager = Depends(get_plugin_manager)
-) -> Dict[str, ProtocolSchemaDict]:
+) -> dict[str, ProtocolSchemaDict]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
     schemas_dict = plugin_manager.get_protocol_schemas()
     return schemas_dict
@@ -100,7 +105,7 @@ def create_routes(app: FastAPI):
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
         accounts_data = await account_service.get_accounts_with_status()
-        
+
         # Format the updated_at field for display
         for account in accounts_data:
             if account.get("updated_at"):
@@ -115,7 +120,7 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)):
+    async def add_account_page(protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)):
         """Add new account page"""
         return PageLayout(
             "Add Account - Call Assist Broker",
@@ -163,10 +168,10 @@ def create_routes(app: FastAPI):
 
     @app.get("/ui/edit-account/{protocol}/{account_id}", response_class=HTMLResponse)
     async def edit_account_page(
-        protocol: str = Path(...), 
+        protocol: str = Path(...),
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
-        protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
+        protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ):
         """Edit existing account page"""
         # Load existing account
@@ -244,7 +249,7 @@ def create_routes(app: FastAPI):
 
     @app.delete("/ui/delete-account/{protocol}/{account_id}")
     async def delete_account_endpoint(
-        protocol: str = Path(...), 
+        protocol: str = Path(...),
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
     ):
@@ -253,13 +258,12 @@ def create_routes(app: FastAPI):
         if success:
             # Return empty response to remove the table row
             return Response(content="", status_code=200)
-        else:
-            raise HTTPException(status_code=400, detail="Failed to delete account")
+        raise HTTPException(status_code=400, detail="Failed to delete account")
 
     @app.get("/ui/api/protocol-fields", response_class=HTMLResponse)
     async def get_protocol_fields(
         protocol: str | None = None,
-        protocols: Dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
+        protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ):
         """Get protocol-specific form fields for HTMX dynamic loading"""
         if not protocol:
@@ -495,7 +499,7 @@ def create_routes(app: FastAPI):
             "max_call_history_days": max_call_history_days,
             "auto_cleanup_logs": auto_cleanup_logs,
         }
-        
+
         await settings_service.update_settings(settings_data)
 
         # Redirect back to settings page
@@ -505,7 +509,7 @@ def create_routes(app: FastAPI):
         )
 
     # Call Station Routes
-    
+
     @app.get("/ui/call-stations", response_class=HTMLResponse)
     async def call_stations_page(
         call_station_service = Depends(get_call_station_service),
@@ -514,7 +518,7 @@ def create_routes(app: FastAPI):
         """Call stations management page"""
         # Get available HA entities for status checking
         ha_entities = broker.ha_entities if broker else {}
-        
+
         # Get call stations with status
         call_stations = call_station_service.get_call_stations_with_status(ha_entities)
 
@@ -664,8 +668,7 @@ def create_routes(app: FastAPI):
         if success:
             # Return empty response to remove the table row
             return Response(content="", status_code=200)
-        else:
-            raise HTTPException(status_code=400, detail="Failed to delete call station")
+        raise HTTPException(status_code=400, detail="Failed to delete call station")
 
     # Return the configured app
     return app
