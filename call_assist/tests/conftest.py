@@ -9,7 +9,7 @@ import asyncio
 import contextlib
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Optional, Iterator, AsyncIterator, override
+from typing import List, Dict, Optional, Iterator, AsyncIterator
 from types import TracebackType
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
@@ -56,13 +56,13 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
         self.session = aiohttp.ClientSession()
         return self
 
-    @override
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: TracebackType | None,
     ) -> None:
+        del exc_type, exc_value, traceback  # Mark as intentionally unused
         if self.session:
             await self.session.close()
 
@@ -117,7 +117,7 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
 
         # First validate that we have proper HTML structure
         body = soup.find("body")
-        if body and hasattr(body, "attrs") and "children" in body.attrs:
+        if isinstance(body, Tag) and "children" in body.attrs:
             # This indicates malformed HTML where server sent string as attribute
             raise AssertionError(
                 f"Malformed HTML detected: body tag has 'children' attribute instead of proper child elements"
@@ -195,9 +195,13 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
         """Validate that the HTML structure is properly formed and not malformed by server errors"""
         # Check for malformed body tag with string content as attribute
         body = soup.find("body")
-        assert body
+        if not isinstance(body, Tag):
+            raise AssertionError(
+                f"Malformed HTML in {page_name}: body tag not found or not a valid Tag"
+            )
+        # Type checker now knows body is a Tag
 
-        if hasattr(body, "attrs") and "children" in body.attrs:
+        if "children" in body.attrs:
             raise AssertionError(
                 f"Malformed HTML in {page_name}: body tag has 'children' attribute containing string content instead of proper child elements"
             )
