@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest_asyncio.fixture
-async def matrix_test_users():
+async def matrix_test_users() -> Dict[str, Dict[str, Any]]:
     """Mock Matrix test users for testing purposes"""
     return {
         "caller": {
@@ -130,7 +130,7 @@ async def test_matrix_call_end_to_end(broker_server, video_test_environment):
 
 
 @pytest.mark.asyncio
-async def test_matrix_call_with_real_webrtc_flow(broker_server, video_test_environment, matrix_test_users, web_ui_client: WebUITestClient):
+async def test_matrix_call_with_real_webrtc_flow(broker_server: Any, video_test_environment: Dict[str, Any], matrix_test_users: Dict[str, Dict[str, Any]], web_ui_client: WebUITestClient) -> None:
     """Test actual Matrix call flow with real WebRTC and Matrix accounts."""
     integration_client = broker_server
     
@@ -185,7 +185,7 @@ async def test_matrix_call_with_real_webrtc_flow(broker_server, video_test_envir
     logger.info(f"Streaming {len(cameras)} cameras and {len(media_players)} media players to broker...")
     
     # Create entity generator for streaming
-    async def entity_generator():
+    async def entity_generator() -> Any:
         """Stream all HA entities to broker"""
         for camera in cameras:
             logger.info(f"Sending camera entity: {camera.entity_id}")

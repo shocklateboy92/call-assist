@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Set, Optional
+from typing import Dict, Set, Optional, Any
 
 from aiohttp import web, WSMsgType
 
@@ -193,7 +193,7 @@ class MockChromecastServer:
         
         return ws
 
-    async def _handle_websocket_command(self, ws: web.WebSocketResponse, data: Dict) -> None:
+    async def _handle_websocket_command(self, ws: web.WebSocketResponse, data: Dict[str, Any]) -> None:
         """Handle commands received via websocket"""
         command = data.get('command')
         

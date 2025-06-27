@@ -38,7 +38,7 @@ class TestBrokerIntegration:
     """Test cases for the simplified broker integration"""
 
     @pytest.fixture
-    async def broker(self):
+    async def broker(self) -> Any:
         """Create a broker instance for testing"""
         return CallAssistBroker()
 
@@ -88,7 +88,7 @@ class TestBrokerIntegration:
     async def test_ha_entity_storage(self, broker, mock_ha_entities):
         """Test that broker correctly stores HA entities"""
         # Simulate streaming HA entities
-        async def mock_entity_stream():
+        async def mock_entity_stream() -> Any:
             for entity in mock_ha_entities:
                 yield entity
 

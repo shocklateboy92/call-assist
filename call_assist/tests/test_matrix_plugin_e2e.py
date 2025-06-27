@@ -14,7 +14,7 @@ import logging
 import pytest
 import pytest_asyncio
 import aiohttp
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 from conftest import WebUITestClient
@@ -32,11 +32,11 @@ class MatrixTestClient:
         self.user_id: Optional[str] = None
         self.session: Optional[aiohttp.ClientSession] = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "MatrixTestClient":
         self.session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if self.session:
             await self.session.close()
 
@@ -94,7 +94,7 @@ class MatrixTestClient:
             
         url = f"{self.homeserver_url}/_matrix/client/r0/createRoom"
         headers = {"Authorization": f"Bearer {self.access_token}"}
-        data: dict = {"visibility": "private"}
+        data: Dict[str, Any] = {"visibility": "private"}
 
         if is_direct:
             data["preset"] = "trusted_private_chat"
@@ -115,7 +115,7 @@ TEST_HOMESERVER = "http://synapse:8008"
 
 
 @pytest_asyncio.fixture
-async def matrix_test_users():
+async def matrix_test_users() -> Dict[str, Dict[str, Any]]:
     """Create test users on the Matrix homeserver"""
     users = {}
 
@@ -145,7 +145,7 @@ class TestMatrixPluginWebUIE2E:
     """End-to-end tests for Matrix plugin via web UI only"""
 
     @pytest.mark.asyncio
-    async def test_web_server_starts_and_responds(self, web_ui_client):
+    async def test_web_server_starts_and_responds(self, web_ui_client: WebUITestClient) -> None:
         """Test that the web server starts and responds to requests"""
         # Wait for server to be ready
         server_ready = await web_ui_client.wait_for_server()
@@ -166,7 +166,7 @@ class TestMatrixPluginWebUIE2E:
         assert soup.find("body") is not None
 
     @pytest.mark.asyncio
-    async def test_main_ui_page_loads(self, web_ui_client):
+    async def test_main_ui_page_loads(self, web_ui_client: WebUITestClient) -> None:
         """Test that the main UI page loads correctly with accounts table"""
         await web_ui_client.wait_for_server()
         
@@ -191,7 +191,7 @@ class TestMatrixPluginWebUIE2E:
         logger.info(f"Found {len(accounts)} existing accounts: {accounts}")
 
     @pytest.mark.asyncio
-    async def test_add_account_page_loads(self, web_ui_client):
+    async def test_add_account_page_loads(self, web_ui_client: WebUITestClient) -> None:
         """Test that the add account page loads with protocol selection"""
         await web_ui_client.wait_for_server()
         
@@ -220,7 +220,7 @@ class TestMatrixPluginWebUIE2E:
         assert matrix_available, f"Matrix protocol not found in {protocols}"
 
     @pytest.mark.asyncio
-    async def test_add_matrix_account_via_web_ui(self, web_ui_client: WebUITestClient, matrix_test_users):
+    async def test_add_matrix_account_via_web_ui(self, web_ui_client: WebUITestClient, matrix_test_users: Dict[str, Dict[str, Any]]) -> None:
         """Test adding a Matrix account through the web UI form submission"""
         if "caller" not in matrix_test_users:
             pytest.skip("Matrix test user not available")
@@ -283,7 +283,7 @@ class TestMatrixPluginWebUIE2E:
             assert "Add" in html
 
     @pytest.mark.asyncio
-    async def test_edit_account_page_loads(self, web_ui_client):
+    async def test_edit_account_page_loads(self, web_ui_client: WebUITestClient) -> None:
         """Test that the edit account page exists and loads"""
         await web_ui_client.wait_for_server()
         
@@ -297,7 +297,7 @@ class TestMatrixPluginWebUIE2E:
             logger.info(f"Edit page response: {e}")
 
     @pytest.mark.asyncio
-    async def test_complete_web_ui_navigation(self, web_ui_client: WebUITestClient):
+    async def test_complete_web_ui_navigation(self, web_ui_client: WebUITestClient) -> None:
         """Test that all key web UI pages are accessible and load correctly"""
         await web_ui_client.wait_for_server()
 
@@ -323,7 +323,7 @@ class TestMatrixPluginWebUIE2E:
             f"Expected settings content not found in: {visible_text[:200]}..."
 
     @pytest.mark.asyncio
-    async def test_matrix_plugin_schema_integration(self, web_ui_client):
+    async def test_matrix_plugin_schema_integration(self, web_ui_client: WebUITestClient) -> None:
         """Test that Matrix plugin schema is properly integrated with the UI"""
         await web_ui_client.wait_for_server()
         
@@ -350,7 +350,7 @@ class TestMatrixPluginWebUIE2E:
         logger.info(f"Matrix protocol schema integration verified with fields: {list(matrix_inputs.keys())}")
 
     @pytest.mark.asyncio
-    async def test_form_validation_structure(self, web_ui_client):
+    async def test_form_validation_structure(self, web_ui_client: WebUITestClient) -> None:
         """Test that the form structure supports proper validation"""
         await web_ui_client.wait_for_server()
         
@@ -366,7 +366,7 @@ class TestMatrixPluginWebUIE2E:
         assert has_protocol_field or "protocol" in html.lower(), "No protocol selection found"
 
     @pytest.mark.asyncio
-    async def test_invalid_matrix_account_status_checking(self, web_ui_client: WebUITestClient):
+    async def test_invalid_matrix_account_status_checking(self, web_ui_client: WebUITestClient) -> None:
         """Test that invalid Matrix account credentials show as invalid status in the UI"""
         await web_ui_client.wait_for_server()
         
@@ -452,7 +452,7 @@ class TestMatrixPluginWebUIE2E:
             assert status in [400, 422, 500], f"Unexpected status code for invalid credentials: {status}"
 
     @pytest.mark.asyncio
-    async def test_valid_matrix_account_status_checking(self, web_ui_client: WebUITestClient, matrix_test_users):
+    async def test_valid_matrix_account_status_checking(self, web_ui_client: WebUITestClient, matrix_test_users: Dict[str, Dict[str, Any]]) -> None:
         """Test that valid Matrix account credentials show as valid status in the UI"""
         if "caller" not in matrix_test_users:
             pytest.skip("Matrix test user not available")

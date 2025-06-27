@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_matrix_plugin_real_webrtc():
+async def test_matrix_plugin_real_webrtc() -> None:
     """Test Matrix plugin with real WebRTC implementation."""
     matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     
@@ -80,7 +80,7 @@ async def test_matrix_plugin_real_webrtc():
 
 
 @pytest.mark.asyncio  
-async def test_matrix_plugin_mock_webrtc_mode():
+async def test_matrix_plugin_mock_webrtc_mode() -> None:
     """Test Matrix plugin with mock WebRTC implementation for comparison."""
     matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     
@@ -127,7 +127,7 @@ async def test_matrix_plugin_mock_webrtc_mode():
 
 
 @pytest.mark.asyncio
-async def test_webrtc_peer_connection_factory():
+async def test_webrtc_peer_connection_factory() -> None:
     """Test that our WebRTC factory function works correctly."""
     matrix_plugin_dir = Path("/workspaces/universal/call_assist/addon/plugins/matrix")
     

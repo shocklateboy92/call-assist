@@ -1,6 +1,7 @@
 """Test the Call Assist config flow."""
 
 import pytest
+from typing import Any
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -9,7 +10,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from integration.const import DOMAIN, CONF_HOST, CONF_PORT, DEFAULT_HOST, DEFAULT_PORT
 
 
-async def test_form(broker_process, hass: HomeAssistant) -> None:
+async def test_form(broker_process: Any, hass: HomeAssistant) -> None:
     """Test we get the form."""
     result = await hass.config_entries.flow.async_init(
         DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -18,7 +19,7 @@ async def test_form(broker_process, hass: HomeAssistant) -> None:
     assert result["errors"] == {}
 
 
-async def test_form_valid_connection(broker_process, hass: HomeAssistant) -> None:
+async def test_form_valid_connection(broker_process: Any, hass: HomeAssistant) -> None:
     """Test we can successfully connect to broker."""
     
     result = await hass.config_entries.flow.async_init(

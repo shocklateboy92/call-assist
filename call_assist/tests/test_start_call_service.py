@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test for the start_call service functionality"""
 
-import asyncio
 import pytest
 import logging
 from grpclib.client import Channel
@@ -11,14 +10,15 @@ from proto_gen.callassist.broker import (
     StartCallRequest,
     StartCallResponse,
 )
+from call_assist.tests.types import BrokerProcessInfo
 
 logger = logging.getLogger(__name__)
 
 
 @pytest.mark.asyncio
-async def test_start_call_via_grpc(broker_process):
+async def test_start_call_via_grpc(broker_process: BrokerProcessInfo) -> None:
     """Test start_call functionality using full broker with gRPC"""
-    grpc_port = broker_process["grpc_port"]
+    grpc_port = broker_process.grpc_port
     
     # Connect to broker
     channel = Channel("localhost", grpc_port)
@@ -45,9 +45,9 @@ async def test_start_call_via_grpc(broker_process):
 
 
 @pytest.mark.asyncio  
-async def test_start_call_invalid_station_via_grpc(broker_process):
+async def test_start_call_invalid_station_via_grpc(broker_process: BrokerProcessInfo) -> None:
     """Test start_call with invalid call station ID"""
-    grpc_port = broker_process["grpc_port"]
+    grpc_port = broker_process.grpc_port
     
     # Connect to broker
     channel = Channel("localhost", grpc_port)

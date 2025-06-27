@@ -5,14 +5,17 @@ Shared test fixtures for Call Assist tests
 This module contains broker-related fixtures that are used across multiple test files.
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional, Iterator, AsyncIterator
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 import aiohttp
 
 import fixtures.disable_pytest_socket
+
+from call_assist.tests.types import BrokerProcessInfo, VideoTestEnvironment
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)
@@ -53,7 +56,7 @@ class WebUITestClient:
             return html, soup
 
     async def post_form(
-        self, path: str, form_data: Dict[str, Any]
+        self, path: str, form_data: Dict[str, str]
     ) -> tuple[int, str, BeautifulSoup]:
         """Submit a form to the web UI"""
         if self.session is None:
@@ -94,7 +97,6 @@ from grpclib.client import Channel
 from proto_gen.callassist.broker import BrokerIntegrationStub, HaEntityUpdate
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 
-import asyncio
 from addon.broker.main import serve
 
 
@@ -117,7 +119,7 @@ def find_available_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def broker_process():
+def broker_process() -> Iterator[BrokerProcessInfo]:
     """Session-scoped broker running in separate thread"""
 
     # Create temporary database for testing
@@ -165,12 +167,12 @@ def broker_process():
     logger.info(f"Broker started in thread on ports gRPC={grpc_port}, Web={web_port}")
 
     # Return broker info instead of process
-    broker_info = {
-        "grpc_port": grpc_port,
-        "web_port": web_port,
-        "db_path": db_path,
-        "thread": broker_thread,
-    }
+    broker_info = BrokerProcessInfo(
+        grpc_port=grpc_port,
+        web_port=web_port,
+        db_path=db_path,
+        thread=broker_thread,
+    )
 
     yield broker_info
 
@@ -191,11 +193,11 @@ def broker_process():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def broker_server(broker_process):
+async def broker_server(broker_process: BrokerProcessInfo) -> AsyncIterator[BrokerIntegrationStub]:
     """Get broker connection for each test"""
 
     # Get port from broker process info
-    broker_port = broker_process["grpc_port"]
+    broker_port = broker_process.grpc_port
 
     # Create client connection to the session-scoped broker
     channel = Channel(host="localhost", port=broker_port)
@@ -253,15 +255,13 @@ def setup_integration_path():
 @pytest.fixture(autouse=True)
 def enable_custom_integrations_fixture(enable_custom_integrations):
     """Enable custom integrations for each test."""
+    _ = enable_custom_integrations  # Use the parameter to avoid unused warning
     yield
 
 
 @pytest.fixture(scope="session")
 def rtsp_test_server() -> str:
     """Reference to RTSP test server running via docker-compose"""
-    import socket
-    import time
-
     # Use service name for docker-compose network
     rtsp_host = "rtsp-server"
     rtsp_port = 8554
@@ -385,33 +385,30 @@ def video_test_environment(
     rtsp_test_server: str,
     mock_cameras: List[HaEntityUpdate],
     mock_media_players: List[HaEntityUpdate],
-):
+) -> VideoTestEnvironment:
     """Complete video testing environment with all components"""
-    import socket
-    import time
-
     # Use service name for docker-compose network
     chromecast_host = "mock-chromecast"
     chromecast_port = 8008
 
     logger.info(f"Using mock Chromecast at {chromecast_host}:{chromecast_port}")
 
-    return {
-        "rtsp_base_url": rtsp_test_server,
-        "rtsp_streams": [
+    return VideoTestEnvironment(
+        rtsp_base_url=rtsp_test_server,
+        rtsp_streams=[
             f"{rtsp_test_server}/test_camera_1",
             f"{rtsp_test_server}/test_camera_2",
         ],
-        "cameras": mock_cameras,
-        "media_players": mock_media_players,
-        "mock_chromecast_url": f"http://{chromecast_host}:{chromecast_port}",
-    }
+        cameras=mock_cameras,
+        media_players=mock_media_players,
+        mock_chromecast_url=f"http://{chromecast_host}:{chromecast_port}",
+    )
 
 
 @pytest_asyncio.fixture
-async def web_ui_client(broker_process):
+async def web_ui_client(broker_process: BrokerProcessInfo) -> AsyncIterator[WebUITestClient]:
     """Web UI test client configured for the running broker"""
-    web_port = broker_process["web_port"]
+    web_port = broker_process.web_port
     base_url = f"http://localhost:{web_port}"
 
     async with WebUITestClient(base_url) as client:
