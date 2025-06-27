@@ -44,7 +44,8 @@
       "Bash(npm install)",
       "Bash(pkill:*)",
       "Bash(./scripts/setup-dev-env.sh:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(./run_broker.sh:*)"
     ],
     "deny": []
   }

@@ -6,6 +6,7 @@ throughout the broker application.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TypedDict
 
 
@@ -157,3 +158,29 @@ class ProtocolSchemaDict(TypedDict):
     display_name: str
     description: str
     credential_fields: list[CredentialFieldDict]
+
+
+@dataclass(frozen=True)
+class BrokerEntityData:
+    """Broker entity data with full type safety"""
+    entity_id: str
+    name: str
+    entity_type: str  # BrokerEntityType from protobuf
+    state: str
+    attributes: dict[str, str]
+    icon: str
+    available: bool
+    capabilities: list[str]
+    last_updated: datetime
+
+
+@dataclass(frozen=True)
+class HAEntityUpdate:
+    """HA entity update data for streaming to broker"""
+    entity_id: str
+    domain: str
+    name: str
+    state: str
+    attributes: dict[str, str]
+    available: bool
+    last_updated: datetime

@@ -84,7 +84,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         self.call_stations: dict[str, CallStation] = {}
 
         # Track broker entity update subscribers
-        self.broker_entity_subscribers: list[asyncio.Queue] = []
+        self.broker_entity_subscribers: list[asyncio.Queue[BrokerEntityUpdate]] = []
 
         # Startup time for health check
         self.startup_time = datetime.now(UTC)
@@ -131,7 +131,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         logger.info("Starting broker entity stream")
 
         # Create a queue for this subscriber
-        update_queue = asyncio.Queue()
+        update_queue: asyncio.Queue[BrokerEntityUpdate] = asyncio.Queue()
         self.broker_entity_subscribers.append(update_queue)
 
         try:
@@ -267,7 +267,7 @@ class CallAssistBroker(BrokerIntegrationBase):
             # Notify subscribers of changes
             await self._notify_entity_changes()
 
-    async def _send_initial_entities(self, update_queue: asyncio.Queue):
+    async def _send_initial_entities(self, update_queue: asyncio.Queue[BrokerEntityUpdate]):
         """Send initial entities to a new subscriber"""
         # Send call stations
         for station in self.call_stations.values():

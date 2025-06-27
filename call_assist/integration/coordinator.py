@@ -21,7 +21,7 @@ from .grpc_client import CallAssistGrpcClient
 _LOGGER = logging.getLogger(__name__)
 
 
-class CallAssistCoordinator(DataUpdateCoordinator):
+class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Coordinator for managing Call Assist data and communications."""
 
     def __init__(self, hass: HomeAssistant, host: str, port: int, config_entry):
@@ -33,8 +33,8 @@ class CallAssistCoordinator(DataUpdateCoordinator):
             update_interval=None,  # We use event streams, not polling
         )
 
-        self.host = host
-        self.port = port
+        self.host: str = host
+        self.port: int = port
         self.config_entry = config_entry
         self.grpc_client = CallAssistGrpcClient(host, port)
 
