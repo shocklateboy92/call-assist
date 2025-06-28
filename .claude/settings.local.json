@@ -3,6 +3,7 @@
     "allow": [
       "Bash(*)",
       "Bash(*:*)",
+      "Bash(**)",
       "Bash(mkdir:*)",
       "Bash(mv:*)",
       "Bash(docker-compose:*)",
@@ -46,7 +47,8 @@
       "Bash(./scripts/setup-dev-env.sh:*)",
       "Bash(ruff check:*)",
       "Bash(./run_broker.sh:*)",
-      "Bash(./call_assist/run_broker.sh:*)"
+      "Bash(./call_assist/run_broker.sh:*)",
+      "Bash(pytest:*)"
     ],
     "deny": []
   }
