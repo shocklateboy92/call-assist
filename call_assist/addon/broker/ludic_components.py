@@ -3,7 +3,7 @@
 Ludic-based web UI components for Call Assist Broker
 """
 
-from typing import Any, override
+from typing import Any, Unpack, override
 
 from ludic.base import BaseElement
 
@@ -64,18 +64,8 @@ class NavAttrs(GlobalAttrs, total=False):
     data_variant: str
 
 class Nav(Component[AnyChildren, NavAttrs]):
-    @override
-    def render(self) -> nav:
-        return nav(*self.children, **self.attrs)  # type: ignore[misc]
-
-
-class LinkAttrs(HyperlinkAttrs, total=False):
-    role: str
-
-class Link(Component[AnyChildren, LinkAttrs]):
-    @override
-    def render(self) -> a:
-        return a(*self.children, **self.attrs)  # type: ignore[misc]
+    def __init__(self, *children: AnyChildren, **attrs: Unpack[GlobalAttrs]) -> None:
+        super().__init__(*children, **attrs)
 
 
 class ErrorPage(Component[NoChildren, GlobalAttrs]):
@@ -225,14 +215,14 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
         if not self.accounts:
             return div(
                 p("No accounts configured yet."),
-                Link("Add Account", href="/ui/add-account", role="button"),
+                a("Add Account", href="/ui/add-account", role="button"),
                 class_="form-container",
             )
 
         return div(
             div(
                 h2("Accounts"),
-                Link(
+                a(
                     "Add Account",
                     href="/ui/add-account",
                     role="button",
@@ -274,7 +264,7 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
             td(account.updated_at),
             td(
                 div(
-                    Link(
+                    a(
                         "Edit",
                         href=f"/ui/edit-account/{account.protocol}/{account.account_id}",
                         role="button",
@@ -333,7 +323,7 @@ class AccountForm(Component[NoChildren, GlobalAttrs]):
                     button(
                         "Update Account" if self.is_edit else "Add Account",
                         type="submit",
-                                            ),
+                    ),
                     method="post",
                     action=form_action,
                 ),
@@ -347,7 +337,9 @@ class AccountForm(Component[NoChildren, GlobalAttrs]):
         if self.is_edit:
             return fieldset(
                 legend("Protocol"),
-                input(type="hidden", name="protocol", value=self.selected_protocol or ""),
+                input(
+                    type="hidden", name="protocol", value=self.selected_protocol or ""
+                ),
                 p(f"Protocol: {(self.selected_protocol or '').title()}"),
             )
 
@@ -600,7 +592,7 @@ class SettingsForm(Component[NoChildren, GlobalAttrs]):
                     button(
                         "Save Settings",
                         type="submit",
-                                            ),
+                    ),
                     method="post",
                     action="/ui/settings",
                 ),
@@ -640,14 +632,14 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
         if not self.call_stations:
             return div(
                 p("No call stations configured yet."),
-                Link("Add Call Station", href="/ui/add-call-station", role="button"),
+                a("Add Call Station", href="/ui/add-call-station", role="button"),
                 class_="form-container",
             )
 
         return div(
             div(
                 h2("Call Stations"),
-                Link(
+                a(
                     "Add Call Station",
                     href="/ui/add-call-station",
                     role="button",
@@ -669,7 +661,10 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
                         )
                     ),
                     tbody(
-                        *[self.render_station_row(station) for station in self.call_stations]
+                        *[
+                            self.render_station_row(station)
+                            for station in self.call_stations
+                        ]
                     ),
                 ),
                 class_="table-container",
@@ -706,7 +701,7 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
             td(station.updated_at),
             td(
                 div(
-                    Link(
+                    a(
                         "Edit",
                         href=f"/ui/edit-call-station/{station.station_id}",
                         role="button",
@@ -780,12 +775,17 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                         legend("Entity Configuration"),
                         label("Camera", for_="camera_entity_id"),
                         select(
-                            option("Select a camera...", value="", selected=not self.station_data.get("camera_entity_id")),
+                            option(
+                                "Select a camera...",
+                                value="",
+                                selected=not self.station_data.get("camera_entity_id"),
+                            ),
                             *[
                                 option(
                                     f"{camera.get('name', '')} ({camera.get('entity_id', '')})",
                                     value=camera.get("entity_id", ""),
-                                    selected=camera.get("entity_id") == self.station_data.get("camera_entity_id"),
+                                    selected=camera.get("entity_id")
+                                    == self.station_data.get("camera_entity_id"),
                                 )
                                 for camera in self.available_entities.get("cameras", [])
                             ],
@@ -795,14 +795,23 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                         ),
                         label("Media Player", for_="media_player_entity_id"),
                         select(
-                            option("Select a media player...", value="", selected=not self.station_data.get("media_player_entity_id")),
+                            option(
+                                "Select a media player...",
+                                value="",
+                                selected=not self.station_data.get(
+                                    "media_player_entity_id"
+                                ),
+                            ),
                             *[
                                 option(
                                     f"{player.get('name', '')} ({player.get('entity_id', '')})",
                                     value=player.get("entity_id", ""),
-                                    selected=player.get("entity_id") == self.station_data.get("media_player_entity_id"),
+                                    selected=player.get("entity_id")
+                                    == self.station_data.get("media_player_entity_id"),
                                 )
-                                for player in self.available_entities.get("media_players", [])
+                                for player in self.available_entities.get(
+                                    "media_players", []
+                                )
                             ],
                             name="media_player_entity_id",
                             id="media_player_entity_id",
@@ -823,7 +832,7 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                     button(
                         "Update Call Station" if self.is_edit else "Add Call Station",
                         type="submit",
-                                            ),
+                    ),
                     method="post",
                     action=form_action,
                 ),

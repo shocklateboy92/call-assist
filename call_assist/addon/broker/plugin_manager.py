@@ -368,7 +368,7 @@ class PluginManager:
             )
 
             # Wait for plugin to start up
-            await asyncio.sleep(2)
+            await asyncio.sleep(0.2)
 
             # Check if process is still running
             if plugin.process.poll() is not None:

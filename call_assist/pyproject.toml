@@ -19,7 +19,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "fastapi[standard]>=0.104.0",
     "uvicorn>=0.24.0",
-    "ludic[fastapi]>=0.5.0",
+    "ludic[fastapi] @ git+https://github.com/shocklateboy92/ludic@fixes/role-attr",
     "httpx>=0.24.0",
     "aiofiles>=23.0.0",
     "jinja2>=3.1.0",
