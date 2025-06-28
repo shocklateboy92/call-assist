@@ -8,7 +8,8 @@ from typing import Any, Unpack, override
 from ludic.base import BaseElement
 
 from ludic import Component
-from ludic.attrs import GlobalAttrs, HyperlinkAttrs
+from ludic.elements import Element
+from ludic.attrs import GlobalAttrs
 from ludic.html import (
     a,
     body,
@@ -63,8 +64,10 @@ from addon.broker.data_types import (
 class NavAttrs(GlobalAttrs, total=False):
     data_variant: str
 
-class Nav(Component[AnyChildren, NavAttrs]):
-    def __init__(self, *children: AnyChildren, **attrs: Unpack[GlobalAttrs]) -> None:
+class Nav(Element[AnyChildren, NavAttrs]):
+    html_name = "nav"
+
+    def __init__(self, *children: AnyChildren, **attrs: Unpack[NavAttrs]) -> None:
         super().__init__(*children, **attrs)
 
 

@@ -39,6 +39,7 @@ test = [
 ]
 dev = [
     "ruff>=0.8.0",
+    "types-PyYAML",
 ]
 integration = [
     "pytest-homeassistant-custom-component @ git+https://github.com/shocklateboy92/pytest-homeassistant-custom-component@fixes/opt-socket",

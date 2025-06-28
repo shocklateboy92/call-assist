@@ -8,11 +8,11 @@ import asyncio
 import logging
 import os
 import sys
+import tempfile
 
-# Add the project root to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from addon.broker.broker import CallAssistBroker
+from addon.broker.dependencies import get_app_state
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -21,13 +21,10 @@ async def test_broker_startup():
     logger.info("Testing broker startup with integrated components...")
 
     # Set up database path for testing
-    db_path = "/tmp/test_db"
+    db_path = tempfile.mktemp()
 
     try:
-        from addon.broker.database import set_database_path
-        from addon.broker.broker import CallAssistBroker
-
-        set_database_path(db_path)
+        get_app_state().db_path = db_path
 
         # Create broker instance
         broker = CallAssistBroker()
@@ -60,15 +57,12 @@ async def test_broker_startup():
         logger.info("🎉 Broker startup test passed! All components integrated successfully.")
         return True
 
-    except Exception as e:
-        logger.error(f"❌ Broker startup test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
     finally:
         # Clean up test database
         if os.path.exists(db_path):
             os.remove(db_path)
+        
+        return False
 
 
 async def main():

@@ -670,6 +670,3 @@ def create_routes(app: FastAPI) -> None:
             # Return empty response to remove the table row
             return Response(content="", status_code=200)
         raise HTTPException(status_code=400, detail="Failed to delete call station")
-
-    # Return the configured app
-    return app
