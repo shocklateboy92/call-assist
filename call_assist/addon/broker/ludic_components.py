@@ -51,11 +51,19 @@ from ludic.html import (
 from ludic.styles import CSSProperties
 from ludic.types import AnyChildren, NoChildren
 
-from addon.broker.data_types import (
+from call_assist.addon.broker.data_types import (
     AccountStatusData,
     CallStationStatusData,
     ProtocolSchemaDict,
 )
+
+class NavAttrs(GlobalAttrs, total=False):
+    data_variant: str
+
+class Nav(Component[AnyChildren, NavAttrs]):
+    @override
+    def render(self) -> nav:
+        return nav(*self.children, **self.attrs)
 
 
 class ErrorPage(Component[NoChildren, GlobalAttrs]):

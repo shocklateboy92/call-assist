@@ -9,7 +9,7 @@ from typing import Any, Protocol
 
 from bs4 import BeautifulSoup
 
-from proto_gen.callassist.broker import HaEntityUpdate
+from call_assist.proto_gen.callassist.broker import HaEntityUpdate
 
 
 @dataclass

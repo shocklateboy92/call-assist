@@ -12,6 +12,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
@@ -136,7 +137,7 @@ class TestBrokerIntegration:
             }
 
             status, _, _ = await web_ui_client.post_form(
-                "/ui/add-call-station", station_form_data
+                "/ui/add-call-station", cast(dict[str, object], station_form_data)
             )
 
             if status in [200, 302]:  # Success or redirect

@@ -361,7 +361,7 @@ async def test_video_infrastructure_health_check(video_test_environment: VideoTe
 
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(f"{chromecast_url}/status", timeout=5) as resp:
+            async with session.get(f"{chromecast_url}/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
                 assert resp.status == 200
                 status = await resp.json()
                 assert "state" in status

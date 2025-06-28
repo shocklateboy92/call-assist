@@ -158,6 +158,7 @@ class ProtocolSchemaDict(TypedDict):
     display_name: str
     description: str
     credential_fields: list[CredentialFieldDict]
+    setting_fields: list[CredentialFieldDict]  # Settings use same field structure
 
 
 @dataclass(frozen=True)

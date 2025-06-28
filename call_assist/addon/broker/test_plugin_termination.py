@@ -6,7 +6,7 @@ import signal
 import tempfile
 from unittest.mock import Mock, patch
 
-from broker.plugin_manager import (
+from call_assist.addon.broker.plugin_manager import (
     CapabilitiesConfig,
     ExecutableConfig,
     GrpcConfig,

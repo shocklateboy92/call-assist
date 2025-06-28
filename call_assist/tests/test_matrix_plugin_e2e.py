@@ -11,7 +11,7 @@ without touching any broker internal methods directly.
 """
 import logging
 from types import TracebackType
-from typing import Any
+from typing import Any, cast
 
 import aiohttp
 import pytest
@@ -452,7 +452,7 @@ class TestMatrixPluginWebUIE2E:
 
         # Submit the form with invalid credentials
         status, response_html, response_soup = await web_ui_client.post_form(
-            "/ui/add-account", invalid_form_data
+            "/ui/add-account", cast(dict[str, object], invalid_form_data)
         )
 
         # The form submission might succeed (saving to database) or fail

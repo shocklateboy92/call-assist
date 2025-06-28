@@ -24,8 +24,8 @@ async def test_broker_startup():
     db_path = "/tmp/test_call_assist.db"
 
     try:
-        from addon.broker.database import set_database_path
-        from addon.broker.main import CallAssistBroker
+        from call_assist.addon.broker.database import set_database_path
+        from call_assist.addon.broker.main import CallAssistBroker
 
         set_database_path(db_path)
 

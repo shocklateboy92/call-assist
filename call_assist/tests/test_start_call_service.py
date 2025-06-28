@@ -7,7 +7,7 @@ import pytest
 from call_assist.tests.types import BrokerProcessInfo
 from grpclib.client import Channel
 
-from proto_gen.callassist.broker import (
+from call_assist.proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     StartCallRequest,
     StartCallResponse,

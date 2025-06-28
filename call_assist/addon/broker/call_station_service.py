@@ -11,15 +11,15 @@ import logging
 from fastapi import Depends
 from sqlmodel import Session
 
-from addon.broker.data_types import (
+from call_assist.addon.broker.data_types import (
     AvailableEntitiesData,
     CallStationStatusData,
     EntityInfo,
     EntityOption,
     ValidationErrors,
 )
-from addon.broker.dependencies import get_database_session
-from addon.broker.queries import get_all_call_stations_with_session
+from call_assist.addon.broker.dependencies import get_database_session
+from call_assist.addon.broker.queries import get_all_call_stations_with_session
 
 logger = logging.getLogger(__name__)
 

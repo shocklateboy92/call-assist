@@ -11,10 +11,10 @@ import logging
 from fastapi import Depends
 from sqlmodel import Session
 
-from addon.broker.data_types import AccountStatusData
-from addon.broker.dependencies import get_database_session, get_plugin_manager
-from addon.broker.plugin_manager import PluginManager
-from addon.broker.queries import get_all_accounts_with_session
+from call_assist.addon.broker.data_types import AccountStatusData
+from call_assist.addon.broker.dependencies import get_database_session, get_plugin_manager
+from call_assist.addon.broker.plugin_manager import PluginManager
+from call_assist.addon.broker.queries import get_all_accounts_with_session
 
 logger = logging.getLogger(__name__)
 

@@ -10,10 +10,10 @@ from typing import TYPE_CHECKING
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 from grpclib.server import Server
 
-from addon.broker.dependencies import app_state
-from addon.broker.plugin_manager import PluginManager
-from addon.broker.queries import get_enabled_call_stations_with_session
-from addon.broker.web_server import WebUIServer
+from call_assist.addon.broker.dependencies import app_state
+from call_assist.addon.broker.plugin_manager import PluginManager
+from call_assist.addon.broker.queries import get_enabled_call_stations_with_session
+from call_assist.addon.broker.web_server import WebUIServer
 
 # Import betterproto generated classes
 from proto_gen.callassist.broker import (
@@ -27,8 +27,7 @@ from proto_gen.callassist.broker import (
 )
 
 if TYPE_CHECKING:
-    # Forward reference for type hints
-    pass
+    from call_assist.addon.broker.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +75,7 @@ class CallAssistBroker(BrokerIntegrationBase):
     - Basic health check
     """
 
-    def __init__(self, plugin_manager: PluginManager | None = None, database_manager=None):
+    def __init__(self, plugin_manager: PluginManager | None = None, database_manager: "DatabaseManager | None" = None):
         # Store HA entities we receive
         self.ha_entities: dict[str, HAEntity] = {}
 
@@ -225,7 +224,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 call_id="",
             )
 
-    async def _update_call_stations(self):
+    async def _update_call_stations(self) -> None:
         """Update call stations based on database configuration and HA entity availability"""
         if not self.database_manager:
             logger.warning("No database manager available, skipping call station update")
@@ -267,14 +266,14 @@ class CallAssistBroker(BrokerIntegrationBase):
             # Notify subscribers of changes
             await self._notify_entity_changes()
 
-    async def _send_initial_entities(self, update_queue: asyncio.Queue[BrokerEntityUpdate]):
+    async def _send_initial_entities(self, update_queue: asyncio.Queue[BrokerEntityUpdate]) -> None:
         """Send initial entities to a new subscriber"""
         # Send call stations
         for station in self.call_stations.values():
             entity_update = BrokerEntityUpdate(
                 entity_id=station.station_id,
                 name=station.name,
-                entity_type=BrokerEntityType.CALL_STATION,
+                entity_type=1,  # BrokerEntityType.CALL_STATION
                 state=station.state,
                 attributes=station.attributes,
                 icon="mdi:video-account",
@@ -288,7 +287,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         broker_status = BrokerEntityUpdate(
             entity_id="broker_status",
             name="Call Assist Broker",
-            entity_type=BrokerEntityType.BROKER_STATUS,
+            entity_type=4,  # BrokerEntityType.BROKER_STATUS
             state="online",
             attributes={
                 "monitored_cameras": str(
@@ -315,7 +314,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         )
         await update_queue.put(broker_status)
 
-    async def _notify_entity_changes(self):
+    async def _notify_entity_changes(self) -> None:
         """Notify all subscribers of entity changes"""
         for update_queue in self.broker_entity_subscribers:
             try:
@@ -324,7 +323,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                     entity_update = BrokerEntityUpdate(
                         entity_id=station.station_id,
                         name=station.name,
-                        entity_type=BrokerEntityType.CALL_STATION,
+                        entity_type=1,  # BrokerEntityType.CALL_STATION
                         state=station.state,
                         attributes=station.attributes,
                         icon="mdi:video-account",
@@ -341,7 +340,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 logger.error(f"Error notifying subscriber: {e}")
                 # Continue with next subscriber
 
-    async def _initiate_plugin_call(self, call_id: str, station, contact: str) -> bool:
+    async def _initiate_plugin_call(self, call_id: str, station: CallStation, contact: str) -> bool:
         """Initiate a call through the appropriate protocol plugin"""
         try:
             # Determine protocol from contact format
@@ -429,7 +428,7 @@ async def serve(
     web_host: str = "0.0.0.0",
     web_port: int = 8080,
     db_path: str = "broker_data.db",
-):
+) -> None:
     """Start the consolidated Call Assist Broker with gRPC, web UI, and database"""
     logger.info(f"Initializing Call Assist Broker with database: {db_path}")
 
@@ -493,7 +492,7 @@ async def serve(
         logger.info("Call Assist Broker shutdown complete")
 
 
-async def main():
+async def main() -> None:
     """Main entry point with proper signal handling"""
     try:
         await serve()

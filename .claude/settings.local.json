@@ -45,7 +45,8 @@
       "Bash(pkill:*)",
       "Bash(./scripts/setup-dev-env.sh:*)",
       "Bash(ruff check:*)",
-      "Bash(./run_broker.sh:*)"
+      "Bash(./run_broker.sh:*)",
+      "Bash(./call_assist/run_broker.sh:*)"
     ],
     "deny": []
   }

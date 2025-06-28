@@ -39,8 +39,8 @@ Happens on devcontainer creation, but can be manually triggered if proto files c
 ### Broker Development (Python)
 ```bash
 ./run_broker.sh                                # Starts the broker after type checking and linting
-python -m pytest tests/ -xvs                   # Run all integration tests
-python -m pytest tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
+python -m pytest call_assist/tests/ -xvs                   # Run all integration tests
+python -m pytest call_assist/tests/test_matrix_plugin_e2e.py -xvs  # Run Matrix plugin tests
 
 # Web UI accessible at http://localhost:8080/ui
 # Features: Account management, Call Station configuration, Status monitoring
