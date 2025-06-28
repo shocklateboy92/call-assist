@@ -47,31 +47,32 @@ Camera (RTSP) → Broker (Capability Detection) → Call Plugin (Matrix/XMPP) �
 
 ### Repository Structure (Monorepo)
 ```
-call_assist/
-├── integration/           # Home Assistant custom integration (Python)
-├── addon/
-│   ├── broker/                         # Main orchestrator with web UI
-│   │   ├── main.py                     # gRPC server + web UI server
-│   │   ├── ludic_components.py         # Ludic web interface components
-│   │   ├── ludic_views.py              # Ludic views for all UI
-│   │   ├── models.py                   # SQLModel database schemas (Account, CallStation, etc.)
-│   │   ├── database.py                 # SQLite database management
-│   │   ├── queries.py                  # Database queries for all entities
-│   │   ├── account_service.py          # Account business logic and status checking
-│   │   ├── call_station_service.py     # Call station business logic and validation
-│   │   ├── plugin_manager.py           # Plugin loading and management logic
-│   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
-│   │   ├── web_server.py               # FastAPI web server
-│   ├── plugins/
-│   │   ├── matrix/       # TypeScript
-│   │   └── xmpp/         # C++
-├── scripts/              # Build/development scripts
-├── tests/                # Integration test, used for primary validation and development
-├── proto/                # Shared gRPC schemas
-├── Dockerfile            # Container build (moved to root for easy proto access)
-├── pyproject.toml        # Python dependencies and configuration including tests
-├── docker-compose.dev.yml # Development environment
-└── .github/workflows/    # CI/CD for multi-language builds
+/
+├── call_assist/
+│   ├── integration/           # Home Assistant custom integration (Python)
+│   ├── addon/
+│   │   ├── broker/                         # Main orchestrator with web UI
+│   │   │   ├── main.py                     # gRPC server + web UI server
+│   │   │   ├── ludic_components.py         # Ludic web interface components
+│   │   │   ├── ludic_views.py              # Ludic views for all UI
+│   │   │   ├── models.py                   # SQLModel database schemas (Account, CallStation, etc.)
+│   │   │   ├── database.py                 # SQLite database management
+│   │   │   ├── queries.py                  # Database queries for all entities
+│   │   │   ├── account_service.py          # Account business logic and status checking
+│   │   │   ├── call_station_service.py     # Call station business logic and validation
+│   │   │   ├── plugin_manager.py           # Plugin loading and management logic
+│   │   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
+│   │   │   ├── web_server.py               # FastAPI web server
+│   │   ├── plugins/
+│   │   │   ├── matrix/       # TypeScript
+│   │   │   └── xmpp/         # C++
+│   ├── scripts/              # Build/development scripts
+│   ├── tests/                # Integration test, used for primary validation and development
+│   ├── proto/                # Shared gRPC schemas
+│   ├── Dockerfile            # Container build
+│   ├── pyproject.toml        # Python dependencies and configuration including tests
+├── docker-compose.dev.yml    # Development environment
+└── .github/workflows/        # CI/CD for multi-language builds
 ```
 
 ### Technical Decisions Made

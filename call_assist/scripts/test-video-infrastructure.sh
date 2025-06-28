@@ -3,6 +3,9 @@ set -e
 
 echo "🔍 Testing Video Infrastructure..."
 
+# Navigate to project root for docker-compose commands
+cd /workspaces/universal
+
 # Check docker-compose services are running
 echo "📋 Checking docker-compose services..."
 if docker-compose -f docker-compose.dev.yml ps --services --filter status=running | grep -q rtsp-server; then

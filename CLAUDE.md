@@ -61,7 +61,7 @@ cd call_assist && ./scripts/setup-dev-env.sh
 
 # Services start automatically via devcontainer.json
 # To restart or interact with services at runtime, use docker commands:
-docker-compose -f call_assist/docker-compose.dev.yml restart <service-name>
+docker-compose -f docker-compose.dev.yml restart <service-name>
 
 # Services available at:
 # - Home Assistant: http://localhost:8123

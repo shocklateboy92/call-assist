@@ -7,9 +7,9 @@ services:
   devcontainer:
     image: mcr.microsoft.com/devcontainers/base:ubuntu
     volumes:
-      - ..:/workspaces/universal:cached
+      - .:/workspaces/universal:cached
       - /var/run/docker.sock:/var/run/docker-host.sock
-      - ../runtime/claude-state:/home/vscode/.claude
+      - ./runtime/claude-state:/home/vscode/.claude
       # Git config was not getting copied automatically for some reason
       - ~/.gitconfig:/home/vscode/.gitconfig:readonly
     command: sleep infinity
@@ -19,8 +19,8 @@ services:
   homeassistant:
     image: homeassistant/home-assistant:stable
     volumes:
-      - ./integration:/config/custom_components/call_assist
-      - ../runtime/ha_config:/config
+      - ./call_assist/integration:/config/custom_components/call_assist
+      - ./runtime/ha_config:/config
     environment:
       - TZ=UTC
     restart: unless-stopped
@@ -28,8 +28,8 @@ services:
   synapse:
     image: matrixdotorg/synapse:latest
     volumes:
-      - ../runtime/synapse_data:/data
-      - ./config/synapse/homeserver.yaml:/data/homeserver.yaml
+      - ./runtime/synapse_data:/data
+      - ./call_assist/config/synapse/homeserver.yaml:/data/homeserver.yaml
     environment:
       - SYNAPSE_SERVER_NAME=localhost
       - SYNAPSE_REPORT_STATS=no
@@ -42,7 +42,7 @@ services:
   coturn:
     image: coturn/coturn:latest
     volumes:
-      - ./config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
+      - ./call_assist/config/coturn/turnserver.conf:/etc/coturn/turnserver.conf
     command: ["-c", "/etc/coturn/turnserver.conf"]
     restart: unless-stopped
 
@@ -81,7 +81,7 @@ services:
 
   mock-chromecast:
     build:
-      context: ./tests/fixtures
+      context: ./call_assist/tests/fixtures
       dockerfile: Dockerfile.mock-chromecast
     restart: unless-stopped
 

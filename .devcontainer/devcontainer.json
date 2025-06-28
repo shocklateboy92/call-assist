@@ -2,7 +2,7 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/universal
 {
 	"name": "Call Assist Development",
-	"dockerComposeFile": "../call_assist/docker-compose.dev.yml",
+	"dockerComposeFile": "../docker-compose.dev.yml",
 	"service": "devcontainer",
 	"workspaceFolder": "/workspaces/universal",
 	// Features to add to the dev container. More info: https://containers.dev/features.
