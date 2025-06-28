@@ -62,7 +62,7 @@ async def test_broker_plugin_integration():
     logger.info("Testing broker plugin integration...")
 
     try:
-        from call_assist.addon.broker.main import CallAssistBroker
+        from call_assist.addon.broker.broker import CallAssistBroker
 
         # Create broker instance
         broker = CallAssistBroker()

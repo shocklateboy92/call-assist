@@ -16,10 +16,10 @@ from typing import cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
-from call_assist.addon.broker.main import CallAssistBroker
+from call_assist.addon.broker.broker import CallAssistBroker
 
 # Test imports
-from call_assist.proto_gen.callassist.broker import (
+from proto_gen.callassist.broker import (
     BrokerEntityType,
     BrokerEntityUpdate,
     HaEntityUpdate,

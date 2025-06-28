@@ -76,13 +76,12 @@ module = [
     "betterproto.*",
     "grpclib.*",
     "ludic.*",
-    "fixtures.*",
-    "addon.*"
+    "config.*",
 ]
 ignore_errors = true
 
 [[tool.mypy.overrides]]
-module = ["proto_gen.*", "call_assist.integration.proto_gen.*", "call_assist.proto_gen.*"]
+module = ["integration.proto_gen.*", "proto_gen.*"]
 ignore_errors = true
 disable_error_code = [
     "attr-defined",
@@ -93,7 +92,6 @@ disable_error_code = [
 ]
 
 [tool.ruff]
-line-length = 88
 target-version = "py313"
 
 [tool.ruff.lint]
