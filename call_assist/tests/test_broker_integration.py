@@ -27,8 +27,8 @@ from proto_gen.callassist.broker import (
     StartCallRequest,
     StartCallResponse,
 )
-from tests.conftest import WebUITestClient
-from tests.types import VideoTestEnvironment
+from .conftest import WebUITestClient
+from .types import VideoTestEnvironment
 
 # Set up logging for tests
 logging.basicConfig(level=logging.INFO)

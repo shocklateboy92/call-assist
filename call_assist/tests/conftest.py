@@ -27,7 +27,7 @@ from proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     HaEntityUpdate,
 )
-from tests.types import (
+from .types import (
     BrokerProcessInfo,
     CustomIntegrationsFixture,
     VideoTestEnvironment,

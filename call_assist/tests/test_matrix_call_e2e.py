@@ -16,10 +16,10 @@ from collections.abc import AsyncIterator
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
 import pytest_asyncio
-from tests.conftest import (
+from .conftest import (
     WebUITestClient,
 )
-from tests.types import VideoTestEnvironment
+from .types import VideoTestEnvironment
 
 from proto_gen.callassist.broker import (
     BrokerEntityType,

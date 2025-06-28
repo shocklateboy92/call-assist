@@ -9,7 +9,7 @@ from proto_gen.callassist.broker import (
     StartCallRequest,
     StartCallResponse,
 )
-from tests.types import BrokerProcessInfo
+from .types import BrokerProcessInfo
 from grpclib.client import Channel
 
 logger = logging.getLogger(__name__)
