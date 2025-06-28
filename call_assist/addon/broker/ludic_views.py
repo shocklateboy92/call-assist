@@ -12,17 +12,17 @@ from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, input, label, legend
 from sqlmodel import Session
 
-from call_assist.addon.broker.account_service import get_account_service
-from call_assist.addon.broker.call_station_service import get_call_station_service
-from call_assist.addon.broker.data_types import ProtocolSchemaDict
-from call_assist.addon.broker.database import DatabaseManager
-from call_assist.addon.broker.dependencies import (
+from addon.broker.account_service import get_account_service
+from addon.broker.call_station_service import get_call_station_service
+from addon.broker.data_types import ProtocolSchemaDict
+from addon.broker.database import DatabaseManager
+from addon.broker.dependencies import (
     get_broker_instance,
     get_database_manager,
     get_database_session,
     get_plugin_manager,
 )
-from call_assist.addon.broker.ludic_components import (
+from addon.broker.ludic_components import (
     AccountForm,
     AccountsTable,
     CallHistoryTable,
@@ -33,9 +33,9 @@ from call_assist.addon.broker.ludic_components import (
     SettingsForm,
     StatusCard,
 )
-from call_assist.addon.broker.models import Account, CallStation
-from call_assist.addon.broker.plugin_manager import PluginManager
-from call_assist.addon.broker.queries import (
+from addon.broker.models import Account, CallStation
+from addon.broker.plugin_manager import PluginManager
+from addon.broker.queries import (
     delete_account_with_session,
     delete_call_station_with_session,
     get_account_by_protocol_and_id_with_session,
@@ -44,7 +44,7 @@ from call_assist.addon.broker.queries import (
     save_account_with_session,
     save_call_station_with_session,
 )
-from call_assist.addon.broker.settings_service import get_settings_service
+from addon.broker.settings_service import get_settings_service
 
 logger = logging.getLogger(__name__)
 

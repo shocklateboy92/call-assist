@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 
-from call_assist.addon.broker.plugin_manager import PluginManager
-from call_assist.addon.broker.queries import get_enabled_call_stations_with_session
+from addon.broker.plugin_manager import PluginManager
+from addon.broker.queries import get_enabled_call_stations_with_session
 
 # Import betterproto generated classes
 from proto_gen.callassist.broker import (
@@ -24,7 +24,7 @@ from proto_gen.callassist.broker import (
 )
 
 if TYPE_CHECKING:
-    from call_assist.addon.broker.database import DatabaseManager
+    from addon.broker.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
 

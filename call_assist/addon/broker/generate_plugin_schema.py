@@ -6,7 +6,7 @@ Generate JSON Schema for plugin.yaml files using dataclasses-jsonschema.
 
 import json
 
-from call_assist.addon.broker.plugin_manager import PluginMetadata
+from addon.broker.plugin_manager import PluginMetadata
 
 
 def generate_plugin_schema():

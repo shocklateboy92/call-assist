@@ -5,9 +5,9 @@ import logging
 
 from grpclib.server import Server
 
-from call_assist.addon.broker.broker import CallAssistBroker
-from call_assist.addon.broker.dependencies import app_state
-from call_assist.addon.broker.web_server import WebUIServer
+from addon.broker.broker import CallAssistBroker
+from addon.broker.dependencies import app_state
+from addon.broker.web_server import WebUIServer
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@
 
 from venv import logger
 
-from call_assist.integration.const import CONF_HOST, CONF_PORT, DOMAIN
-from call_assist.tests.types import BrokerProcessInfo
+from integration.const import CONF_HOST, CONF_PORT, DOMAIN
+from tests.types import BrokerProcessInfo
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType

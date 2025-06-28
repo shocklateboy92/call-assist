@@ -9,8 +9,8 @@ from typing import Any
 from fastapi import Depends
 from sqlmodel import Session
 
-from call_assist.addon.broker.dependencies import get_database_session
-from call_assist.addon.broker.queries import (
+from addon.broker.dependencies import get_database_session
+from addon.broker.queries import (
     get_setting_with_session,
     save_setting_with_session,
 )

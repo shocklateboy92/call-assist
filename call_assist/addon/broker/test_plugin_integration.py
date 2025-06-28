@@ -12,7 +12,7 @@ import sys
 # Add the project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from call_assist.addon.broker.plugin_manager import PluginManager
+from addon.broker.plugin_manager import PluginManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ async def test_broker_plugin_integration():
     logger.info("Testing broker plugin integration...")
 
     try:
-        from call_assist.addon.broker.broker import CallAssistBroker
+        from addon.broker.broker import CallAssistBroker
 
         # Create broker instance
         broker = CallAssistBroker()

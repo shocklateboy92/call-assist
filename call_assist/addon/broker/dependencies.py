@@ -13,8 +13,8 @@ from functools import lru_cache
 from fastapi import Depends
 from sqlmodel import Session
 
-from call_assist.addon.broker.database import DatabaseManager
-from call_assist.addon.broker.plugin_manager import PluginManager
+from addon.broker.database import DatabaseManager
+from addon.broker.plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 

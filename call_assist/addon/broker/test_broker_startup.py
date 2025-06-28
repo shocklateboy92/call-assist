@@ -21,11 +21,11 @@ async def test_broker_startup():
     logger.info("Testing broker startup with integrated components...")
 
     # Set up database path for testing
-    db_path = "/tmp/test_call_assist.db"
+    db_path = "/tmp/test_db"
 
     try:
-        from call_assist.addon.broker.database import set_database_path
-        from call_assist.addon.broker.broker import CallAssistBroker
+        from addon.broker.database import set_database_path
+        from addon.broker.broker import CallAssistBroker
 
         set_database_path(db_path)
 

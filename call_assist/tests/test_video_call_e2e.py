@@ -17,8 +17,8 @@ from typing import Any
 
 import aiohttp
 import pytest
-from call_assist.tests.conftest import WebUITestClient
-from call_assist.tests.types import VideoTestEnvironment
+from tests.conftest import WebUITestClient
+from tests.types import VideoTestEnvironment
 
 from proto_gen.callassist.broker import HaEntityUpdate
 

@@ -16,7 +16,7 @@ from typing import cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
-from call_assist.addon.broker.broker import CallAssistBroker
+from addon.broker.broker import CallAssistBroker
 
 # Test imports
 from proto_gen.callassist.broker import (
@@ -27,8 +27,8 @@ from proto_gen.callassist.broker import (
     StartCallRequest,
     StartCallResponse,
 )
-from call_assist.tests.conftest import WebUITestClient
-from call_assist.tests.types import VideoTestEnvironment
+from tests.conftest import WebUITestClient
+from tests.types import VideoTestEnvironment
 
 # Set up logging for tests
 logging.basicConfig(level=logging.INFO)

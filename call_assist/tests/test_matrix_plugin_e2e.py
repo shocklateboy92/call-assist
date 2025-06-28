@@ -15,7 +15,7 @@ from typing import Any, cast
 
 import aiohttp
 import pytest
-from call_assist.tests.conftest import WebUITestClient
+from tests.conftest import WebUITestClient
 
 # Set up logging for tests
 logger = logging.getLogger(__name__)

@@ -5,8 +5,8 @@ import logging
 import tempfile
 from unittest.mock import AsyncMock, Mock
 
-from call_assist.addon.broker.dependencies import AppState
-from call_assist.addon.broker.plugin_manager import (
+from addon.broker.dependencies import AppState
+from addon.broker.plugin_manager import (
     CapabilitiesConfig,
     ExecutableConfig,
     GrpcConfig,

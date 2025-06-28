@@ -51,7 +51,7 @@ from ludic.html import (
 from ludic.styles import CSSProperties
 from ludic.types import AnyChildren, NoChildren
 
-from call_assist.addon.broker.data_types import (
+from addon.broker.data_types import (
     AccountStatusData,
     CallStationStatusData,
     ProtocolSchemaDict,

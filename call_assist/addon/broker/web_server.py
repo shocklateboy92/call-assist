@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from ludic.contrib.fastapi import LudicRoute
 
-from call_assist.addon.broker.ludic_views import create_routes
+from addon.broker.ludic_views import create_routes
 
 logger = logging.getLogger(__name__)
 

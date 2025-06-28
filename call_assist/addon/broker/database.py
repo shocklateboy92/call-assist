@@ -5,8 +5,8 @@ from pathlib import Path
 
 from sqlmodel import Session, create_engine, select
 
-from call_assist.addon.broker.models import Account, BrokerSettings, CallLog, SQLModel
-from call_assist.addon.broker.queries import (
+from addon.broker.models import Account, BrokerSettings, CallLog, SQLModel
+from addon.broker.queries import (
     get_setting_with_session,
     save_setting_with_session,
 )

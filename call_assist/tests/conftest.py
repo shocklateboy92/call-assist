@@ -22,12 +22,12 @@ import aiohttp
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 import pytest
 from bs4 import BeautifulSoup, Tag
-from call_assist.addon.broker.main import serve
-from call_assist.proto_gen.callassist.broker import (
+from addon.broker.main import serve
+from proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     HaEntityUpdate,
 )
-from call_assist.tests.types import (
+from tests.types import (
     BrokerProcessInfo,
     CustomIntegrationsFixture,
     VideoTestEnvironment,
