@@ -40,11 +40,11 @@ logger = logging.getLogger(__name__)
 class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", None]):
     """Test client for interacting with the Call Assist web UI via HTTP requests"""
 
-    def __init__(self, base_url: str = "http://localhost:8080"):
+    def __init__(self, base_url: str = "http://localhost:8080") -> None:
         self.base_url = base_url
         self.session: aiohttp.ClientSession | None = None
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "WebUITestClient":
         self.session = aiohttp.ClientSession()
         return self
 

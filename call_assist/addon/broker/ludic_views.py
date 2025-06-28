@@ -6,6 +6,7 @@ Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
+from typing import Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
@@ -57,12 +58,12 @@ def get_protocol_schemas(
     return schemas_dict
 
 
-def create_routes(app: FastAPI):
+def create_routes(app: FastAPI) -> None:
     """Create all web UI routes with dependency injection"""
 
     # Add exception handler for all exceptions
     @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception):
+    async def global_exception_handler(request: Request, exc: Exception) -> Response:
         """Global exception handler using Ludic ErrorPage component"""
         logger.exception(f"Unhandled exception in {request.url.path}: {exc}")
 
@@ -101,7 +102,7 @@ def create_routes(app: FastAPI):
     @app.get("/ui", response_class=HTMLResponse)
     async def main_page(
         account_service = Depends(get_account_service)
-    ):
+    ) -> PageLayout:
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
         accounts_data = await account_service.get_accounts_with_status()
@@ -120,7 +121,7 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)):
+    async def add_account_page(protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)) -> PageLayout:
         """Add new account page"""
         return PageLayout(
             "Add Account - Call Assist Broker",
@@ -134,7 +135,7 @@ def create_routes(app: FastAPI):
         account_id: str = Form(...),
         display_name: str = Form(...),
         session: Session = Depends(get_database_session),
-    ):
+    ) -> Response:
         """Submit new account"""
         # Get all form data for credentials
         form_data = await request.form()
@@ -172,7 +173,7 @@ def create_routes(app: FastAPI):
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
         protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
-    ):
+    ) -> PageLayout:
         """Edit existing account page"""
         # Load existing account
         existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
@@ -209,7 +210,7 @@ def create_routes(app: FastAPI):
         new_account_id: str = Form(..., alias="account_id"),
         display_name: str = Form(...),
         session: Session = Depends(get_database_session),
-    ):
+    ) -> Response:
         """Submit account changes"""
         # Load existing account
         existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
@@ -252,7 +253,7 @@ def create_routes(app: FastAPI):
         protocol: str = Path(...),
         account_id: str = Path(...),
         session: Session = Depends(get_database_session),
-    ):
+    ) -> Response:
         """Delete account endpoint for HTMX"""
         success = delete_account_with_session(session, protocol, account_id)
         if success:
@@ -264,7 +265,7 @@ def create_routes(app: FastAPI):
     async def get_protocol_fields(
         protocol: str | None = None,
         protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
-    ):
+    ) -> HTMLResponse:
         """Get protocol-specific form fields for HTMX dynamic loading"""
         if not protocol:
             return HTMLResponse(content="")
@@ -289,11 +290,11 @@ def create_routes(app: FastAPI):
         )
 
         # Protocol-specific credential fields
-        credential_fields = []
+        credential_fields: list[Any] = []
         if "credential_fields" in schema:
             for field_config in schema["credential_fields"]:
                 field_name = field_config.get("key")
-                if field_name in ["account_id", "display_name"]:
+                if not field_name or field_name in ["account_id", "display_name"]:
                     continue
 
                 field_type = field_config.get("type", "STRING")
@@ -441,7 +442,7 @@ def create_routes(app: FastAPI):
         )
 
     @app.get("/ui/history", response_class=HTMLResponse)
-    async def history_page(session: Session = Depends(get_database_session)):
+    async def history_page(session: Session = Depends(get_database_session)) -> PageLayout:
         """Call history page"""
         call_logs = get_call_logs_with_session(session)
         logs_data = []

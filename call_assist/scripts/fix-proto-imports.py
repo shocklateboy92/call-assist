@@ -10,7 +10,7 @@ import re
 import sys
 
 
-def fix_proto_file(filepath):
+def fix_proto_file(filepath: str) -> None:
     """Fix imports in a single protobuf file"""
     with open(filepath) as f:
         content = f.read()
@@ -49,7 +49,7 @@ def fix_proto_file(filepath):
         f.write(content)
 
 
-def fix_proto_dir(proto_gen_dir):
+def fix_proto_dir(proto_gen_dir: str) -> None:
     """Fix all protobuf files in a directory"""
     # Fix all protobuf files
     for pattern in ["*_pb2.py", "*_pb2_grpc.py"]:
@@ -60,7 +60,7 @@ def fix_proto_dir(proto_gen_dir):
     print(f"Proto import fixes completed for {proto_gen_dir}")
 
 
-def main():
+def main() -> None:
     # Allow directory to be passed as argument, default to central proto_gen
     if len(sys.argv) > 1:
         proto_gen_dir = sys.argv[1]

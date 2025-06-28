@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 class WebUIServer:
     """Manages the web UI server (Ludic + FastAPI)"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize web server (dependencies will be injected via FastAPI DI)"""
-        self.server_task: asyncio.Task | None = None
+        self.server_task: asyncio.Task[None] | None = None
         self.host = "0.0.0.0"
         self.port = 8080
         self.app: FastAPI | None = None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize web server settings"""
         try:
             # Create FastAPI app with Ludic route class
@@ -32,7 +32,7 @@ class WebUIServer:
 
             # Add redirect from index to /ui
             @self.app.get("/")
-            async def redirect_to_ui():
+            async def redirect_to_ui() -> RedirectResponse:
                 return RedirectResponse(url="/ui", status_code=302)
 
             # Setup Ludic routes (dependencies will be injected automatically)
@@ -44,7 +44,7 @@ class WebUIServer:
             logger.error(f"Web UI server initialization failed: {e}")
             raise
 
-    async def start(self):
+    async def start(self) -> None:
         """Start the web UI server"""
         try:
             await self.initialize()
@@ -67,7 +67,7 @@ class WebUIServer:
             logger.error(f"Failed to start web UI server: {e}")
             raise
 
-    async def stop(self):
+    async def stop(self) -> None:
         """Stop the web UI server"""
         if self.server_task:
             self.server_task.cancel()
@@ -86,7 +86,7 @@ def create_web_server() -> WebUIServer:
 # For standalone testing
 if __name__ == "__main__":
 
-    async def test_server():
+    async def test_server() -> None:
         server = WebUIServer()
         await server.start()
 

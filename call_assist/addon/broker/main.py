@@ -47,7 +47,7 @@ async def serve(
         logger.info(f"  - Database: {db_path}")
 
         # Start gRPC server first (non-blocking)
-        async def run_grpc_server():
+        async def run_grpc_server() -> None:
             await grpc_server.start(grpc_host, grpc_port)
             logger.info(f"gRPC server listening on {grpc_host}:{grpc_port}")
 

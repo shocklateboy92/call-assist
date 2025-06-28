@@ -20,6 +20,8 @@ from dacite import from_dict
 from dataclasses_jsonschema import JsonSchemaMixin
 from grpclib.client import Channel
 
+from addon.broker.data_types import ProtocolSchemaDict
+
 from proto_gen.callassist.plugin import (
     CallEndRequest,
     CallEndResponse,
@@ -659,7 +661,7 @@ class PluginManager:
             return self.plugins[protocol]
         return None
 
-    def get_protocol_schemas(self) -> dict[str, dict]:
+    def get_protocol_schemas(self) -> dict[str, ProtocolSchemaDict]:
         """Get UI schemas for all available protocols"""
         schemas = {}
 

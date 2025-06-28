@@ -5,8 +5,10 @@ Ludic-based web UI components for Call Assist Broker
 
 from typing import Any, override
 
+from ludic.base import BaseElement
+
 from ludic import Component
-from ludic.attrs import GlobalAttrs
+from ludic.attrs import GlobalAttrs, HyperlinkAttrs
 from ludic.html import (
     a,
     body,
@@ -64,7 +66,16 @@ class NavAttrs(GlobalAttrs, total=False):
 class Nav(Component[AnyChildren, NavAttrs]):
     @override
     def render(self) -> nav:
-        return nav(*self.children, **self.attrs)
+        return nav(*self.children, **self.attrs)  # type: ignore[misc]
+
+
+class LinkAttrs(HyperlinkAttrs, total=False):
+    role: str
+
+class Link(Component[AnyChildren, LinkAttrs]):
+    @override
+    def render(self) -> a:
+        return a(*self.children, **self.attrs)  # type: ignore[misc]
 
 
 class ErrorPage(Component[NoChildren, GlobalAttrs]):
@@ -169,7 +180,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
             ),
             body(
                 header(
-                    nav(
+                    Nav(
                         strong("📹 Call Assist Broker"),
                         ul(
                             li(a("Accounts", href="/ui")),
@@ -214,14 +225,14 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
         if not self.accounts:
             return div(
                 p("No accounts configured yet."),
-                a("Add Account", href="/ui/add-account", role="button"),
+                Link("Add Account", href="/ui/add-account", role="button"),
                 class_="form-container",
             )
 
         return div(
             div(
                 h2("Accounts"),
-                a(
+                Link(
                     "Add Account",
                     href="/ui/add-account",
                     role="button",
@@ -263,7 +274,7 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
             td(account.updated_at),
             td(
                 div(
-                    a(
+                    Link(
                         "Edit",
                         href=f"/ui/edit-account/{account.protocol}/{account.account_id}",
                         role="button",
@@ -283,7 +294,7 @@ class AccountsTable(Component[NoChildren, GlobalAttrs]):
         )
 
 
-class AccountForm(Component[None, GlobalAttrs]):
+class AccountForm(Component[NoChildren, GlobalAttrs]):
     """Account configuration form component"""
 
     def __init__(
@@ -309,21 +320,20 @@ class AccountForm(Component[None, GlobalAttrs]):
         )
 
         return div(
-            div(a("← Back to Accounts", href="/ui"), style="margin-bottom: 1rem;"),
+            div(a("← Back to Accounts", href="/ui")),
             div(
                 h2(form_title),
                 form(
                     self.render_protocol_field(),
-                    (
-                        div(id="dynamic-fields")
+                    *(
+                        [div(id="dynamic-fields")]
                         if not self.is_edit
                         else self.render_account_fields()
                     ),
                     button(
                         "Update Account" if self.is_edit else "Add Account",
                         type="submit",
-                        style="width: 100%; margin-top: 1rem;",
-                    ),
+                                            ),
                     method="post",
                     action=form_action,
                 ),
@@ -337,7 +347,7 @@ class AccountForm(Component[None, GlobalAttrs]):
         if self.is_edit:
             return fieldset(
                 legend("Protocol"),
-                input(type="hidden", name="protocol", value=self.selected_protocol),
+                input(type="hidden", name="protocol", value=self.selected_protocol or ""),
                 p(f"Protocol: {(self.selected_protocol or '').title()}"),
             )
 
@@ -398,7 +408,7 @@ class AccountForm(Component[None, GlobalAttrs]):
 
         # Protocol-specific fields
         if "credential_fields" in schema:
-            credential_fields = []
+            credential_fields: list[BaseElement] = []
             for field_def in schema["credential_fields"]:
                 field_name = field_def.get("key", "")
                 if field_name in ["account_id", "display_name"]:
@@ -451,7 +461,7 @@ class AccountForm(Component[None, GlobalAttrs]):
         return fields
 
 
-class StatusCard(Component[None, GlobalAttrs]):
+class StatusCard(Component[NoChildren, GlobalAttrs]):
     """Status information card component"""
 
     def __init__(self, title: str, status_data: dict[str, Any], **attrs: Any):
@@ -464,16 +474,16 @@ class StatusCard(Component[None, GlobalAttrs]):
             h3(self.title),
             dl(
                 *[
-                    [dt(key.replace("_", " ").title()), dd(str(value))]
+                    item
                     for key, value in self.status_data.items()
+                    for item in [dt(key.replace("_", " ").title()), dd(str(value))]
                 ]
             ),
-            style="border: 1px solid var(--color-border); padding: 1rem; margin-bottom: 1rem; border-radius: 0.5rem;",
             **self.attrs,
         )
 
 
-class CallHistoryTable(Component[None, GlobalAttrs]):
+class CallHistoryTable(Component[NoChildren, GlobalAttrs]):
     """Call history table component"""
 
     def __init__(self, call_logs: list[dict[str, Any]], **attrs: Any):
@@ -527,7 +537,7 @@ class CallHistoryTable(Component[None, GlobalAttrs]):
         )
 
 
-class SettingsForm(Component[None, GlobalAttrs]):
+class SettingsForm(Component[NoChildren, GlobalAttrs]):
     """Settings configuration form component"""
 
     def __init__(self, settings: dict[str, Any], **attrs: Any):
@@ -536,7 +546,7 @@ class SettingsForm(Component[None, GlobalAttrs]):
 
     def render(self) -> div:
         return div(
-            div(a("← Back to Accounts", href="/ui"), style="margin-bottom: 1rem;"),
+            div(a("← Back to Accounts", href="/ui")),
             div(
                 h2("Broker Settings"),
                 form(
@@ -555,8 +565,8 @@ class SettingsForm(Component[None, GlobalAttrs]):
                             name="web_ui_port",
                             id="web_ui_port",
                             value=self.settings.get("web_ui_port", 8080),
-                            min="1024",
-                            max="65535",
+                            min=1024,
+                            max=65535,
                         ),
                     ),
                     fieldset(
@@ -575,8 +585,8 @@ class SettingsForm(Component[None, GlobalAttrs]):
                             name="max_call_history_days",
                             id="max_call_history_days",
                             value=self.settings.get("max_call_history_days", 30),
-                            min="1",
-                            max="365",
+                            min=1,
+                            max=365,
                         ),
                         label(
                             input(
@@ -590,8 +600,7 @@ class SettingsForm(Component[None, GlobalAttrs]):
                     button(
                         "Save Settings",
                         type="submit",
-                        style="width: 100%; margin-top: 1rem;",
-                    ),
+                                            ),
                     method="post",
                     action="/ui/settings",
                 ),
@@ -631,14 +640,14 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
         if not self.call_stations:
             return div(
                 p("No call stations configured yet."),
-                a("Add Call Station", href="/ui/add-call-station", role="button"),
+                Link("Add Call Station", href="/ui/add-call-station", role="button"),
                 class_="form-container",
             )
 
         return div(
             div(
                 h2("Call Stations"),
-                a(
+                Link(
                     "Add Call Station",
                     href="/ui/add-call-station",
                     role="button",
@@ -697,7 +706,7 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
             td(station.updated_at),
             td(
                 div(
-                    a(
+                    Link(
                         "Edit",
                         href=f"/ui/edit-call-station/{station.station_id}",
                         role="button",
@@ -717,7 +726,7 @@ class CallStationsTable(Component[NoChildren, GlobalAttrs]):
         )
 
 
-class CallStationForm(Component[None, GlobalAttrs]):
+class CallStationForm(Component[NoChildren, GlobalAttrs]):
     """Call station configuration form component"""
 
     def __init__(
@@ -741,7 +750,7 @@ class CallStationForm(Component[None, GlobalAttrs]):
         )
 
         return div(
-            div(a("← Back to Call Stations", href="/ui/call-stations"), style="margin-bottom: 1rem;"),
+            div(a("← Back to Call Stations", href="/ui/call-stations")),
             div(
                 h2(form_title),
                 form(
@@ -774,11 +783,11 @@ class CallStationForm(Component[None, GlobalAttrs]):
                             option("Select a camera...", value="", selected=not self.station_data.get("camera_entity_id")),
                             *[
                                 option(
-                                    f"{camera.name} ({camera.entity_id})",
-                                    value=camera.entity_id,
-                                    selected=camera.entity_id == self.station_data.get("camera_entity_id"),
+                                    f"{camera.get('name', '')} ({camera.get('entity_id', '')})",
+                                    value=camera.get("entity_id", ""),
+                                    selected=camera.get("entity_id") == self.station_data.get("camera_entity_id"),
                                 )
-                                for camera in self.available_entities.cameras
+                                for camera in self.available_entities.get("cameras", [])
                             ],
                             name="camera_entity_id",
                             id="camera_entity_id",
@@ -789,11 +798,11 @@ class CallStationForm(Component[None, GlobalAttrs]):
                             option("Select a media player...", value="", selected=not self.station_data.get("media_player_entity_id")),
                             *[
                                 option(
-                                    f"{player.name} ({player.entity_id})",
-                                    value=player.entity_id,
-                                    selected=player.entity_id == self.station_data.get("media_player_entity_id"),
+                                    f"{player.get('name', '')} ({player.get('entity_id', '')})",
+                                    value=player.get("entity_id", ""),
+                                    selected=player.get("entity_id") == self.station_data.get("media_player_entity_id"),
                                 )
-                                for player in self.available_entities.media_players
+                                for player in self.available_entities.get("media_players", [])
                             ],
                             name="media_player_entity_id",
                             id="media_player_entity_id",
@@ -814,8 +823,7 @@ class CallStationForm(Component[None, GlobalAttrs]):
                     button(
                         "Update Call Station" if self.is_edit else "Add Call Station",
                         type="submit",
-                        style="width: 100%; margin-top: 1rem;",
-                    ),
+                                            ),
                     method="post",
                     action=form_action,
                 ),

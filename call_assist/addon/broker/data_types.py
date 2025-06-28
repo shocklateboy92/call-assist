@@ -7,7 +7,7 @@ throughout the broker application.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 @dataclass(frozen=True)
@@ -159,6 +159,8 @@ class ProtocolSchemaDict(TypedDict):
     description: str
     credential_fields: list[CredentialFieldDict]
     setting_fields: list[CredentialFieldDict]  # Settings use same field structure
+    example_account_ids: list[str]
+    capabilities: dict[str, Any]
 
 
 @dataclass(frozen=True)
