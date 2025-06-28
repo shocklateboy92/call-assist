@@ -6,7 +6,12 @@ from typing import Any
 
 from sqlmodel import Session, select
 
-from call_assist.addon.broker.models import Account, BrokerSettings, CallLog, CallStation
+from call_assist.addon.broker.models import (
+    Account,
+    BrokerSettings,
+    CallLog,
+    CallStation,
+)
 
 logger = logging.getLogger(__name__)
 

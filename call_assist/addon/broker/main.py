@@ -17,7 +17,6 @@ from call_assist.addon.broker.web_server import WebUIServer
 
 # Import betterproto generated classes
 from proto_gen.callassist.broker import (
-    BrokerEntityType,
     BrokerEntityUpdate,
     BrokerIntegrationBase,
     HaEntityUpdate,

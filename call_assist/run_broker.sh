@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -xe
 
 # Switch to the directory where the script is located
 cd "$(dirname "$0")"

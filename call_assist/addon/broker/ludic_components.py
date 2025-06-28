@@ -57,6 +57,7 @@ from call_assist.addon.broker.data_types import (
     ProtocolSchemaDict,
 )
 
+
 class NavAttrs(GlobalAttrs, total=False):
     data_variant: str
 
