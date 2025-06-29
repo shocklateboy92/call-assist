@@ -21,7 +21,6 @@ from .call_station_service import (
 )
 from .data_types import (
     EntityInfo,
-    ProtocolSchemaDict,
 )
 from .database import DatabaseManager
 from .dependencies import (
@@ -68,14 +67,6 @@ def convert_ha_entities_to_entity_info(ha_entities: dict[str, HAEntity]) -> dict
         )
         for entity_id, entity in ha_entities.items()
     }
-
-
-
-def get_protocol_schemas(
-    plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]
-) -> dict[str, ProtocolSchemaDict]:
-    """Get protocol schemas from plugin manager (via dependency injection)"""
-    return plugin_manager.get_protocol_schemas()
 
 
 def create_routes(app: FastAPI) -> None:
@@ -143,8 +134,9 @@ def create_routes(app: FastAPI) -> None:
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)]) -> PageLayout:
+    async def add_account_page(plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]) -> PageLayout:
         """Add new account page"""
+        protocols = plugin_manager.get_protocol_schemas()
         return PageLayout(
             "Add Account - Call Assist Broker",
             AccountForm(protocols=protocols, is_edit=False)
@@ -192,11 +184,12 @@ def create_routes(app: FastAPI) -> None:
     @app.get("/ui/edit-account/{protocol}/{account_id}", response_class=HTMLResponse)
     async def edit_account_page(
         session: Annotated[Session, Depends(get_database_session)],
-        protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)],
+        plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
         protocol: str = Path(...),
         account_id: str = Path(...),
     ) -> PageLayout:
         """Edit existing account page"""
+        protocols = plugin_manager.get_protocol_schemas()
         # Load existing account
         existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
         if not existing_account:
@@ -285,10 +278,11 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/api/protocol-fields", response_class=HTMLResponse)
     async def get_protocol_fields(
-        protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)],
+        plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
         protocol: str | None = None,
     ) -> HTMLResponse:
         """Get protocol-specific form fields for HTMX dynamic loading"""
+        protocols = plugin_manager.get_protocol_schemas()
         if not protocol:
             return HTMLResponse(content="")
 
