@@ -8,6 +8,17 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 
 ## Essential Development Commands
 
+## Type checking
+
+We use mypy for type checking. To run type checks, use:
+
+```bash
+cd call_assist
+mypy --explicit-package-bases . # or you can specify a specific file path here
+```
+
+Do that after making any changes to the python code.
+
 ### Development Environment Setup
 
 **Auto-setup**: The development environment is automatically set up during devcontainer creation by running `call_assist/scripts/setup-dev-env.sh`, which includes:
