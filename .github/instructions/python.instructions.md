@@ -3,7 +3,9 @@ applyTo: '**.py'
 ---
 
 - Avoid using `Any` whenever possible. Use specific types instead.
-    - Create strong types (usually dataclasses) for keeping internal state instead of property bags.
+- Avoid using untyped dictionaries. 
+    - Create dataclasses to pass around internal state/data
+    - Use `TypedDict` if a dictionary makes sense
 
 - In general, prefer using existing libraries for common tasks instead of writing your own code.
     - For example, use `pathlib` for file system operations, `json` for JSON handling, etc.

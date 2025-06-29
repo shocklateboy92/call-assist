@@ -75,11 +75,11 @@ cd call_assist && ./scripts/setup-dev-env.sh
 docker-compose -f docker-compose.dev.yml restart <service-name>
 
 # Services available at:
-# - Home Assistant: http://localhost:8123
-# - Matrix Synapse: http://localhost:8008
+# - Home Assistant: http://homeassistant:8123
+# - Matrix Synapse: http://synapse:8008
 # - TURN Server: coturn:3478
-# - RTSP Test Server: rtsp://localhost:8554 (with test cameras)
-# - Mock Chromecast: http://localhost:8008 (for testing)
+# - RTSP Test Server: rtsp://rtsp-server:8554 (with test cameras)
+# - Mock Chromecast: http://mock-chromecast:8008 (for testing)
 ```
 
 ### Testing Guidelines
@@ -101,8 +101,8 @@ python -m pytest call_assist/tests/test_video_call_e2e.py -xvs          # End-to
 python -m pytest call_assist/tests/test_broker_integration.py::test_rtsp_stream_integration -xvs
 
 # Available test streams
-# - rtsp://localhost:8554/test_camera_1 (SMPTE color bars, 640x480@10fps)
-# - rtsp://localhost:8554/test_camera_2 (Test pattern, 640x480@10fps)
+# - rtsp://rtsp-server:8554/test_camera_1 (SMPTE color bars, 640x480@10fps)
+# - rtsp://rtsp-server:8554/test_camera_2 (Test pattern, 640x480@10fps)
 ```
 
 **Video Test Components**:
