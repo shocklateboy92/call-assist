@@ -50,29 +50,57 @@ Camera (RTSP) → Broker (Capability Detection) → Call Plugin (Matrix/XMPP) �
 /
 ├── call_assist/
 │   ├── integration/           # Home Assistant custom integration (Python)
+│   │   ├── config_flow.py     # Two-step configuration flow
+│   │   ├── coordinator.py     # Single account per instance management
+│   │   ├── sensor.py         # Generic entity sensor platform
+│   │   └── proto_gen/        # Generated protobuf Python files
 │   ├── addon/
-│   │   ├── broker/                         # Main orchestrator with web UI
-│   │   │   ├── main.py                     # gRPC server + web UI server
-│   │   │   ├── ludic_components.py         # Ludic web interface components
-│   │   │   ├── ludic_views.py              # Ludic views for all UI
-│   │   │   ├── models.py                   # SQLModel database schemas (Account, CallStation, etc.)
-│   │   │   ├── database.py                 # SQLite database management
-│   │   │   ├── queries.py                  # Database queries for all entities
-│   │   │   ├── account_service.py          # Account business logic and status checking
-│   │   │   ├── call_station_service.py     # Call station business logic and validation
-│   │   │   ├── plugin_manager.py           # Plugin loading and management logic
-│   │   │   ├── generate_plugin_schema.py   # generate JSON schema for plugin.yaml
-│   │   │   ├── web_server.py               # FastAPI web server
+│   │   ├── broker/           # Main orchestrator with web UI
+│   │   │   ├── main.py       # gRPC server + FastAPI web server
+│   │   │   ├── ludic_components.py  # Ludic web interface components
+│   │   │   ├── ludic_views.py       # Ludic views for all UI routes
+│   │   │   ├── models.py            # SQLModel database schemas
+│   │   │   ├── database.py          # SQLite database management
+│   │   │   ├── queries.py           # Database queries for all entities
+│   │   │   ├── account_service.py   # Account business logic
+│   │   │   ├── call_station_service.py  # Call station management
+│   │   │   ├── plugin_manager.py    # Plugin loading and lifecycle
+│   │   │   ├── generate_plugin_schema.py  # JSON schema generation
+│   │   │   └── web_server.py        # FastAPI web server setup
 │   │   ├── plugins/
-│   │   │   ├── matrix/       # TypeScript
-│   │   │   └── xmpp/         # C++
+│   │   │   ├── matrix/       # TypeScript - ✅ IMPLEMENTED with real WebRTC
+│   │   │   │   ├── src/index.ts     # Full WebRTC implementation
+│   │   │   │   ├── package.json     # Node.js dependencies
+│   │   │   │   └── dist/           # Compiled TypeScript output
+│   │   │   └── xmpp/         # C++ - ❌ NOT IMPLEMENTED (directory only)
 │   ├── scripts/              # Build/development scripts
-│   ├── tests/                # Integration test, used for primary validation and development
+│   │   ├── setup-dev-env.sh  # Complete development environment setup
+│   │   ├── build-proto.sh    # Protobuf generation with betterproto
+│   │   ├── test-video-infrastructure.sh  # Video testing validation
+│   │   └── restart-ha-for-testing.sh     # Development utility
+│   ├── tests/                # Integration tests with video infrastructure
+│   │   ├── conftest.py       # Test fixtures and broker setup
+│   │   ├── fixtures/         # Mock Chromecast and test utilities
+│   │   ├── test_matrix_plugin_e2e.py     # Matrix plugin end-to-end tests
+│   │   ├── test_video_call_e2e.py        # Video call testing
+│   │   └── test_matrix_webrtc_real.py    # Real WebRTC implementation tests
 │   ├── proto/                # Shared gRPC schemas
-│   ├── Dockerfile            # Container build
-│   ├── pyproject.toml        # Python dependencies and configuration including tests
-├── docker-compose.dev.yml    # Development environment
-└── .github/workflows/        # CI/CD for multi-language builds
+│   ├── proto_gen/           # Generated Python protobuf files (betterproto)
+│   ├── docs/                # Additional technical documentation
+│   │   ├── DATA_DRIVEN_CONFIG.md         # Configuration architecture
+│   │   ├── DEPENDENCY_INJECTION.md      # DI patterns
+│   │   └── REAL_WEBRTC_IMPLEMENTATION.md # WebRTC implementation guide
+│   ├── config/              # Development environment configuration
+│   │   ├── coturn/          # TURN server configuration
+│   │   ├── homeassistant/   # HA development instance config files
+│   │   └── synapse/         # Matrix server configuration
+│   ├── Dockerfile           # Container build
+│   └── pyproject.toml       # Python dependencies and configuration
+├── runtime/                 # Runtime state directory (gitignored). Ignore everything in here.
+├── docker-compose.dev.yml   # Development environment with all services
+└── .github/
+    ├── instructions/        # Project coding instructions
+    └── dependabot.yml      # Dependency management (no CI/CD workflows yet)
 ```
 
 ### Technical Decisions Made
@@ -168,34 +196,45 @@ Broker (Business Logic) → Generic Entities → HA Integration (Presentation)
 - Real-time updates via `StreamEntityUpdates` for state changes
 
 ### Development Environment
-**Docker Compose Setup**: VS Code dev container automatically starts all services:
-- **devcontainer** - Development environment with Python/TypeScript support
-- **homeassistant** - Available at `localhost:8123` with integration mounted
-- **call_assist-addon** - Broker and plugins running, accessible via service name
-  - **Web UI**: `http://localhost:8080/ui` - Account management interface
-  - **REST API**: `http://localhost:8080/api/` - Programmatic access
-  - **gRPC Server**: `localhost:50051` - Integration communication
-- **synapse** - Matrix homeserver at `localhost:8008` for testing Matrix plugin
-- **coturn** - TURN server on port 3478 for WebRTC relay support
-- **Runtime state** stored in `runtime/` directory (gitignored) for easy debugging
 
-**Type Safety**: Protobuf files use mypy-protobuf for full type checking support:
-- `.pyi` stub files are tracked in git for immediate IDE support
-- Run `scripts/build-proto.sh` to regenerate protobuf files and type stubs
-- Python protobuf files (`*_pb2.py`, `*_pb2_grpc.py`) are gitignored as generated files
+**Complete Docker Compose Setup**: VS Code devcontainer with automatic service startup:
+
+#### **Core Services**
+- **devcontainer** - Development environment with Python/TypeScript/mypy support
+- **homeassistant** - `http://localhost:8123` with integration auto-loaded
+- **call_assist-addon** - Main broker service with:
+  - **Web UI**: `http://localhost:8080/ui` - Complete management interface  
+  - **REST API**: `http://localhost:8080/api/` - Programmatic access
+  - **API Docs**: `http://localhost:8080/docs` - Interactive documentation
+  - **gRPC Server**: `localhost:50051` - Home Assistant integration communication
+
+#### **Testing Infrastructure**
+- **synapse** - Matrix homeserver at `http://localhost:8008` for Matrix plugin testing
+- **coturn** - TURN server on port 3478 for WebRTC NAT traversal
+- **RTSP Test Servers** - Synthetic video streams at `rtsp://localhost:8554/test_camera_*`
+- **Mock Chromecast** - HTTP server simulating Chromecast behavior for media player testing
+
+#### **Development Tools**
+- **Runtime State**: `runtime/` directory (gitignored) for debugging and data persistence
+- **Auto-Setup**: `scripts/setup-dev-env.sh` runs automatically on devcontainer creation
+- **Video Testing**: `scripts/test-video-infrastructure.sh` validates all media components
+- **Type Safety**: Protobuf generation with betterproto and mypy type stubs
 
 ## Matrix Plugin WebRTC Implementation ✅
 
-### Implementation Complete
-The Matrix plugin (`addon/plugins/matrix/src/index.ts`) now features a comprehensive WebRTC implementation:
+### Implementation Complete - Real WebRTC with @roamhq/wrtc
+The Matrix plugin (`addon/plugins/matrix/src/index.ts`) features a production-ready WebRTC implementation:
 
 #### **Core WebRTC Features Implemented ✅**
-- ✅ **Real RTCPeerConnection Management**: Factory pattern with `createPeerConnection()` for easy mock/real switching
-- ✅ **Proper SDP Offer/Answer Exchange**: Uses `createOffer()` and `createAnswer()` instead of mock generation
-- ✅ **ICE Candidate Handling**: Collects, sends, and processes ICE candidates via Matrix signaling
-- ✅ **Connection State Monitoring**: Tracks peer connection states and emits appropriate call events
-- ✅ **Matrix Integration**: Enhanced Matrix signaling with real WebRTC session management
-- ✅ **Resource Management**: Proper peer connection cleanup on call end and plugin shutdown
+- ✅ **Real WebRTC Library**: Uses `@roamhq/wrtc` for native RTCPeerConnection support
+- ✅ **Hybrid Implementation**: Mock WebRTC for development/testing + real WebRTC for production
+- ✅ **Complete SDP Handling**: Real SDP offer/answer generation and exchange
+- ✅ **ICE Candidate Management**: Full ICE gathering, exchange, and processing
+- ✅ **Connection State Monitoring**: Real peer connection state tracking and events
+- ✅ **Matrix VoIP Integration**: Full Matrix VoIP event support (invite, answer, hangup, candidates)
+- ✅ **Media Pipeline Ready**: Architecture prepared for RTSP → WebRTC media integration
+- ✅ **FFMPEG Integration**: Built-in FFMPEG support for media transcoding
+- ✅ **Resource Management**: Proper cleanup and lifecycle management
 
 #### **Architecture Overview**
 ```typescript
@@ -233,24 +272,17 @@ interface CallInfo {
 - **ICE Candidate Exchange**: Automatic ICE candidate relay via Matrix `m.call.candidates` events
 - **Matrix Signaling**: Enhanced offer/answer processing with proper SDP handling
 
-#### **Ready for Production WebRTC**
+#### **Production WebRTC Implementation**
 
-**Current State**: Fully functional with mock WebRTC implementation
-**Production Upgrade Path**:
-1. Add `wrtc` dependency: `npm install wrtc`
-2. Update `createPeerConnection()` factory:
-```typescript
-import * as wrtc from 'wrtc';
+**Implementation Status**: Production-ready with `@roamhq/wrtc` library
 
-function createPeerConnection(): RTCPeerConnectionInterface {
-  return new wrtc.RTCPeerConnection({
-    iceServers: [
-      { urls: 'stun:coturn:3478' },
-      { urls: 'turn:coturn:3478', username: 'user', credential: 'pass' }
-    ]
-  });
-}
-```
+**Key Features**:
+- Real RTCPeerConnection with native WebRTC support
+- FFMPEG integration for media transcoding
+- TURN/STUN server support via coturn
+- Mock implementation for development/testing
+- Comprehensive ICE candidate handling
+- Matrix VoIP event integration
 
 #### **Integration Points**
 - **Matrix Signaling**: Complete Matrix VoIP event handling (`m.call.invite`, `m.call.answer`, `m.call.hangup`, `m.call.candidates`)
@@ -434,30 +466,32 @@ Database-Driven Call Stations ↔ Broker Entity Updates ↔ Home Assistant Integ
 - **User Control**: Manual configuration for both accounts and call stations
 - **Comprehensive Testing**: End-to-end video call testing with RTSP streams and mock devices
 
-### **Current Capabilities**
-- **Account Management**: Add/edit/delete protocol accounts via web UI
-- **Call Station Management**: Configure camera + media player combinations
-- **Matrix WebRTC**: Complete peer connection implementation with SDP offer/answer and ICE candidate handling
-- **Protocol Support**: Matrix integration with real WebRTC signaling infrastructure
-- **Status Monitoring**: Real-time availability tracking and call state management
-- **Entity Streaming**: Broker entities appear in Home Assistant
-- **Web Interface**: Complete management without Home Assistant limitations
-- **Video Testing**: End-to-end testing with synthetic RTSP streams and mock Chromecast devices
-- **Call Testing**: Matrix call lifecycle testing with WebRTC peer connection simulation
-- **Performance Validation**: Load testing for concurrent connections and state transitions
+### **Current System Capabilities**
+- **Account Management**: Complete protocol account lifecycle via standalone web UI
+- **Call Station Management**: Manual configuration of camera + media player combinations with database persistence
+- **Matrix WebRTC**: Production-ready WebRTC implementation with real peer connections and media pipeline support
+- **Protocol Integration**: Full Matrix VoIP support with signaling, ICE handling, and call state management
+- **Entity Streaming**: Real-time broker entities synchronized with Home Assistant via gRPC
+- **Status Monitoring**: Live availability tracking and comprehensive call state management
+- **Web Interface**: Standalone management interface with FastAPI, Ludic, and HTMX
+- **Testing Infrastructure**: Complete video call testing with RTSP streams, mock Chromecast, and WebRTC simulation
+- **Database Persistence**: SQLite storage with automatic migrations for accounts, call stations, and settings
 
 ### **Next Development Priorities**
-1. 🎥 **Media Pipeline Integration**: Connect RTSP camera streams to WebRTC media tracks
+1. 🎥 **Media Pipeline Integration**: Connect RTSP camera streams to WebRTC media tracks (FFMPEG integration ready)
 2. 📞 **Complete Call Functionality**: End-to-end calling through call stations with real media
-3. 🔌 **Production WebRTC**: Replace mock implementation with real `wrtc` library 
-4. 🔍 **Contact Discovery**: Matrix contact lists and presence
-5. ⚙️ **Broker Capabilities**: Dynamic capability detection and negotiation
-6. 📱 **XMPP Plugin**: Second protocol implementation for validation
-7. 🧪 **Integration Testing**: Full end-to-end call scenarios with real media streams
+3. 🔍 **Contact Discovery**: Matrix contact lists and presence management
+4. ⚙️ **Broker Capabilities**: Dynamic capability detection and media negotiation
+5. 📱 **XMPP Plugin**: C++ implementation for protocol validation
+6. 🧪 **Advanced Integration Testing**: Full end-to-end call scenarios with real media streams
+7. 🚀 **CI/CD Pipeline**: GitHub Actions workflows for automated testing and building
 8. 📦 **Packaging**: HACS integration and Home Assistant Add-on publishing
 
-### **Technical Debt**
+### **Technical Debt & Improvement Areas**
+- **XMPP Plugin**: Complete C++ implementation to match Matrix plugin capabilities
+- **CI/CD Pipeline**: Add GitHub Actions workflows for automated testing and multi-language builds
 - **Type Errors**: Resolve remaining Ludic component type warnings
-- **Error Handling**: Improve exception handling in web UI routes
-- **Performance**: Optimize entity update streaming
-- **Documentation**: Add inline code documentation and examples
+- **Error Handling**: Improve exception handling in web UI routes and plugin management
+- **Performance**: Optimize entity update streaming and database queries
+- **Media Pipeline**: Complete RTSP → WebRTC media stream integration
+- **Documentation**: Add inline code documentation and API examples
