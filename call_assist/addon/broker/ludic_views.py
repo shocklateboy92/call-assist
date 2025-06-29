@@ -10,7 +10,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
-from ludic.html import div, fieldset, input, label, legend
+from ludic.html import a, div, fieldset, input, label, legend, p
 from sqlmodel import Session
 
 from .account_service import AccountService, get_account_service
@@ -597,10 +597,12 @@ def create_routes(app: FastAPI) -> None:
         enabled: bool = Form(False),
     ) -> Response:
         """Submit new call station"""
+        errors = []
+
         # Check if station already exists
         existing = get_call_station_by_id_with_session(session, station_id)
         if existing:
-            raise HTTPException(status_code=400, detail="Call station already exists")
+            errors.append("Call station already exists")
 
         # Validate entities exist
         ha_entities = broker.ha_entities if broker else {}
@@ -609,9 +611,59 @@ def create_routes(app: FastAPI) -> None:
             camera_entity_id, media_player_entity_id, entity_info_dict
         )
         if validation_errors.has_errors:
-            error_msg = "; ".join(validation_errors.to_dict().values())
-            raise HTTPException(
-                status_code=400, detail=f"Validation failed: {error_msg}"
+            errors.extend(validation_errors.to_dict().values())
+
+        # If there are errors, return form with errors and preserved input
+        if errors:
+            # Get available entities for re-rendering the form
+            available_entities = call_station_service.get_available_entities(
+                entity_info_dict
+            )
+
+            # Prepare station data to preserve user input
+            station_data = {
+                "station_id": station_id,
+                "display_name": display_name,
+                "camera_entity_id": camera_entity_id,
+                "media_player_entity_id": media_player_entity_id,
+                "enabled": enabled,
+            }
+
+            # Render form with errors
+            error_list = div(
+                *[p(error, class_="error-message") for error in errors],
+                class_="form-errors",
+            )
+
+            # Determine appropriate HTTP status code based on error type
+            # Check for conflict first (higher priority than validation errors)
+            if any("already exists" in error.lower() for error in errors):
+                status_code = 409  # Conflict for duplicate resources
+            elif any(
+                "validation" in error.lower() or "not found" in error.lower()
+                for error in errors
+            ):
+                status_code = 422  # Unprocessable Entity for validation errors
+            else:
+                status_code = 400  # Default to bad request
+
+            # Return full page with errors and preserved form data
+            return HTMLResponse(
+                content=str(
+                    PageLayout(
+                        "Add Call Station - Call Assist Broker",
+                        div(
+                            a("← Back to Call Stations", href="/ui/call-stations"),
+                            error_list,
+                            CallStationForm(
+                                available_entities=available_entities,
+                                station_data=station_data,
+                                is_edit=False,
+                            ),
+                        ),
+                    )
+                ),
+                status_code=status_code,
             )
 
         # Create new call station

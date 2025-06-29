@@ -828,6 +828,7 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                     action=form_action,
                 ),
                 class_="form-container",
+                id="call-station-form-container",
             ),
             **self.attrs,
         )
