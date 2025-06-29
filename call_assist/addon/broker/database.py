@@ -3,9 +3,9 @@
 import logging
 from pathlib import Path
 
-from sqlmodel import Session, create_engine, select
+from sqlmodel import Session, SQLModel, create_engine, select
 
-from addon.broker.models import Account, BrokerSettings, CallLog, SQLModel
+from addon.broker.models import Account, BrokerSettings, CallLog
 from addon.broker.queries import (
     get_setting_with_session,
     save_setting_with_session,
@@ -22,7 +22,7 @@ class DatabaseManager:
         self.database_url = f"sqlite:///{database_path}"
         self.engine = create_engine(self.database_url, echo=False)
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database and create tables if they don't exist"""
         try:
             logger.info(f"Initializing database at {self.database_path}")
@@ -39,10 +39,10 @@ class DatabaseManager:
             logger.error(f"Database initialization failed: {e}")
             raise
 
-    async def _setup_default_settings(self):
+    async def _setup_default_settings(self) -> None:
         """Set up default broker settings if they don't exist"""
         # Default settings
-        default_settings = {
+        default_settings: dict[str, int | str | bool] = {
             "web_ui_port": 8080,
             "web_ui_host": "0.0.0.0",
             "enable_call_history": True,
@@ -61,7 +61,7 @@ class DatabaseManager:
         """Get database session"""
         return Session(self.engine)
 
-    async def cleanup_old_call_logs(self, days: int = 30):
+    async def cleanup_old_call_logs(self, days: int = 30) -> None:
         """Clean up call logs older than specified days"""
         from datetime import datetime, timedelta
 

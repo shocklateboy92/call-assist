@@ -62,7 +62,7 @@ class MatrixTestClient:
         }
 
         async with self.session.post(url, json=data) as resp:
-            result = await resp.json()
+            result: dict[str, Any] = await resp.json()
             if resp.status == 200:
                 self.access_token = result["access_token"]
                 self.user_id = result["user_id"]
@@ -82,7 +82,7 @@ class MatrixTestClient:
         data = {"type": "m.login.password", "user": username, "password": password}
 
         async with self.session.post(url, json=data) as resp:
-            result = await resp.json()
+            result: dict[str, Any] = await resp.json()
             if resp.status == 200:
                 self.access_token = result["access_token"]
                 self.user_id = result["user_id"]
@@ -107,7 +107,8 @@ class MatrixTestClient:
             data["name"] = name
 
         async with self.session.post(url, json=data, headers=headers) as resp:
-            return await resp.json()
+            result: dict[str, Any] = await resp.json()
+            return result
 
 
 # Test constants

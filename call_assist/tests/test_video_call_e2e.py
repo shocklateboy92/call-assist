@@ -336,7 +336,7 @@ class TestVideoCallE2E:
             if resp.status != 200:
                 raise Exception(f"Stream {stream_id} failed with status {resp.status}")
 
-            result = await resp.json()
+            result: dict[str, Any] = await resp.json()
             logger.info(f"Stream {stream_id} result: {result}")
             return result
 

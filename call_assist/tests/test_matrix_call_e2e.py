@@ -442,8 +442,8 @@ async def test_matrix_call_with_real_webrtc_flow(
 
 @pytest.mark.asyncio
 async def test_matrix_plugin_webrtc_mock_behavior(
-    broker_server, video_test_environment
-):
+    broker_server: BrokerIntegrationStub, video_test_environment: VideoTestEnvironment
+) -> None:
     """Test Matrix plugin's current mock WebRTC behavior to understand implementation needs."""
     integration_client = broker_server
 
@@ -492,8 +492,8 @@ async def test_matrix_plugin_webrtc_mock_behavior(
 
 @pytest.mark.asyncio
 async def test_video_infrastructure_integration_with_matrix(
-    broker_server, video_test_environment
-):
+    broker_server: BrokerIntegrationStub, video_test_environment: VideoTestEnvironment
+) -> None:
     """Test that video infrastructure is properly integrated with Matrix call capabilities."""
     integration_client = broker_server
 

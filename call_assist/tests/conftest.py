@@ -256,7 +256,8 @@ def find_available_port() -> int:
     """Find an available port for binding"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("localhost", 0))
-        return sock.getsockname()[1]
+        port: int = sock.getsockname()[1]
+        return port
 
 
 @pytest.fixture(scope="session")
@@ -278,7 +279,7 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
 
     loop = asyncio.new_event_loop()
 
-    server_task: asyncio.Task | None = None
+    server_task: asyncio.Task[None] | None = None
 
     def run_thread() -> None:
         nonlocal server_task
@@ -367,7 +368,7 @@ async def broker_server(
 
 
 @pytest.fixture(autouse=True, scope="session")
-def setup_integration_path():
+def setup_integration_path() -> Iterator[None]:
     """Set up the integration path for testing."""
     import os
     import sys

@@ -130,7 +130,7 @@ class CallAssistGrpcClient:
         if not self.stub:
             raise RuntimeError("Not connected to broker")
 
-        async def entity_generator():
+        async def entity_generator() -> AsyncIterator[HaEntityUpdate]:
             """Generate entity updates from queue."""
             while True:
                 try:

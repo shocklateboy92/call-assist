@@ -15,7 +15,7 @@ from sqlmodel import Session
 
 from addon.broker.account_service import AccountService, get_account_service
 from addon.broker.call_station_service import CallStationService, get_call_station_service
-from addon.broker.data_types import ProtocolSchemaDict
+from addon.broker.data_types import AvailableEntitiesData, EntityInfo, ProtocolSchemaDict
 from addon.broker.database import DatabaseManager
 from addon.broker.dependencies import (
     get_broker_instance,
@@ -46,9 +46,36 @@ from addon.broker.queries import (
     save_call_station_with_session,
 )
 from addon.broker.settings_service import SettingsService, get_settings_service
-from addon.broker.broker import CallAssistBroker
+from addon.broker.broker import CallAssistBroker, HAEntity
 
 logger = logging.getLogger(__name__)
+
+
+def convert_ha_entities_to_entity_info(ha_entities: dict[str, HAEntity]) -> dict[str, EntityInfo]:
+    """Convert HAEntity dict to EntityInfo dict for type compatibility"""
+    return {
+        entity_id: EntityInfo(
+            entity_id=entity_id,
+            name=entity.name,
+            domain=entity.domain,
+            available=entity.available
+        )
+        for entity_id, entity in ha_entities.items()
+    }
+
+
+def convert_available_entities_for_form(available_entities: AvailableEntitiesData) -> dict[str, list[dict[str, str]]]:
+    """Convert AvailableEntitiesData to format expected by CallStationForm"""
+    return {
+        "cameras": [
+            {"entity_id": entity.entity_id, "name": entity.name}
+            for entity in available_entities.cameras
+        ],
+        "media_players": [
+            {"entity_id": entity.entity_id, "name": entity.name}
+            for entity in available_entities.media_players
+        ]
+    }
 
 
 def get_protocol_schemas(
@@ -108,16 +135,19 @@ def create_routes(app: FastAPI) -> None:
         accounts_data = await account_service.get_accounts_with_status()
 
         # Format the updated_at field for display
+        from dataclasses import replace
+        formatted_accounts = []
         for account in accounts_data:
-            if account.get("updated_at"):
-                # updated_at is already formatted as string from get_accounts_with_status
-                account["updated_at"] = account["updated_at"][:16]  # Show only YYYY-MM-DD HH:MM
-            else:
-                account["updated_at"] = "N/A"
+            # Create new AccountStatusData with formatted date
+            formatted_account = replace(
+                account,
+                updated_at=account.updated_at[:16] if account.updated_at else "N/A"  # Show only YYYY-MM-DD HH:MM
+            )
+            formatted_accounts.append(formatted_account)
 
         return PageLayout(
             "Call Assist Broker",
-            AccountsTable(accounts=accounts_data)
+            AccountsTable(accounts=formatted_accounts)
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
@@ -290,7 +320,7 @@ def create_routes(app: FastAPI) -> None:
         )
 
         # Protocol-specific credential fields
-        credential_fields: list[Any] = []
+        credential_fields: list[label | input] = []
         if "credential_fields" in schema:
             for field_config in schema["credential_fields"]:
                 field_name = field_config.get("key")
@@ -348,7 +378,7 @@ def create_routes(app: FastAPI) -> None:
                     )
 
         # Protocol-specific setting fields
-        setting_fields = []
+        setting_fields: list[label | input] = []
         if "setting_fields" in schema:
             for field_config in schema["setting_fields"]:
                 field_name = field_config.get("key")
@@ -521,9 +551,10 @@ def create_routes(app: FastAPI) -> None:
         """Call stations management page"""
         # Get available HA entities for status checking
         ha_entities = broker.ha_entities if broker else {}
+        entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
 
         # Get call stations with status
-        call_stations = call_station_service.get_call_stations_with_status(ha_entities)
+        call_stations = call_station_service.get_call_stations_with_status(entity_info_dict)
 
         return PageLayout(
             "Call Stations - Call Assist Broker",
@@ -538,11 +569,12 @@ def create_routes(app: FastAPI) -> None:
         """Add new call station page"""
         # Get available entities for dropdowns
         ha_entities = broker.ha_entities if broker else {}
-        available_entities = call_station_service.get_available_entities(ha_entities)
+        entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
+        available_entities = call_station_service.get_available_entities(entity_info_dict)
 
         return PageLayout(
             "Add Call Station - Call Assist Broker",
-            CallStationForm(available_entities=available_entities)
+            CallStationForm(available_entities=convert_available_entities_for_form(available_entities))
         )
 
     @app.post("/ui/add-call-station")
@@ -564,8 +596,9 @@ def create_routes(app: FastAPI) -> None:
 
         # Validate entities exist
         ha_entities = broker.ha_entities if broker else {}
+        entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
         validation_errors = call_station_service.validate_call_station_entities(
-            camera_entity_id, media_player_entity_id, ha_entities
+            camera_entity_id, media_player_entity_id, entity_info_dict
         )
         if validation_errors.has_errors:
             error_msg = "; ".join(validation_errors.to_dict().values())
@@ -602,7 +635,8 @@ def create_routes(app: FastAPI) -> None:
 
         # Get available entities for dropdowns
         ha_entities = broker.ha_entities if broker else {}
-        available_entities = call_station_service.get_available_entities(ha_entities)
+        entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
+        available_entities = call_station_service.get_available_entities(entity_info_dict)
 
         # Prepare station data
         station_data = {
@@ -616,7 +650,7 @@ def create_routes(app: FastAPI) -> None:
         return PageLayout(
             "Edit Call Station - Call Assist Broker",
             CallStationForm(
-                available_entities=available_entities,
+                available_entities=convert_available_entities_for_form(available_entities),
                 station_data=station_data,
                 is_edit=True,
             )
@@ -641,8 +675,9 @@ def create_routes(app: FastAPI) -> None:
 
         # Validate entities exist
         ha_entities = broker.ha_entities if broker else {}
+        entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
         validation_errors = call_station_service.validate_call_station_entities(
-            camera_entity_id, media_player_entity_id, ha_entities
+            camera_entity_id, media_player_entity_id, entity_info_dict
         )
         if validation_errors.has_errors:
             error_msg = "; ".join(validation_errors.to_dict().values())

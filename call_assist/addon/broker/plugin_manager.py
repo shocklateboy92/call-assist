@@ -12,6 +12,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from types import FrameType
 from typing import Literal, Optional
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
@@ -112,7 +113,7 @@ class PluginMetadata(JsonSchemaMixin):
     credential_fields: list[FieldDefinition] | None = None  # UI metadata for credentials
     setting_fields: list[FieldDefinition] | None = None  # UI metadata for settings
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Handle None values for lists
         if self.required_credentials is None:
             self.required_credentials = []
@@ -165,7 +166,7 @@ class PluginConfiguration:
 class PluginInstance:
     metadata: PluginMetadata
     plugin_dir: str
-    process: subprocess.Popen | None = None
+    process: subprocess.Popen[bytes] | None = None
     channel: Channel | None = None
     stub: CallPluginStub | None = None
     state: PluginState = PluginState.STOPPED
@@ -201,7 +202,7 @@ class PluginManager:
 
         self._discover_plugins()
 
-    def _signal_handler(self, signum: int, frame):
+    def _signal_handler(self, signum: int, frame: FrameType | None) -> None:
         """Handle termination signals"""
         logger.info(f"Received signal {signum}, initiating plugin shutdown...")
         self._shutdown_requested = True
@@ -217,7 +218,7 @@ class PluginManager:
         # Exit after cleanup
         sys.exit(0)
 
-    def _emergency_cleanup(self):
+    def _emergency_cleanup(self) -> None:
         """Emergency cleanup of plugins without async/await"""
         if self._shutdown_requested:
             return  # Already cleaning up
@@ -245,7 +246,7 @@ class PluginManager:
                 except Exception as e:
                     logger.error(f"Error during emergency cleanup of plugin {protocol}: {e}")
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Destructor to ensure plugins are cleaned up"""
         if hasattr(self, '_shutdown_requested') and not self._shutdown_requested:
             self._emergency_cleanup()
@@ -261,7 +262,7 @@ class PluginManager:
                 continue
         raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
 
-    def _discover_plugins(self):
+    def _discover_plugins(self) -> None:
         """Discover and load plugin metadata from plugin directories"""
         if not os.path.exists(self.plugins_root):
             logger.warning(f"Plugins directory not found: {self.plugins_root}")
@@ -324,16 +325,21 @@ class PluginManager:
         if plugin.state == PluginState.STARTING:
             # Wait for it to finish starting
             timeout = plugin.metadata.grpc.startup_timeout
-            for _ in range(timeout):
-                await asyncio.sleep(1)
-                if plugin.state == PluginState.RUNNING:
-                    return True
-                if plugin.state == PluginState.ERROR:
-                    return False
+            return await self._wait_for_plugin_startup(plugin, timeout)
 
-            logger.error(f"Plugin {protocol} timed out during startup")
-            return False
+        return False
 
+    async def _wait_for_plugin_startup(self, plugin: PluginInstance, timeout: int) -> bool:
+        """Wait for plugin to finish starting up"""
+        for _ in range(timeout):
+            await asyncio.sleep(1)
+            # Check if plugin has finished starting
+            if plugin.state == PluginState.RUNNING:
+                return True
+            if plugin.state == PluginState.ERROR:
+                return False
+        
+        logger.error(f"Plugin {plugin.metadata.protocol} timed out during startup")
         return False
 
     async def _start_plugin(self, plugin: PluginInstance) -> bool:
@@ -407,7 +413,7 @@ class PluginManager:
             await self._cleanup_plugin(plugin)
             return False
 
-    async def _stop_plugin(self, plugin: PluginInstance):
+    async def _stop_plugin(self, plugin: PluginInstance) -> None:
         """Stop a running plugin"""
         if plugin.state == PluginState.STOPPED:
             return
@@ -447,7 +453,7 @@ class PluginManager:
             await self._cleanup_plugin(plugin)
             plugin.state = PluginState.STOPPED
 
-    async def _cleanup_plugin(self, plugin: PluginInstance):
+    async def _cleanup_plugin(self, plugin: PluginInstance) -> None:
         """Clean up plugin resources"""
         if plugin.channel:
             try:
@@ -663,13 +669,13 @@ class PluginManager:
 
     def get_protocol_schemas(self) -> dict[str, ProtocolSchemaDict]:
         """Get UI schemas for all available protocols"""
-        schemas = {}
+        schemas: dict[str, ProtocolSchemaDict] = {}
 
         for protocol, plugin_instance in self.plugins.items():
             metadata = plugin_instance.metadata
 
             # Convert plugin metadata to UI schema format
-            schema = {
+            schema: ProtocolSchemaDict = {
                 "protocol": protocol,
                 "display_name": metadata.name,
                 "description": metadata.description,
@@ -719,7 +725,7 @@ class PluginManager:
 
         return schemas
 
-    async def shutdown_all(self):
+    async def shutdown_all(self) -> None:
         """Shutdown all running plugins"""
         if self._shutdown_requested:
             return  # Already shutting down
