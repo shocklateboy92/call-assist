@@ -16,6 +16,7 @@ from sqlmodel import Session
 
 from addon.broker.database import DatabaseManager
 from addon.broker.plugin_manager import PluginManager
+from call_assist.addon.broker.broker import CallAssistBroker
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class AppState:
 
     def __init__(self):
         self.database_manager: DatabaseManager | None = None
-        self.broker_instance = None  # Will be set to CallAssistBroker instance
+        self.broker_instance: CallAssistBroker | None = None  # Will be set to CallAssistBroker instance
         self.plugin_manager: PluginManager | None = None
         self.db_path: str = "broker_data.db"
         self._initialized = False
@@ -60,7 +61,7 @@ class AppState:
         self._initialized = True
         logger.info("🎉 All dependencies initialized successfully")
 
-    def set_broker_instance(self, broker):
+    def set_broker_instance(self, broker: CallAssistBroker):
         """Set the broker instance after it's created"""
         self.broker_instance = broker
         logger.info("✅ Broker instance registered")
@@ -130,7 +131,7 @@ async def get_plugin_manager(
 
 async def get_broker_instance(
     state: Annotated[AppState, Depends(get_app_state)]
-):
+) -> CallAssistBroker:
     """Get the broker instance dependency"""
     if state.broker_instance is None:
         raise RuntimeError("Broker instance not set. Call app_state.set_broker_instance() first.")

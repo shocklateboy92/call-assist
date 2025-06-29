@@ -142,7 +142,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
             "border": "var(--border-width) solid var(--c-border-variant)",
             "margin": "var(--block-spacing-y) 0",
             "padding": "1rem",
-            "padding-top": "calc(2rem + var(--font-size-small) * var(--line-height))",
+            # "padding-top": "calc(2rem + var(--font-size-small) * var(--line-height))",
             "position": "relative",
         },
         ".card::before": {

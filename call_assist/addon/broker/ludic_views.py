@@ -13,8 +13,8 @@ from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, input, label, legend
 from sqlmodel import Session
 
-from addon.broker.account_service import get_account_service
-from addon.broker.call_station_service import get_call_station_service
+from addon.broker.account_service import AccountService, get_account_service
+from addon.broker.call_station_service import CallStationService, get_call_station_service
 from addon.broker.data_types import ProtocolSchemaDict
 from addon.broker.database import DatabaseManager
 from addon.broker.dependencies import (
@@ -45,7 +45,8 @@ from addon.broker.queries import (
     save_account_with_session,
     save_call_station_with_session,
 )
-from addon.broker.settings_service import get_settings_service
+from addon.broker.settings_service import SettingsService, get_settings_service
+from call_assist.addon.broker.broker import CallAssistBroker
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +101,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui", response_class=HTMLResponse)
     async def main_page(
-        account_service: Annotated[object, Depends(get_account_service)]
+        account_service: Annotated[AccountService, Depends(get_account_service)]
     ) -> PageLayout:
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
@@ -413,7 +414,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/status", response_class=HTMLResponse)
     async def status_page(
-        broker: Annotated[object, Depends(get_broker_instance)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
         db_manager: Annotated[DatabaseManager, Depends(get_database_manager)]
     ) -> PageLayout:
@@ -472,7 +473,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/settings", response_class=HTMLResponse)
     async def settings_page(
-        settings_service: Annotated[object, Depends(get_settings_service)]
+        settings_service: Annotated[SettingsService, Depends(get_settings_service)]
     ) -> PageLayout:
         """Settings page"""
         # Load current settings
@@ -485,7 +486,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.post("/ui/settings")
     async def settings_submit(
-        settings_service: Annotated[object, Depends(get_settings_service)],
+        settings_service: Annotated[SettingsService, Depends(get_settings_service)],
         web_ui_host: str = Form(...),
         web_ui_port: int = Form(...),
         enable_call_history: bool = Form(False),
@@ -514,8 +515,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/call-stations", response_class=HTMLResponse)
     async def call_stations_page(
-        call_station_service: Annotated[object, Depends(get_call_station_service)],
-        broker: Annotated[object, Depends(get_broker_instance)]
+        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)]
     ) -> PageLayout:
         """Call stations management page"""
         # Get available HA entities for status checking
@@ -531,8 +532,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/add-call-station", response_class=HTMLResponse)
     async def add_call_station_page(
-        call_station_service: Annotated[object, Depends(get_call_station_service)],
-        broker: Annotated[object, Depends(get_broker_instance)]
+        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)]
     ) -> PageLayout:
         """Add new call station page"""
         # Get available entities for dropdowns
@@ -547,8 +548,8 @@ def create_routes(app: FastAPI) -> None:
     @app.post("/ui/add-call-station")
     async def add_call_station_submit(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[object, Depends(get_call_station_service)],
-        broker: Annotated[object, Depends(get_broker_instance)],
+        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Form(...),
         display_name: str = Form(...),
         camera_entity_id: str = Form(...),
@@ -589,8 +590,8 @@ def create_routes(app: FastAPI) -> None:
     @app.get("/ui/edit-call-station/{station_id}", response_class=HTMLResponse)
     async def edit_call_station_page(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[object, Depends(get_call_station_service)],
-        broker: Annotated[object, Depends(get_broker_instance)],
+        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Path(...),
     ) -> PageLayout:
         """Edit existing call station page"""
@@ -624,8 +625,8 @@ def create_routes(app: FastAPI) -> None:
     @app.post("/ui/edit-call-station/{station_id}")
     async def edit_call_station_submit(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[object, Depends(get_call_station_service)],
-        broker: Annotated[object, Depends(get_broker_instance)],
+        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Path(...),
         display_name: str = Form(...),
         camera_entity_id: str = Form(...),
