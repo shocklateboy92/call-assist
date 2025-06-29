@@ -276,23 +276,16 @@ async def test_matrix_call_with_real_webrtc_flow(
         betterproto_lib_google.Empty()
     )
 
-    try:
-        start_time = asyncio.get_event_loop().time()
-        timeout = 10.0
-
+    async def collect_entities(count: int) -> None:
         async for entity in entity_stream:
             entities.append(entity)
             logger.info(
                 f"Received entity: {entity.entity_id} (type: {entity.entity_type})"
             )
-
-            if asyncio.get_event_loop().time() - start_time > timeout:
+            if len(entities) >= count:
                 break
 
-            if len(entities) >= 5:  # Collect more entities now that we have accounts
-                break
-    except Exception as e:
-        logger.warning(f"Entity stream error: {e}")
+    await asyncio.wait_for(collect_entities(5), timeout=5)
 
     # Find our added entities
     call_station_entities = [
