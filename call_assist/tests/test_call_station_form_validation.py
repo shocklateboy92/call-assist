@@ -441,23 +441,22 @@ class TestCallStationFormValidation:
 
         # Find camera dropdown
         camera_select = soup.find("select", {"name": "camera_entity_id"})
-        assert camera_select is not None, "Camera dropdown not found"
-        camera_select = cast(Tag, camera_select)
+        assert isinstance(camera_select, Tag), "Camera dropdown not found"
 
         # Find media player dropdown
         media_player_select = soup.find("select", {"name": "media_player_entity_id"})
-        assert media_player_select is not None, "Media player dropdown not found"
-        media_player_select = cast(Tag, media_player_select)
+        assert isinstance(media_player_select, Tag), "Media player dropdown not found"
 
         # Extract camera options
         camera_options = camera_select.find_all("option")
+        assert camera_options, "No camera options found in dropdown"
         camera_entity_ids = [
-            cast(Tag, opt).get("value")
+            opt.get("value")
             for opt in camera_options
             if isinstance(opt, Tag) and opt.get("value")
         ]
         camera_names = [
-            cast(Tag, opt).get_text().strip()
+            opt.get_text().strip()
             for opt in camera_options
             if isinstance(opt, Tag) and opt.get("value")
         ]
@@ -465,12 +464,12 @@ class TestCallStationFormValidation:
         # Extract media player options
         media_player_options = media_player_select.find_all("option")
         media_player_entity_ids = [
-            cast(Tag, opt).get("value")
+            opt.get("value")
             for opt in media_player_options
             if isinstance(opt, Tag) and opt.get("value")
         ]
         media_player_names = [
-            cast(Tag, opt).get_text().strip()
+            opt.get_text().strip()
             for opt in media_player_options
             if isinstance(opt, Tag) and opt.get("value")
         ]
