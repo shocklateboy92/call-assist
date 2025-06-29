@@ -64,19 +64,6 @@ def convert_ha_entities_to_entity_info(ha_entities: dict[str, HAEntity]) -> dict
     }
 
 
-def convert_available_entities_for_form(available_entities: AvailableEntitiesData) -> dict[str, list[dict[str, str]]]:
-    """Convert AvailableEntitiesData to format expected by CallStationForm"""
-    return {
-        "cameras": [
-            {"entity_id": entity.entity_id, "name": entity.name}
-            for entity in available_entities.cameras
-        ],
-        "media_players": [
-            {"entity_id": entity.entity_id, "name": entity.name}
-            for entity in available_entities.media_players
-        ]
-    }
-
 
 def get_protocol_schemas(
     plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]
@@ -574,7 +561,7 @@ def create_routes(app: FastAPI) -> None:
 
         return PageLayout(
             "Add Call Station - Call Assist Broker",
-            CallStationForm(available_entities=convert_available_entities_for_form(available_entities))
+            CallStationForm(available_entities=available_entities)
         )
 
     @app.post("/ui/add-call-station")
@@ -650,7 +637,7 @@ def create_routes(app: FastAPI) -> None:
         return PageLayout(
             "Edit Call Station - Call Assist Broker",
             CallStationForm(
-                available_entities=convert_available_entities_for_form(available_entities),
+                available_entities=available_entities,
                 station_data=station_data,
                 is_edit=True,
             )

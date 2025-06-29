@@ -6,6 +6,8 @@ Ludic-based web UI components for Call Assist Broker
 import traceback
 from typing import Any, Unpack, override
 
+from addon.broker.data_types import AvailableEntitiesData
+
 from ludic.base import BaseElement
 
 from ludic import Blank, Component
@@ -716,7 +718,7 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
 
     def __init__(
         self,
-        available_entities: dict[str, list[dict[str, str]]],
+        available_entities: AvailableEntitiesData,
         station_data: dict[str, Any] | None = None,
         is_edit: bool = False,
         **attrs: Any,
@@ -772,12 +774,12 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                             ),
                             *[
                                 option(
-                                    f"{camera.get('name', '')} ({camera.get('entity_id', '')})",
-                                    value=camera.get("entity_id", ""),
-                                    selected=camera.get("entity_id")
+                                    f"{camera.name} ({camera.entity_id})",
+                                    value=camera.entity_id,
+                                    selected=camera.entity_id
                                     == self.station_data.get("camera_entity_id"),
                                 )
-                                for camera in self.available_entities.get("cameras", [])
+                                for camera in self.available_entities.cameras
                             ],
                             name="camera_entity_id",
                             id="camera_entity_id",
@@ -794,14 +796,12 @@ class CallStationForm(Component[NoChildren, GlobalAttrs]):
                             ),
                             *[
                                 option(
-                                    f"{player.get('name', '')} ({player.get('entity_id', '')})",
-                                    value=player.get("entity_id", ""),
-                                    selected=player.get("entity_id")
+                                    f"{player.name} ({player.entity_id})",
+                                    value=player.entity_id,
+                                    selected=player.entity_id
                                     == self.station_data.get("media_player_entity_id"),
                                 )
-                                for player in self.available_entities.get(
-                                    "media_players", []
-                                )
+                                for player in self.available_entities.media_players
                             ],
                             name="media_player_entity_id",
                             id="media_player_entity_id",
