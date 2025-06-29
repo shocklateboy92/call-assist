@@ -19,18 +19,11 @@ echo "📦 Installing call_assist package in editable mode..."
 cd "$PROJECT_ROOT"
 if [ -f "pyproject.toml" ]; then
     echo "  📦 Installing call_assist package in editable mode"
-    pip install -e .
-    echo "  🧪 Installing test dependencies"
-    pip install -e ".[test]"
-    echo "  🏠 Installing integration dependencies"
-    pip install -e ".[integration]"
+    pip install -e .[test,integration,dev]
 else
     echo "  ❌ pyproject.toml not found at $PROJECT_ROOT"
     exit 1
 fi
-
-# Broker dependencies are now managed via pyproject.toml
-# Integration dependencies are now managed via pyproject.toml
 
 # Build protobuf files
 echo "🔧 Building protobuf files..."
