@@ -27,11 +27,22 @@ class SettingsService:
     async def get_all_settings(self) -> dict[str, Any]:
         """Get all current settings"""
         return {
-            "web_ui_port": get_setting_with_session(self.session, "web_ui_port") or 8080,
-            "web_ui_host": get_setting_with_session(self.session, "web_ui_host") or "0.0.0.0",
-            "enable_call_history": get_setting_with_session(self.session, "enable_call_history") or True,
-            "max_call_history_days": get_setting_with_session(self.session, "max_call_history_days") or 30,
-            "auto_cleanup_logs": get_setting_with_session(self.session, "auto_cleanup_logs") or True,
+            "web_ui_port": get_setting_with_session(self.session, "web_ui_port")
+            or 8080,
+            "web_ui_host": get_setting_with_session(self.session, "web_ui_host")
+            or "0.0.0.0",
+            "enable_call_history": get_setting_with_session(
+                self.session, "enable_call_history"
+            )
+            or True,
+            "max_call_history_days": get_setting_with_session(
+                self.session, "max_call_history_days"
+            )
+            or 30,
+            "auto_cleanup_logs": get_setting_with_session(
+                self.session, "auto_cleanup_logs"
+            )
+            or True,
         }
 
     async def update_settings(self, settings: dict[str, Any]) -> bool:
@@ -61,7 +72,7 @@ class SettingsService:
 
 # Dependency injection helper function for FastAPI routes
 async def get_settings_service(
-    session: Annotated[Session, Depends(get_database_session)]
+    session: Annotated[Session, Depends(get_database_session)],
 ) -> SettingsService:
     """Get SettingsService with injected dependencies"""
     return SettingsService(session)

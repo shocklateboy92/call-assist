@@ -30,7 +30,9 @@ class TestVideoCallE2E:
     """End-to-end video call testing suite"""
 
     @pytest.mark.asyncio
-    async def test_rtsp_streams_availability(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_rtsp_streams_availability(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test that RTSP test streams are available and serving content"""
         rtsp_streams = video_test_environment.rtsp_streams
 
@@ -42,7 +44,9 @@ class TestVideoCallE2E:
             logger.info(f"RTSP stream URL available: {stream_url}")
 
     @pytest.mark.asyncio
-    async def test_mock_chromecast_server(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_mock_chromecast_server(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test mock Chromecast server functionality"""
         chromecast_url = video_test_environment.mock_chromecast_url
 
@@ -78,7 +82,9 @@ class TestVideoCallE2E:
                 assert result["state"] == "idle"
 
     @pytest.mark.asyncio
-    async def test_camera_entity_fixtures(self, mock_cameras: list[HaEntityUpdate]) -> None:
+    async def test_camera_entity_fixtures(
+        self, mock_cameras: list[HaEntityUpdate]
+    ) -> None:
         """Test mock camera entity fixtures"""
         assert len(mock_cameras) == 3
 
@@ -99,12 +105,16 @@ class TestVideoCallE2E:
         assert unavailable_cameras[0].state == "unavailable"
 
     @pytest.mark.asyncio
-    async def test_media_player_entity_fixtures(self, mock_media_players: list[HaEntityUpdate]) -> None:
+    async def test_media_player_entity_fixtures(
+        self, mock_media_players: list[HaEntityUpdate]
+    ) -> None:
         """Test mock media player entity fixtures"""
         assert len(mock_media_players) == 3
 
         # Test available media players
-        available_players = [player for player in mock_media_players if player.available]
+        available_players = [
+            player for player in mock_media_players if player.available
+        ]
         assert len(available_players) == 2
 
         for player in available_players:
@@ -115,12 +125,16 @@ class TestVideoCallE2E:
             assert float(player.attributes["volume_level"]) > 0
 
         # Test unavailable media player
-        unavailable_players = [player for player in mock_media_players if not player.available]
+        unavailable_players = [
+            player for player in mock_media_players if not player.available
+        ]
         assert len(unavailable_players) == 1
         assert unavailable_players[0].state == "unavailable"
 
     @pytest.mark.asyncio
-    async def test_video_test_environment_integration(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_video_test_environment_integration(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test complete video test environment integration"""
 
         # Verify RTSP configuration
@@ -150,7 +164,7 @@ class TestVideoCallE2E:
     async def test_call_station_with_video_entities(
         self,
         web_ui_client: "WebUITestClient",
-        video_test_environment: VideoTestEnvironment
+        video_test_environment: VideoTestEnvironment,
     ) -> None:
         """Test call station creation with video test entities"""
         cameras = video_test_environment.cameras
@@ -166,17 +180,25 @@ class TestVideoCallE2E:
             "display_name": "Test Video Call Station",
             "camera_entity_id": available_camera.entity_id,
             "media_player_entity_id": available_player.entity_id,
-            "enabled": True
+            "enabled": True,
         }
 
         # Note: This test assumes web_ui_client fixture exists
         # The actual implementation will depend on your existing WebUITestClient
-        logger.info(f"Would create call station with camera: {available_camera.entity_id}")
-        logger.info(f"Would create call station with player: {available_player.entity_id}")
-        logger.info(f"Camera stream source: {available_camera.attributes['stream_source']}")
+        logger.info(
+            f"Would create call station with camera: {available_camera.entity_id}"
+        )
+        logger.info(
+            f"Would create call station with player: {available_player.entity_id}"
+        )
+        logger.info(
+            f"Camera stream source: {available_camera.attributes['stream_source']}"
+        )
 
     @pytest.mark.asyncio
-    async def test_capability_negotiation_simulation(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_capability_negotiation_simulation(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test simulated capability negotiation between components"""
         cameras = video_test_environment.cameras
         media_players = video_test_environment.media_players
@@ -195,10 +217,12 @@ class TestVideoCallE2E:
                 "supported_resolutions": ["1920x1080", "1280x720"],
                 "video_codecs": ["h264", "h265"],
                 "audio_codecs": ["aac", "mp3"],
-                "protocols": ["rtsp", "webrtc"]
+                "protocols": ["rtsp", "webrtc"],
             }
 
-            logger.info(f"Camera {camera.entity_id} capabilities: {camera_capabilities}")
+            logger.info(
+                f"Camera {camera.entity_id} capabilities: {camera_capabilities}"
+            )
 
             # Test with each available media player
             for player in media_players:
@@ -210,46 +234,49 @@ class TestVideoCallE2E:
                     "supported_formats": ["mp4", "webm", "hls"],
                     "video_codecs": ["h264", "vp8"],
                     "audio_codecs": ["aac", "opus"],
-                    "cast_protocols": ["chromecast", "dlna"]
+                    "cast_protocols": ["chromecast", "dlna"],
                 }
 
                 # Simulate negotiation
                 negotiation_result = self._simulate_capability_negotiation(
-                    camera_capabilities,
-                    player_capabilities
+                    camera_capabilities, player_capabilities
                 )
 
                 assert negotiation_result is not None
                 assert "video_codec" in negotiation_result
                 assert "audio_codec" in negotiation_result
 
-                logger.info(f"Negotiation for {camera.entity_id} -> {player.entity_id}: {negotiation_result}")
+                logger.info(
+                    f"Negotiation for {camera.entity_id} -> {player.entity_id}: {negotiation_result}"
+                )
 
     def _simulate_capability_negotiation(
-        self,
-        camera_caps: dict[str, Any],
-        player_caps: dict[str, Any]
+        self, camera_caps: dict[str, Any], player_caps: dict[str, Any]
     ) -> dict[str, Any]:
         """Simulate capability negotiation between camera and media player"""
 
         # Find common video codec
-        common_video_codecs = set(camera_caps["video_codecs"]) & set(player_caps["video_codecs"])
+        common_video_codecs = set(camera_caps["video_codecs"]) & set(
+            player_caps["video_codecs"]
+        )
         if not common_video_codecs:
             return {
                 "transcoding_required": True,
                 "video_codec": "h264",  # Fallback
-                "audio_codec": "aac",   # Fallback
-                "direct_streaming": False
+                "audio_codec": "aac",  # Fallback
+                "direct_streaming": False,
             }
 
         # Find common audio codec
-        common_audio_codecs = set(camera_caps["audio_codecs"]) & set(player_caps["audio_codecs"])
+        common_audio_codecs = set(camera_caps["audio_codecs"]) & set(
+            player_caps["audio_codecs"]
+        )
         if not common_audio_codecs:
             return {
                 "transcoding_required": True,
                 "video_codec": list(common_video_codecs)[0],
                 "audio_codec": "aac",  # Fallback
-                "direct_streaming": False
+                "direct_streaming": False,
             }
 
         # Direct streaming possible
@@ -257,11 +284,13 @@ class TestVideoCallE2E:
             "transcoding_required": False,
             "video_codec": list(common_video_codecs)[0],
             "audio_codec": list(common_audio_codecs)[0],
-            "direct_streaming": True
+            "direct_streaming": True,
         }
 
     @pytest.mark.asyncio
-    async def test_websocket_state_updates(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_websocket_state_updates(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test WebSocket state updates from mock Chromecast"""
         chromecast_url = video_test_environment.mock_chromecast_url
         ws_url = chromecast_url.replace("http://", "ws://") + "/ws"
@@ -301,7 +330,9 @@ class TestVideoCallE2E:
                 logger.info(f"WebSocket status received: {data}")
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_streams(self, video_test_environment: VideoTestEnvironment) -> None:
+    async def test_multiple_concurrent_streams(
+        self, video_test_environment: VideoTestEnvironment
+    ) -> None:
         """Test handling multiple concurrent video streams"""
         chromecast_url = video_test_environment.mock_chromecast_url
         rtsp_streams = video_test_environment.rtsp_streams
@@ -311,24 +342,30 @@ class TestVideoCallE2E:
 
         async with aiohttp.ClientSession() as session:
             for i, stream_url in enumerate(rtsp_streams):
-                task = self._test_concurrent_stream(session, chromecast_url, stream_url, i)
+                task = self._test_concurrent_stream(
+                    session, chromecast_url, stream_url, i
+                )
                 tasks.append(task)
 
             # Execute concurrently
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Verify all requests succeeded
-            successful_requests = sum(1 for r in results if not isinstance(r, Exception))
+            successful_requests = sum(
+                1 for r in results if not isinstance(r, Exception)
+            )
             assert successful_requests >= len(rtsp_streams) * 0.8  # Allow some failures
 
-            logger.info(f"Concurrent stream test: {successful_requests}/{len(rtsp_streams)} succeeded")
+            logger.info(
+                f"Concurrent stream test: {successful_requests}/{len(rtsp_streams)} succeeded"
+            )
 
     async def _test_concurrent_stream(
         self,
         session: aiohttp.ClientSession,
         chromecast_url: str,
         stream_url: str,
-        stream_id: int
+        stream_id: int,
     ) -> dict[str, Any]:
         """Test individual concurrent stream"""
         play_data = {"media_url": stream_url}
@@ -343,7 +380,9 @@ class TestVideoCallE2E:
 
 
 @pytest.mark.asyncio
-async def test_video_infrastructure_health_check(video_test_environment: VideoTestEnvironment) -> None:
+async def test_video_infrastructure_health_check(
+    video_test_environment: VideoTestEnvironment,
+) -> None:
     """Standalone test to verify video infrastructure is healthy"""
     logger.info("Running video infrastructure health check...")
 
@@ -356,7 +395,9 @@ async def test_video_infrastructure_health_check(video_test_environment: VideoTe
 
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(f"{chromecast_url}/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            async with session.get(
+                f"{chromecast_url}/status", timeout=aiohttp.ClientTimeout(total=5)
+            ) as resp:
                 assert resp.status == 200
                 status = await resp.json()
                 assert "state" in status

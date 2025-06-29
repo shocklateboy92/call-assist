@@ -169,10 +169,7 @@ class CallAssistGrpcClient:
             raise RuntimeError("Not connected to broker")
 
         try:
-            request = StartCallRequest(
-                call_station_id=call_station_id,
-                contact=contact
-            )
+            request = StartCallRequest(call_station_id=call_station_id, contact=contact)
             return await self.stub.start_call(request)
 
         except Exception as ex:

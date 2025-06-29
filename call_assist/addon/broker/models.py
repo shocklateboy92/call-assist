@@ -51,7 +51,11 @@ class BrokerSettings(SQLModel, table=True):
 
     def get_value(self) -> str | int | float | bool | None:
         """Get value as Python object"""
-        return cast(str | int | float | bool | None, json.loads(self.value_json)) if self.value_json else None
+        return (
+            cast(str | int | float | bool | None, json.loads(self.value_json))
+            if self.value_json
+            else None
+        )
 
     def set_value(self, val: str | int | float | bool | None) -> None:
         """Set value from Python object"""
@@ -83,7 +87,11 @@ class CallLog(SQLModel, table=True):
 
     def get_metadata(self) -> dict[str, str]:
         """Get metadata as dictionary"""
-        return cast(dict[str, str], json.loads(self.metadata_json)) if self.metadata_json else {}
+        return (
+            cast(dict[str, str], json.loads(self.metadata_json))
+            if self.metadata_json
+            else {}
+        )
 
     def set_metadata(self, value: dict[str, str]) -> None:
         """Set metadata from dictionary"""
@@ -107,7 +115,9 @@ class CallStation(SQLModel, table=True):
     station_id: str = Field(unique=True, index=True)  # e.g., "living_room_station"
     display_name: str
     camera_entity_id: str = Field(index=True)  # e.g., "camera.living_room"
-    media_player_entity_id: str = Field(index=True)  # e.g., "media_player.living_room_tv"
+    media_player_entity_id: str = Field(
+        index=True
+    )  # e.g., "media_player.living_room_tv"
     enabled: bool = Field(default=True, index=True)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
@@ -116,5 +126,3 @@ class CallStation(SQLModel, table=True):
     def unique_key(self) -> str:
         """Generate unique key for this call station"""
         return f"station_{hash(self.station_id)}"
-
-

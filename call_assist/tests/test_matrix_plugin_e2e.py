@@ -415,9 +415,7 @@ class TestMatrixPluginWebUIE2E:
         logger.info(f"Found form inputs: {form_inputs}")
 
         # Should have at least a protocol selector
-        has_protocol_field = any(
-            "protocol" in key.lower() for key in form_inputs
-        )
+        has_protocol_field = any("protocol" in key.lower() for key in form_inputs)
         assert (
             has_protocol_field or "protocol" in html.lower()
         ), "No protocol selection found"

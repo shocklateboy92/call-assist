@@ -22,7 +22,9 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Call Assist sensors from a config entry."""
-    coordinator: CallAssistCoordinator = hass.data[DOMAIN][config_entry.entry_id]["coordinator"]
+    coordinator: CallAssistCoordinator = hass.data[DOMAIN][config_entry.entry_id][
+        "coordinator"
+    ]
 
     entities = []
 
@@ -42,7 +44,9 @@ async def async_setup_entry(
 
         for entity_id, entity_data in coordinator.broker_entities.items():
             if entity_id not in existing_entity_ids:
-                new_entities.append(CallAssistBrokerEntity(coordinator, entity_id, entity_data))
+                new_entities.append(
+                    CallAssistBrokerEntity(coordinator, entity_id, entity_data)
+                )
 
         if new_entities:
             async_add_entities(new_entities)
@@ -83,12 +87,14 @@ class CallAssistBrokerEntity(CoordinatorEntity[CallAssistCoordinator], SensorEnt
             return {}
 
         attributes = dict(entity_data.get("attributes", {}))
-        attributes.update({
-            "entity_type": entity_data.get("type"),
-            "capabilities": entity_data.get("capabilities", []),
-            "last_updated": entity_data.get("last_updated"),
-            "broker_entity_id": self._entity_id,
-        })
+        attributes.update(
+            {
+                "entity_type": entity_data.get("type"),
+                "capabilities": entity_data.get("capabilities", []),
+                "last_updated": entity_data.get("last_updated"),
+                "broker_entity_id": self._entity_id,
+            }
+        )
 
         return attributes
 
@@ -102,7 +108,9 @@ class CallAssistBrokerEntity(CoordinatorEntity[CallAssistCoordinator], SensorEnt
     def device_info(self) -> DeviceInfo:
         """Return device info for this entity."""
         return DeviceInfo(
-            identifiers={(DOMAIN, f"broker_{self.coordinator.host}:{self.coordinator.port}")},
+            identifiers={
+                (DOMAIN, f"broker_{self.coordinator.host}:{self.coordinator.port}")
+            },
             name="Call Assist Broker",
             manufacturer="Call Assist",
             model="Broker",

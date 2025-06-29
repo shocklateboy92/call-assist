@@ -90,9 +90,7 @@ class DatabaseManager:
 
             # Database file size
             db_size_bytes = (
-                self.database_path.stat().st_size
-                if self.database_path.exists()
-                else 0
+                self.database_path.stat().st_size if self.database_path.exists() else 0
             )
             db_size_mb = round(db_size_bytes / (1024 * 1024), 2)
 

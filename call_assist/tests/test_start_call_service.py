@@ -29,8 +29,7 @@ async def test_start_call_via_grpc(broker_process: BrokerProcessInfo) -> None:
     try:
         # Test with invalid call station first to verify error handling
         request = StartCallRequest(
-            call_station_id="invalid_station_id",
-            contact="@test_user:matrix.org"
+            call_station_id="invalid_station_id", contact="@test_user:matrix.org"
         )
 
         response = await stub.start_call(request)
@@ -47,7 +46,9 @@ async def test_start_call_via_grpc(broker_process: BrokerProcessInfo) -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_call_invalid_station_via_grpc(broker_process: BrokerProcessInfo) -> None:
+async def test_start_call_invalid_station_via_grpc(
+    broker_process: BrokerProcessInfo,
+) -> None:
     """Test start_call with invalid call station ID"""
     grpc_port = broker_process.grpc_port
 
@@ -57,8 +58,7 @@ async def test_start_call_invalid_station_via_grpc(broker_process: BrokerProcess
 
     try:
         request = StartCallRequest(
-            call_station_id="invalid_station_id",
-            contact="@test_user:matrix.org"
+            call_station_id="invalid_station_id", contact="@test_user:matrix.org"
         )
 
         response = await stub.start_call(request)

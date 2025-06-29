@@ -46,13 +46,15 @@ def test_emergency_cleanup() -> None:
                 capabilities=CapabilitiesConfig(
                     video_codecs=["VP8"],
                     audio_codecs=["OPUS"],
-                    supported_resolutions=[ResolutionConfig(width=640, height=480, framerate=30)],
-                    webrtc_support=True
-                )
+                    supported_resolutions=[
+                        ResolutionConfig(width=640, height=480, framerate=30)
+                    ],
+                    webrtc_support=True,
+                ),
             ),
             plugin_dir="/tmp/test",
             process=mock_process,
-            state=PluginState.RUNNING
+            state=PluginState.RUNNING,
         )
 
         pm.plugins["test"] = plugin
@@ -107,13 +109,15 @@ async def test_graceful_shutdown() -> None:
                 capabilities=CapabilitiesConfig(
                     video_codecs=["VP8"],
                     audio_codecs=["OPUS"],
-                    supported_resolutions=[ResolutionConfig(width=640, height=480, framerate=30)],
-                    webrtc_support=True
-                )
+                    supported_resolutions=[
+                        ResolutionConfig(width=640, height=480, framerate=30)
+                    ],
+                    webrtc_support=True,
+                ),
             ),
             plugin_dir="/tmp/test",
             process=mock_process,
-            state=PluginState.RUNNING
+            state=PluginState.RUNNING,
         )
 
         pm.plugins["test"] = plugin
@@ -122,7 +126,7 @@ async def test_graceful_shutdown() -> None:
         async def mock_stop_plugin(_) -> None:
             await asyncio.sleep(15)  # Longer than timeout
 
-        with patch.object(pm, '_stop_plugin', side_effect=mock_stop_plugin):
+        with patch.object(pm, "_stop_plugin", side_effect=mock_stop_plugin):
             # Test shutdown with timeout
             await pm.shutdown_all()
 

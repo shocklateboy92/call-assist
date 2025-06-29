@@ -4,6 +4,7 @@ Test real WebRTC implementation for Matrix plugin.
 This test verifies that the Matrix plugin can switch between mock and real WebRTC implementations
 and that both work correctly for call signaling.
 """
+
 import logging
 import os
 import subprocess
@@ -22,10 +23,7 @@ async def test_matrix_plugin_real_webrtc() -> None:
     # Ensure the plugin is built
     logger.info("Building Matrix plugin with real WebRTC...")
     build_result = subprocess.run(
-        ["npm", "run", "build"],
-        cwd=matrix_plugin_dir,
-        capture_output=True,
-        text=True
+        ["npm", "run", "build"], cwd=matrix_plugin_dir, capture_output=True, text=True
     )
 
     assert build_result.returncode == 0, f"Plugin build failed: {build_result.stderr}"
@@ -36,8 +34,8 @@ async def test_matrix_plugin_real_webrtc() -> None:
 
     # Start plugin in test mode without USE_MOCK_WEBRTC environment variable
     env = os.environ.copy()
-    if 'USE_MOCK_WEBRTC' in env:
-        del env['USE_MOCK_WEBRTC']
+    if "USE_MOCK_WEBRTC" in env:
+        del env["USE_MOCK_WEBRTC"]
 
     # Start the plugin process
     plugin_process = subprocess.Popen(
@@ -46,7 +44,7 @@ async def test_matrix_plugin_real_webrtc() -> None:
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     try:
@@ -58,9 +56,13 @@ async def test_matrix_plugin_real_webrtc() -> None:
         if "Using real WebRTC implementation" in stdout:
             logger.info("✅ Plugin successfully initialized with real WebRTC")
         elif "Using mock WebRTC implementation" in stdout:
-            logger.warning("⚠️  Plugin fell back to mock WebRTC (expected without proper config)")
+            logger.warning(
+                "⚠️  Plugin fell back to mock WebRTC (expected without proper config)"
+            )
         else:
-            logger.info("Plugin output doesn't show WebRTC initialization (may not have reached that point)")
+            logger.info(
+                "Plugin output doesn't show WebRTC initialization (may not have reached that point)"
+            )
 
         logger.info(f"Plugin stdout: {stdout[:500]}...")
         if stderr:
@@ -87,7 +89,7 @@ async def test_matrix_plugin_mock_webrtc_mode() -> None:
 
     # Start plugin in mock mode
     env = os.environ.copy()
-    env['USE_MOCK_WEBRTC'] = 'true'
+    env["USE_MOCK_WEBRTC"] = "true"
 
     # Start the plugin process
     plugin_process = subprocess.Popen(
@@ -96,7 +98,7 @@ async def test_matrix_plugin_mock_webrtc_mode() -> None:
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
     )
 
     try:
@@ -187,7 +189,7 @@ try {
 
     # Write test script
     test_script_path = matrix_plugin_dir / "test_factory.js"
-    with open(test_script_path, 'w') as f:
+    with open(test_script_path, "w") as f:
         f.write(test_script)
 
     try:
@@ -197,7 +199,7 @@ try {
             cwd=matrix_plugin_dir,
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
 
         logger.info(f"Factory test output: {result.stdout}")
@@ -217,4 +219,5 @@ try {
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v", "-s"])

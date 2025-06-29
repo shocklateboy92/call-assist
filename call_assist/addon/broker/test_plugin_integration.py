@@ -44,12 +44,16 @@ async def test_plugin_schema_integration() -> bool:
         logger.info(f"Description: {schema['description']}")
 
         logger.info(f"Credential Fields ({len(schema['credential_fields'])}):")
-        for field in schema['credential_fields']:
-            logger.info(f"  - {field['key']}: {field['display_name']} ({field['type']}, required={field['required']})")
+        for field in schema["credential_fields"]:
+            logger.info(
+                f"  - {field['key']}: {field['display_name']} ({field['type']}, required={field['required']})"
+            )
 
         logger.info(f"Setting Fields ({len(schema['setting_fields'])}):")
-        for field in schema['setting_fields']:
-            logger.info(f"  - {field['key']}: {field['display_name']} ({field['type']}, required={field['required']})")
+        for field in schema["setting_fields"]:
+            logger.info(
+                f"  - {field['key']}: {field['display_name']} ({field['type']}, required={field['required']})"
+            )
 
         logger.info(f"Example Account IDs: {schema['example_account_ids']}")
 
@@ -73,7 +77,9 @@ async def test_broker_plugin_integration() -> bool:
 
         # Test that web UI can access schemas through broker
         schemas = broker.plugin_manager.get_protocol_schemas()
-        logger.info(f"✅ Web UI can access {len(schemas)} protocol schemas through broker")
+        logger.info(
+            f"✅ Web UI can access {len(schemas)} protocol schemas through broker"
+        )
 
         for protocol, schema in schemas.items():
             logger.info(f"  - {protocol}: {schema['display_name']}")

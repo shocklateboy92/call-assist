@@ -56,14 +56,16 @@ from .settings_service import SettingsService, get_settings_service
 logger = logging.getLogger(__name__)
 
 
-def convert_ha_entities_to_entity_info(ha_entities: dict[str, HAEntity]) -> dict[str, EntityInfo]:
+def convert_ha_entities_to_entity_info(
+    ha_entities: dict[str, HAEntity],
+) -> dict[str, EntityInfo]:
     """Convert HAEntity dict to EntityInfo dict for type compatibility"""
     return {
         entity_id: EntityInfo(
             entity_id=entity_id,
             name=entity.name,
             domain=entity.domain,
-            available=entity.available
+            available=entity.available,
         )
         for entity_id, entity in ha_entities.items()
     }
@@ -100,8 +102,8 @@ def create_routes(app: FastAPI) -> None:
                 error_message=error_message,
                 error_code=error_code,
                 show_details=show_details,
-                exception=exc
-            )
+                exception=exc,
+            ),
         )
 
         return HTMLResponse(
@@ -111,7 +113,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui", response_class=HTMLResponse)
     async def main_page(
-        account_service: Annotated[AccountService, Depends(get_account_service)]
+        account_service: Annotated[AccountService, Depends(get_account_service)],
     ) -> PageLayout:
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
@@ -119,27 +121,31 @@ def create_routes(app: FastAPI) -> None:
 
         # Format the updated_at field for display
         from dataclasses import replace
+
         formatted_accounts = []
         for account in accounts_data:
             # Create new AccountStatusData with formatted date
             formatted_account = replace(
                 account,
-                updated_at=account.updated_at[:16] if account.updated_at else "N/A"  # Show only YYYY-MM-DD HH:MM
+                updated_at=(
+                    account.updated_at[:16] if account.updated_at else "N/A"
+                ),  # Show only YYYY-MM-DD HH:MM
             )
             formatted_accounts.append(formatted_account)
 
         return PageLayout(
-            "Call Assist Broker",
-            AccountsTable(accounts=formatted_accounts)
+            "Call Assist Broker", AccountsTable(accounts=formatted_accounts)
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]) -> PageLayout:
+    async def add_account_page(
+        plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
+    ) -> PageLayout:
         """Add new account page"""
         protocols = plugin_manager.get_protocol_schemas()
         return PageLayout(
             "Add Account - Call Assist Broker",
-            AccountForm(protocols=protocols, is_edit=False)
+            AccountForm(protocols=protocols, is_edit=False),
         )
 
     @app.post("/ui/add-account")
@@ -160,7 +166,9 @@ def create_routes(app: FastAPI) -> None:
         }
 
         # Check if account already exists
-        existing = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
+        existing = get_account_by_protocol_and_id_with_session(
+            session, protocol, account_id
+        )
         if existing:
             raise HTTPException(status_code=400, detail="Account already exists")
 
@@ -191,7 +199,9 @@ def create_routes(app: FastAPI) -> None:
         """Edit existing account page"""
         protocols = plugin_manager.get_protocol_schemas()
         # Load existing account
-        existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
+        existing_account = get_account_by_protocol_and_id_with_session(
+            session, protocol, account_id
+        )
         if not existing_account:
             raise HTTPException(status_code=404, detail="Account not found")
 
@@ -214,7 +224,7 @@ def create_routes(app: FastAPI) -> None:
                 selected_protocol=protocol,
                 account_data=account_data,
                 is_edit=True,
-            )
+            ),
         )
 
     @app.post("/ui/edit-account/{protocol}/{account_id}")
@@ -228,7 +238,9 @@ def create_routes(app: FastAPI) -> None:
     ) -> Response:
         """Submit account changes"""
         # Load existing account
-        existing_account = get_account_by_protocol_and_id_with_session(session, protocol, account_id)
+        existing_account = get_account_by_protocol_and_id_with_session(
+            session, protocol, account_id
+        )
         if not existing_account:
             raise HTTPException(status_code=404, detail="Account not found")
 
@@ -432,7 +444,7 @@ def create_routes(app: FastAPI) -> None:
     async def status_page(
         broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
-        db_manager: Annotated[DatabaseManager, Depends(get_database_manager)]
+        db_manager: Annotated[DatabaseManager, Depends(get_database_manager)],
     ) -> PageLayout:
         """Status monitoring page"""
         # Database stats
@@ -443,8 +455,8 @@ def create_routes(app: FastAPI) -> None:
         try:
             broker_status = {
                 "status": "Running",
-                "active_calls": len(getattr(broker, 'active_calls', [])),
-                "configured_accounts": len(getattr(broker, 'account_credentials', {})),
+                "active_calls": len(getattr(broker, "active_calls", [])),
+                "configured_accounts": len(getattr(broker, "account_credentials", {})),
                 "available_protocols": ", ".join(
                     plugin_manager.get_available_protocols()
                 ),
@@ -456,11 +468,13 @@ def create_routes(app: FastAPI) -> None:
         return PageLayout(
             "Status - Call Assist Broker",
             StatusCard("Database Statistics", db_stats),
-            StatusCard("Broker Status", broker_status)
+            StatusCard("Broker Status", broker_status),
         )
 
     @app.get("/ui/history", response_class=HTMLResponse)
-    async def history_page(session: Annotated[Session, Depends(get_database_session)]) -> PageLayout:
+    async def history_page(
+        session: Annotated[Session, Depends(get_database_session)],
+    ) -> PageLayout:
         """Call history page"""
         call_logs = get_call_logs_with_session(session)
         logs_data = []
@@ -483,21 +497,19 @@ def create_routes(app: FastAPI) -> None:
             )
 
         return PageLayout(
-            "Call History - Call Assist Broker",
-            CallHistoryTable(call_logs=logs_data)
+            "Call History - Call Assist Broker", CallHistoryTable(call_logs=logs_data)
         )
 
     @app.get("/ui/settings", response_class=HTMLResponse)
     async def settings_page(
-        settings_service: Annotated[SettingsService, Depends(get_settings_service)]
+        settings_service: Annotated[SettingsService, Depends(get_settings_service)],
     ) -> PageLayout:
         """Settings page"""
         # Load current settings
         current_settings = await settings_service.get_all_settings()
 
         return PageLayout(
-            "Settings - Call Assist Broker",
-            SettingsForm(settings=current_settings)
+            "Settings - Call Assist Broker", SettingsForm(settings=current_settings)
         )
 
     @app.post("/ui/settings")
@@ -531,8 +543,10 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/call-stations", response_class=HTMLResponse)
     async def call_stations_page(
-        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
-        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)]
+        call_station_service: Annotated[
+            CallStationService, Depends(get_call_station_service)
+        ],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
     ) -> PageLayout:
         """Call stations management page"""
         # Get available HA entities for status checking
@@ -540,33 +554,41 @@ def create_routes(app: FastAPI) -> None:
         entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
 
         # Get call stations with status
-        call_stations = call_station_service.get_call_stations_with_status(entity_info_dict)
+        call_stations = call_station_service.get_call_stations_with_status(
+            entity_info_dict
+        )
 
         return PageLayout(
             "Call Stations - Call Assist Broker",
-            CallStationsTable(call_stations=call_stations)
+            CallStationsTable(call_stations=call_stations),
         )
 
     @app.get("/ui/add-call-station", response_class=HTMLResponse)
     async def add_call_station_page(
-        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
-        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)]
+        call_station_service: Annotated[
+            CallStationService, Depends(get_call_station_service)
+        ],
+        broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
     ) -> PageLayout:
         """Add new call station page"""
         # Get available entities for dropdowns
         ha_entities = broker.ha_entities if broker else {}
         entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
-        available_entities = call_station_service.get_available_entities(entity_info_dict)
+        available_entities = call_station_service.get_available_entities(
+            entity_info_dict
+        )
 
         return PageLayout(
             "Add Call Station - Call Assist Broker",
-            CallStationForm(available_entities=available_entities)
+            CallStationForm(available_entities=available_entities),
         )
 
     @app.post("/ui/add-call-station")
     async def add_call_station_submit(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        call_station_service: Annotated[
+            CallStationService, Depends(get_call_station_service)
+        ],
         broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Form(...),
         display_name: str = Form(...),
@@ -588,7 +610,9 @@ def create_routes(app: FastAPI) -> None:
         )
         if validation_errors.has_errors:
             error_msg = "; ".join(validation_errors.to_dict().values())
-            raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
+            raise HTTPException(
+                status_code=400, detail=f"Validation failed: {error_msg}"
+            )
 
         # Create new call station
         call_station = CallStation(
@@ -603,13 +627,19 @@ def create_routes(app: FastAPI) -> None:
 
         # Redirect to call stations page
         return Response(
-            status_code=302, headers={"Location": "/ui/call-stations", "HX-Redirect": "/ui/call-stations"}
+            status_code=302,
+            headers={
+                "Location": "/ui/call-stations",
+                "HX-Redirect": "/ui/call-stations",
+            },
         )
 
     @app.get("/ui/edit-call-station/{station_id}", response_class=HTMLResponse)
     async def edit_call_station_page(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        call_station_service: Annotated[
+            CallStationService, Depends(get_call_station_service)
+        ],
         broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Path(...),
     ) -> PageLayout:
@@ -622,7 +652,9 @@ def create_routes(app: FastAPI) -> None:
         # Get available entities for dropdowns
         ha_entities = broker.ha_entities if broker else {}
         entity_info_dict = convert_ha_entities_to_entity_info(ha_entities)
-        available_entities = call_station_service.get_available_entities(entity_info_dict)
+        available_entities = call_station_service.get_available_entities(
+            entity_info_dict
+        )
 
         # Prepare station data
         station_data = {
@@ -639,13 +671,15 @@ def create_routes(app: FastAPI) -> None:
                 available_entities=available_entities,
                 station_data=station_data,
                 is_edit=True,
-            )
+            ),
         )
 
     @app.post("/ui/edit-call-station/{station_id}")
     async def edit_call_station_submit(
         session: Annotated[Session, Depends(get_database_session)],
-        call_station_service: Annotated[CallStationService, Depends(get_call_station_service)],
+        call_station_service: Annotated[
+            CallStationService, Depends(get_call_station_service)
+        ],
         broker: Annotated[CallAssistBroker, Depends(get_broker_instance)],
         station_id: str = Path(...),
         display_name: str = Form(...),
@@ -667,7 +701,9 @@ def create_routes(app: FastAPI) -> None:
         )
         if validation_errors.has_errors:
             error_msg = "; ".join(validation_errors.to_dict().values())
-            raise HTTPException(status_code=400, detail=f"Validation failed: {error_msg}")
+            raise HTTPException(
+                status_code=400, detail=f"Validation failed: {error_msg}"
+            )
 
         # Update existing call station
         existing_station.display_name = display_name
@@ -679,7 +715,11 @@ def create_routes(app: FastAPI) -> None:
 
         # Redirect to call stations page
         return Response(
-            status_code=302, headers={"Location": "/ui/call-stations", "HX-Redirect": "/ui/call-stations"}
+            status_code=302,
+            headers={
+                "Location": "/ui/call-stations",
+                "HX-Redirect": "/ui/call-stations",
+            },
         )
 
     @app.delete("/ui/delete-call-station/{station_id}")

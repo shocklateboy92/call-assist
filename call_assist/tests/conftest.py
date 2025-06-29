@@ -241,7 +241,6 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
         return " ".join(chunk for chunk in chunks if chunk)
 
 
-
 def is_port_available(port: int) -> bool:
     """Check if a port is available for binding"""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:

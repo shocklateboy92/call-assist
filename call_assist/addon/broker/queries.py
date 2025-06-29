@@ -18,24 +18,31 @@ logger = logging.getLogger(__name__)
 
 # Session-based query functions for dependency injection
 
+
 def get_account_by_protocol_and_id_with_session(
     session: Session, protocol: str, account_id: str
 ) -> Account | None:
     """Get account by protocol and account_id using provided session"""
     return session.exec(
-        select(Account).where(Account.protocol == protocol, Account.account_id == account_id)
+        select(Account).where(
+            Account.protocol == protocol, Account.account_id == account_id
+        )
     ).first()
 
 
 def get_setting_with_session(session: Session, key: str) -> Any | None:
     """Get setting value using provided session"""
-    setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
+    setting = session.exec(
+        select(BrokerSettings).where(BrokerSettings.key == key)
+    ).first()
     return setting.get_value() if setting else None
 
 
 def save_setting_with_session(session: Session, key: str, value: Any) -> BrokerSettings:
     """Save setting value using provided session"""
-    setting = session.exec(select(BrokerSettings).where(BrokerSettings.key == key)).first()
+    setting = session.exec(
+        select(BrokerSettings).where(BrokerSettings.key == key)
+    ).first()
 
     if setting:
         setting.set_value(value)
@@ -50,7 +57,9 @@ def save_setting_with_session(session: Session, key: str, value: Any) -> BrokerS
     return setting
 
 
-def get_accounts_by_protocol_with_session(session: Session, protocol: str) -> list[Account]:
+def get_accounts_by_protocol_with_session(
+    session: Session, protocol: str
+) -> list[Account]:
     """Get all accounts for a specific protocol using provided session"""
     return list(session.exec(select(Account).where(Account.protocol == protocol)).all())
 
@@ -64,7 +73,8 @@ def save_account_with_session(session: Session, account: Account) -> Account:
     """Save or update account using provided session"""
     existing = session.exec(
         select(Account).where(
-            Account.protocol == account.protocol, Account.account_id == account.account_id
+            Account.protocol == account.protocol,
+            Account.account_id == account.account_id,
         )
     ).first()
 
@@ -81,10 +91,14 @@ def save_account_with_session(session: Session, account: Account) -> Account:
     return account
 
 
-def delete_account_with_session(session: Session, protocol: str, account_id: str) -> bool:
+def delete_account_with_session(
+    session: Session, protocol: str, account_id: str
+) -> bool:
     """Delete account by protocol and account_id using provided session"""
     account = session.exec(
-        select(Account).where(Account.protocol == protocol, Account.account_id == account_id)
+        select(Account).where(
+            Account.protocol == protocol, Account.account_id == account_id
+        )
     ).first()
 
     if account:
@@ -141,6 +155,7 @@ def update_call_log_with_session(
 def get_call_logs_with_session(session: Session) -> list[CallLog]:
     """Get all call logs using provided session"""
     from sqlmodel import desc
+
     return list(session.exec(select(CallLog).order_by(desc(CallLog.start_time))).all())
 
 
@@ -150,6 +165,7 @@ def get_call_log_by_id_with_session(session: Session, call_id: str) -> CallLog |
 
 
 # Call Station query functions
+
 
 def get_call_station_by_id_with_session(
     session: Session, station_id: str
@@ -170,7 +186,9 @@ def get_enabled_call_stations_with_session(session: Session) -> list[CallStation
     return list(session.exec(select(CallStation).where(CallStation.enabled)).all())
 
 
-def save_call_station_with_session(session: Session, call_station: CallStation) -> CallStation:
+def save_call_station_with_session(
+    session: Session, call_station: CallStation
+) -> CallStation:
     """Save or update call station using provided session"""
     existing = session.exec(
         select(CallStation).where(CallStation.station_id == call_station.station_id)

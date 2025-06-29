@@ -66,13 +66,15 @@ async def test_integration_cleanup_flow():
                 capabilities=CapabilitiesConfig(
                     video_codecs=["VP8"],
                     audio_codecs=["OPUS"],
-                    supported_resolutions=[ResolutionConfig(width=640, height=480, framerate=30)],
-                    webrtc_support=True
-                )
+                    supported_resolutions=[
+                        ResolutionConfig(width=640, height=480, framerate=30)
+                    ],
+                    webrtc_support=True,
+                ),
             ),
             plugin_dir="/tmp/test",
             process=mock_process,
-            state=PluginState.RUNNING
+            state=PluginState.RUNNING,
         )
 
         pm.plugins["test"] = plugin
@@ -112,13 +114,15 @@ def test_signal_handling_integration():
                 capabilities=CapabilitiesConfig(
                     video_codecs=["VP8"],
                     audio_codecs=["OPUS"],
-                    supported_resolutions=[ResolutionConfig(width=640, height=480, framerate=30)],
-                    webrtc_support=True
-                )
+                    supported_resolutions=[
+                        ResolutionConfig(width=640, height=480, framerate=30)
+                    ],
+                    webrtc_support=True,
+                ),
             ),
             plugin_dir="/tmp/test",
             process=mock_process,
-            state=PluginState.RUNNING
+            state=PluginState.RUNNING,
         )
 
         pm.plugins["test"] = plugin

@@ -50,7 +50,9 @@ class FieldDefinition(JsonSchemaMixin):
     key: str
     display_name: str
     description: str = ""
-    type: Literal["STRING", "PASSWORD", "URL", "INTEGER", "BOOLEAN", "SELECT"] = "STRING"
+    type: Literal["STRING", "PASSWORD", "URL", "INTEGER", "BOOLEAN", "SELECT"] = (
+        "STRING"
+    )
     required: bool = False
     default_value: str = ""
     sensitive: bool = False  # Whether to mask the field in UI
@@ -110,7 +112,9 @@ class PluginMetadata(JsonSchemaMixin):
     description: str = ""
     required_credentials: list[str] | None = None
     optional_settings: list[str] | None = None
-    credential_fields: list[FieldDefinition] | None = None  # UI metadata for credentials
+    credential_fields: list[FieldDefinition] | None = (
+        None  # UI metadata for credentials
+    )
     setting_fields: list[FieldDefinition] | None = None  # UI metadata for settings
 
     def __post_init__(self) -> None:
@@ -131,9 +135,19 @@ class PluginMetadata(JsonSchemaMixin):
                     key=cred,
                     display_name=cred.replace("_", " ").title(),
                     description=f"Enter your {cred.replace('_', ' ')}",
-                    type="PASSWORD" if any(secret_word in cred.lower() for secret_word in ["password", "token", "secret", "key"]) else "STRING",
+                    type=(
+                        "PASSWORD"
+                        if any(
+                            secret_word in cred.lower()
+                            for secret_word in ["password", "token", "secret", "key"]
+                        )
+                        else "STRING"
+                    ),
                     required=True,
-                    sensitive=any(secret_word in cred.lower() for secret_word in ["password", "token", "secret", "key"])
+                    sensitive=any(
+                        secret_word in cred.lower()
+                        for secret_word in ["password", "token", "secret", "key"]
+                    ),
                 )
                 for cred in self.required_credentials
             ]
@@ -145,7 +159,7 @@ class PluginMetadata(JsonSchemaMixin):
                     display_name=setting.replace("_", " ").title(),
                     description=f"Configure {setting.replace('_', ' ')}",
                     type="STRING",
-                    required=False
+                    required=False,
                 )
                 for setting in self.optional_settings
             ]
@@ -229,38 +243,50 @@ class PluginManager:
         for protocol, plugin in self.plugins.items():
             if plugin.process and plugin.process.poll() is None:
                 try:
-                    logger.info(f"Force terminating plugin {protocol} (PID: {plugin.process.pid})")
+                    logger.info(
+                        f"Force terminating plugin {protocol} (PID: {plugin.process.pid})"
+                    )
                     plugin.process.terminate()
 
                     # Wait briefly for graceful termination
                     try:
                         plugin.process.wait(timeout=2)
                     except subprocess.TimeoutExpired:
-                        logger.warning(f"Plugin {protocol} did not terminate gracefully, killing...")
+                        logger.warning(
+                            f"Plugin {protocol} did not terminate gracefully, killing..."
+                        )
                         plugin.process.kill()
                         plugin.process.wait()
 
                     logger.info(f"Plugin {protocol} terminated")
                 except (ProcessLookupError, OSError) as e:
-                    logger.debug(f"Plugin {protocol} process cleanup error (likely already dead): {e}")
+                    logger.debug(
+                        f"Plugin {protocol} process cleanup error (likely already dead): {e}"
+                    )
                 except Exception as e:
-                    logger.error(f"Error during emergency cleanup of plugin {protocol}: {e}")
+                    logger.error(
+                        f"Error during emergency cleanup of plugin {protocol}: {e}"
+                    )
 
     def __del__(self) -> None:
         """Destructor to ensure plugins are cleaned up"""
-        if hasattr(self, '_shutdown_requested') and not self._shutdown_requested:
+        if hasattr(self, "_shutdown_requested") and not self._shutdown_requested:
             self._emergency_cleanup()
 
-    def _find_available_port(self, start_port: int = 50051, max_attempts: int = 100) -> int:
+    def _find_available_port(
+        self, start_port: int = 50051, max_attempts: int = 100
+    ) -> int:
         """Find an available port starting from start_port"""
         for port in range(start_port, start_port + max_attempts):
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.bind(('localhost', port))
+                    sock.bind(("localhost", port))
                     return port
             except OSError:
                 continue
-        raise RuntimeError(f"Could not find an available port in range {start_port}-{start_port + max_attempts}")
+        raise RuntimeError(
+            f"Could not find an available port in range {start_port}-{start_port + max_attempts}"
+        )
 
     def _discover_plugins(self) -> None:
         """Discover and load plugin metadata from plugin directories"""
@@ -329,7 +355,9 @@ class PluginManager:
 
         return False
 
-    async def _wait_for_plugin_startup(self, plugin: PluginInstance, timeout: int) -> bool:
+    async def _wait_for_plugin_startup(
+        self, plugin: PluginInstance, timeout: int
+    ) -> bool:
         """Wait for plugin to finish starting up"""
         for _ in range(timeout):
             await asyncio.sleep(1)
@@ -350,7 +378,9 @@ class PluginManager:
         try:
             # Find an available port for this plugin
             available_port = self._find_available_port()
-            logger.info(f"Assigned port {available_port} to plugin {plugin.metadata.name}")
+            logger.info(
+                f"Assigned port {available_port} to plugin {plugin.metadata.name}"
+            )
 
             # Update the plugin's gRPC configuration with the new port
             plugin.metadata.grpc.port = available_port
@@ -362,7 +392,7 @@ class PluginManager:
 
             # Set up environment variables
             env = os.environ.copy()
-            env['PORT'] = str(available_port)
+            env["PORT"] = str(available_port)
 
             # Start the plugin process - pipe output to same console
             plugin.process = subprocess.Popen(
@@ -529,9 +559,7 @@ class PluginManager:
                 )
                 logger.info(f"Plugin {protocol} initialized successfully")
                 return True
-            logger.error(
-                f"Plugin {protocol} initialization failed: {response.message}"
-            )
+            logger.error(f"Plugin {protocol} initialization failed: {response.message}")
             return False
 
         except Exception as e:
@@ -688,7 +716,7 @@ class PluginManager:
                         "sensitive": field.sensitive,
                         "allowed_values": field.allowed_values or [],
                         "placeholder": field.placeholder,
-                        "validation_pattern": field.validation_pattern
+                        "validation_pattern": field.validation_pattern,
                     }
                     for field in (metadata.credential_fields or [])
                 ],
@@ -703,20 +731,17 @@ class PluginManager:
                         "sensitive": field.sensitive,
                         "allowed_values": field.allowed_values or [],
                         "placeholder": field.placeholder,
-                        "validation_pattern": field.validation_pattern
+                        "validation_pattern": field.validation_pattern,
                     }
                     for field in (metadata.setting_fields or [])
                 ],
-                "example_account_ids": [
-                    f"user@{protocol}.example.com",
-                    "example_user"
-                ],
+                "example_account_ids": [f"user@{protocol}.example.com", "example_user"],
                 "capabilities": {
                     "video_codecs": metadata.capabilities.video_codecs,
                     "audio_codecs": metadata.capabilities.audio_codecs,
                     "webrtc_support": metadata.capabilities.webrtc_support,
-                    "features": metadata.capabilities.features or []
-                }
+                    "features": metadata.capabilities.features or [],
+                },
             }
 
             schemas[protocol] = schema
@@ -740,8 +765,7 @@ class PluginManager:
             try:
                 # Wait for all plugins to stop gracefully with a timeout
                 await asyncio.wait_for(
-                    asyncio.gather(*tasks, return_exceptions=True),
-                    timeout=10.0
+                    asyncio.gather(*tasks, return_exceptions=True), timeout=10.0
                 )
             except TimeoutError:
                 logger.warning("Graceful shutdown timed out, forcing termination")
@@ -749,7 +773,9 @@ class PluginManager:
                 for plugin in self.plugins.values():
                     if plugin.process and plugin.process.poll() is None:
                         try:
-                            logger.warning(f"Force killing plugin {plugin.metadata.protocol}")
+                            logger.warning(
+                                f"Force killing plugin {plugin.metadata.protocol}"
+                            )
                             plugin.process.kill()
                         except (ProcessLookupError, OSError):
                             pass  # Process already dead

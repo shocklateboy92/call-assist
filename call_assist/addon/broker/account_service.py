@@ -29,7 +29,7 @@ class AccountService:
     def __init__(
         self,
         plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
-        session: Annotated[Session, Depends(get_database_session)]
+        session: Annotated[Session, Depends(get_database_session)],
     ):
         self.plugin_manager = plugin_manager
         self.session = session
@@ -47,11 +47,15 @@ class AccountService:
                     protocol=account.protocol,
                     account_id=account.account_id,
                     display_name=account.display_name,
-                    credentials=account.credentials
+                    credentials=account.credentials,
                 )
-                logger.debug(f"Account {account.account_id} status check: {'valid' if is_valid else 'invalid'}")
+                logger.debug(
+                    f"Account {account.account_id} status check: {'valid' if is_valid else 'invalid'}"
+                )
             except Exception as e:
-                logger.error(f"Error checking status for account {account.account_id}: {e}")
+                logger.error(
+                    f"Error checking status for account {account.account_id}: {e}"
+                )
                 is_valid = False
 
             account_status = AccountStatusData(
@@ -59,9 +63,17 @@ class AccountService:
                 protocol=account.protocol,
                 account_id=account.account_id,
                 display_name=account.display_name,
-                created_at=account.created_at.strftime("%Y-%m-%d %H:%M:%S") if account.created_at else "",
-                updated_at=account.updated_at.strftime("%Y-%m-%d %H:%M:%S") if account.updated_at else "",
-                is_valid=is_valid
+                created_at=(
+                    account.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if account.created_at
+                    else ""
+                ),
+                updated_at=(
+                    account.updated_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if account.updated_at
+                    else ""
+                ),
+                is_valid=is_valid,
             )
             accounts_with_status.append(account_status)
 
@@ -72,7 +84,7 @@ class AccountService:
         protocol: str,
         account_id: str,
         display_name: str,
-        credentials: dict[str, str]
+        credentials: dict[str, str],
     ) -> bool:
         """Check the status of a single account using the plugin manager"""
         try:
@@ -81,10 +93,12 @@ class AccountService:
                 protocol=protocol,
                 account_id=account_id,
                 display_name=display_name,
-                credentials=credentials
+                credentials=credentials,
             )
 
-            logger.debug(f"Account {account_id} status check: {'valid' if is_valid else 'invalid'}")
+            logger.debug(
+                f"Account {account_id} status check: {'valid' if is_valid else 'invalid'}"
+            )
             return is_valid
 
         except Exception as e:
@@ -95,7 +109,7 @@ class AccountService:
 # Dependency injection helper functions for FastAPI routes
 async def get_account_service(
     plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
-    session: Annotated[Session, Depends(get_database_session)]
+    session: Annotated[Session, Depends(get_database_session)],
 ) -> AccountService:
     """Get AccountService with injected dependencies"""
     return AccountService(plugin_manager, session)

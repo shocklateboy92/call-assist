@@ -70,7 +70,11 @@ class CallAssistBroker(BrokerIntegrationBase):
     - Basic health check
     """
 
-    def __init__(self, plugin_manager: PluginManager | None = None, database_manager: "DatabaseManager | None" = None):
+    def __init__(
+        self,
+        plugin_manager: PluginManager | None = None,
+        database_manager: "DatabaseManager | None" = None,
+    ):
         # Store HA entities we receive
         self.ha_entities: dict[str, HAEntity] = {}
 
@@ -159,9 +163,13 @@ class CallAssistBroker(BrokerIntegrationBase):
             timestamp=datetime.now(UTC),
         )
 
-    async def start_call(self, start_call_request: StartCallRequest) -> StartCallResponse:
+    async def start_call(
+        self, start_call_request: StartCallRequest
+    ) -> StartCallResponse:
         """Start a call using the specified call station and contact."""
-        logger.info(f"Starting call from {start_call_request.call_station_id} to {start_call_request.contact}")
+        logger.info(
+            f"Starting call from {start_call_request.call_station_id} to {start_call_request.contact}"
+        )
 
         # Validate call station exists
         if start_call_request.call_station_id not in self.call_stations:
@@ -192,7 +200,9 @@ class CallAssistBroker(BrokerIntegrationBase):
             await self._notify_entity_changes()
 
             # Implement actual call logic via plugin manager
-            success = await self._initiate_plugin_call(call_id, station, start_call_request.contact)
+            success = await self._initiate_plugin_call(
+                call_id, station, start_call_request.contact
+            )
 
             if not success:
                 station.state = "idle"  # Reset state on failure
@@ -222,7 +232,9 @@ class CallAssistBroker(BrokerIntegrationBase):
     async def _update_call_stations(self) -> None:
         """Update call stations based on database configuration and HA entity availability"""
         if not self.database_manager:
-            logger.warning("No database manager available, skipping call station update")
+            logger.warning(
+                "No database manager available, skipping call station update"
+            )
             return
 
         # Load call stations from database
@@ -241,17 +253,16 @@ class CallAssistBroker(BrokerIntegrationBase):
 
                 # Update availability based on both entities existing and being available
                 camera_available = (
-                    db_station.camera_entity_id in self.ha_entities and
-                    self.ha_entities[db_station.camera_entity_id].available
+                    db_station.camera_entity_id in self.ha_entities
+                    and self.ha_entities[db_station.camera_entity_id].available
                 )
                 player_available = (
-                    db_station.media_player_entity_id in self.ha_entities and
-                    self.ha_entities[db_station.media_player_entity_id].available
+                    db_station.media_player_entity_id in self.ha_entities
+                    and self.ha_entities[db_station.media_player_entity_id].available
                 )
 
                 station.available = camera_available and player_available
                 new_stations[db_station.station_id] = station
-
 
         # Check if stations changed
         if new_stations != self.call_stations:
@@ -261,7 +272,9 @@ class CallAssistBroker(BrokerIntegrationBase):
             # Notify subscribers of changes
             await self._notify_entity_changes()
 
-    async def _send_initial_entities(self, update_queue: asyncio.Queue[BrokerEntityUpdate]) -> None:
+    async def _send_initial_entities(
+        self, update_queue: asyncio.Queue[BrokerEntityUpdate]
+    ) -> None:
         """Send initial entities to a new subscriber"""
         # Send call stations
         for station in self.call_stations.values():
@@ -318,7 +331,9 @@ class CallAssistBroker(BrokerIntegrationBase):
                     entity_update = BrokerEntityUpdate(
                         entity_id=station.station_id,
                         name=station.name,
-                        entity_type=cast(BrokerEntityType, BrokerEntityType.CALL_STATION),
+                        entity_type=cast(
+                            BrokerEntityType, BrokerEntityType.CALL_STATION
+                        ),
                         state=station.state,
                         attributes=station.attributes,
                         icon="mdi:video-account",
@@ -335,7 +350,9 @@ class CallAssistBroker(BrokerIntegrationBase):
                 logger.error(f"Error notifying subscriber: {e}")
                 # Continue with next subscriber
 
-    async def _initiate_plugin_call(self, call_id: str, station: CallStation, contact: str) -> bool:
+    async def _initiate_plugin_call(
+        self, call_id: str, station: CallStation, contact: str
+    ) -> bool:
         """Initiate a call through the appropriate protocol plugin"""
         try:
             # Determine protocol from contact format
@@ -353,7 +370,9 @@ class CallAssistBroker(BrokerIntegrationBase):
             # Fix: ha_entities contains HAEntity objects, not dicts
             camera_stream_url = camera_entity.attributes.get("stream_source", "")
             if not camera_stream_url:
-                logger.error(f"No stream source found for camera {station.camera_entity_id}")
+                logger.error(
+                    f"No stream source found for camera {station.camera_entity_id}"
+                )
                 return False
 
             # Import CallStartRequest here to avoid circular imports
@@ -366,11 +385,11 @@ class CallAssistBroker(BrokerIntegrationBase):
                 audio_codecs=["OPUS", "PCMU"],
                 supported_resolutions=[
                     Resolution(width=640, height=480, framerate=10),
-                    Resolution(width=1280, height=720, framerate=30)
+                    Resolution(width=1280, height=720, framerate=30),
                 ],
                 hardware_acceleration=False,
                 webrtc_support=True,
-                max_bandwidth_kbps=2000
+                max_bandwidth_kbps=2000,
             )
 
             player_capabilities = MediaCapabilities(
@@ -378,11 +397,11 @@ class CallAssistBroker(BrokerIntegrationBase):
                 audio_codecs=["OPUS", "AAC"],
                 supported_resolutions=[
                     Resolution(width=1920, height=1080, framerate=30),
-                    Resolution(width=1280, height=720, framerate=30)
+                    Resolution(width=1280, height=720, framerate=30),
                 ],
                 hardware_acceleration=True,
                 webrtc_support=True,
-                max_bandwidth_kbps=10000
+                max_bandwidth_kbps=10000,
             )
 
             # Create call start request
@@ -413,5 +432,5 @@ class CallAssistBroker(BrokerIntegrationBase):
         if contact.startswith("@") and ":" in contact:
             return "matrix"  # Matrix user ID format: @user:server
         if "@" in contact and "." in contact:
-            return "xmpp"    # XMPP JID format: user@domain
+            return "xmpp"  # XMPP JID format: user@domain
         return ""  # Unknown format

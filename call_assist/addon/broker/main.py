@@ -28,7 +28,7 @@ async def serve(
     # Create broker instance with injected dependencies
     broker = CallAssistBroker(
         plugin_manager=app_state.plugin_manager,
-        database_manager=app_state.database_manager
+        database_manager=app_state.database_manager,
     )
     app_state.set_broker_instance(broker)
 

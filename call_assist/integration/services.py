@@ -19,10 +19,12 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_START_CALL = "start_call"
 
-START_CALL_SCHEMA = vol.Schema({
-    vol.Required("call_station_id"): cv.string,
-    vol.Required("contact"): cv.string,
-})
+START_CALL_SCHEMA = vol.Schema(
+    {
+        vol.Required("call_station_id"): cv.string,
+        vol.Required("contact"): cv.string,
+    }
+)
 
 
 async def async_setup_services(hass: HomeAssistant) -> None:
@@ -52,7 +54,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         try:
             # Call the broker to start the call
-            response = await coordinator.grpc_client.start_call(call_station_id, contact)
+            response = await coordinator.grpc_client.start_call(
+                call_station_id, contact
+            )
 
             if response.success:
                 _LOGGER.info("Call started successfully: %s", response.message)

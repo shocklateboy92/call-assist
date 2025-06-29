@@ -50,11 +50,14 @@ async def test_broker_startup():
 
         # Test health check still works
         import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+
         health = await broker.health_check(betterproto_lib_google.Empty())
         assert health.healthy, "Health check failed"
         logger.info("✅ Health check passed")
 
-        logger.info("🎉 Broker startup test passed! All components integrated successfully.")
+        logger.info(
+            "🎉 Broker startup test passed! All components integrated successfully."
+        )
         return True
 
     finally:

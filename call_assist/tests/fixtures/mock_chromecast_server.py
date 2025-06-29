@@ -33,24 +33,21 @@ class MockChromecastServer:
 
     def _setup_routes(self) -> None:
         """Set up HTTP routes for Chromecast simulation"""
-        self.app.router.add_post('/play', self.handle_play)
-        self.app.router.add_post('/stop', self.handle_stop)
-        self.app.router.add_post('/pause', self.handle_pause)
-        self.app.router.add_post('/volume', self.handle_volume)
-        self.app.router.add_get('/status', self.handle_status)
-        self.app.router.add_get('/ws', self.handle_websocket)
+        self.app.router.add_post("/play", self.handle_play)
+        self.app.router.add_post("/stop", self.handle_stop)
+        self.app.router.add_post("/pause", self.handle_pause)
+        self.app.router.add_post("/volume", self.handle_volume)
+        self.app.router.add_get("/status", self.handle_status)
+        self.app.router.add_get("/ws", self.handle_websocket)
 
     async def handle_play(self, request: web.Request) -> web.Response:
         """Handle media play requests"""
         try:
             data = await request.json()
-            media_url = data.get('media_url')
+            media_url = data.get("media_url")
 
             if not media_url:
-                return web.json_response(
-                    {"error": "media_url is required"},
-                    status=400
-                )
+                return web.json_response({"error": "media_url is required"}, status=400)
 
             self.current_media = media_url
             self.state = "playing"
@@ -60,24 +57,20 @@ class MockChromecastServer:
             # Notify websocket clients
             await self._broadcast_state_change()
 
-            return web.json_response({
-                "status": "success",
-                "state": self.state,
-                "media_url": self.current_media,
-                "timestamp": datetime.now(UTC).isoformat()
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "state": self.state,
+                    "media_url": self.current_media,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         except json.JSONDecodeError:
-            return web.json_response(
-                {"error": "Invalid JSON"},
-                status=400
-            )
+            return web.json_response({"error": "Invalid JSON"}, status=400)
         except Exception as e:
             logger.error(f"Error in handle_play: {e}")
-            return web.json_response(
-                {"error": "Internal server error"},
-                status=500
-            )
+            return web.json_response({"error": "Internal server error"}, status=500)
 
     async def handle_stop(self, request: web.Request) -> web.Response:
         """Handle media stop requests"""
@@ -88,11 +81,13 @@ class MockChromecastServer:
 
         await self._broadcast_state_change()
 
-        return web.json_response({
-            "status": "success",
-            "state": self.state,
-            "timestamp": datetime.now(UTC).isoformat()
-        })
+        return web.json_response(
+            {
+                "status": "success",
+                "state": self.state,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
     async def handle_pause(self, request: web.Request) -> web.Response:
         """Handle media pause requests"""
@@ -105,29 +100,29 @@ class MockChromecastServer:
 
         await self._broadcast_state_change()
 
-        return web.json_response({
-            "status": "success",
-            "state": self.state,
-            "media_url": self.current_media,
-            "timestamp": datetime.now(UTC).isoformat()
-        })
+        return web.json_response(
+            {
+                "status": "success",
+                "state": self.state,
+                "media_url": self.current_media,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
     async def handle_volume(self, request: web.Request) -> web.Response:
         """Handle volume control requests"""
         try:
             data = await request.json()
-            volume_level = data.get('volume_level')
+            volume_level = data.get("volume_level")
 
             if volume_level is None:
                 return web.json_response(
-                    {"error": "volume_level is required"},
-                    status=400
+                    {"error": "volume_level is required"}, status=400
                 )
 
             if not 0.0 <= volume_level <= 1.0:
                 return web.json_response(
-                    {"error": "volume_level must be between 0.0 and 1.0"},
-                    status=400
+                    {"error": "volume_level must be between 0.0 and 1.0"}, status=400
                 )
 
             self.volume = volume_level
@@ -135,32 +130,33 @@ class MockChromecastServer:
 
             await self._broadcast_state_change()
 
-            return web.json_response({
-                "status": "success",
-                "volume": self.volume,
-                "timestamp": datetime.now(UTC).isoformat()
-            })
+            return web.json_response(
+                {
+                    "status": "success",
+                    "volume": self.volume,
+                    "timestamp": datetime.now(UTC).isoformat(),
+                }
+            )
 
         except json.JSONDecodeError:
-            return web.json_response(
-                {"error": "Invalid JSON"},
-                status=400
-            )
+            return web.json_response({"error": "Invalid JSON"}, status=400)
 
     async def handle_status(self, request: web.Request) -> web.Response:
         """Return current player status"""
-        return web.json_response({
-            "state": self.state,
-            "media_url": self.current_media,
-            "volume": self.volume,
-            "supported_formats": self.supported_formats,
-            "timestamp": datetime.now(UTC).isoformat(),
-            "device_info": {
-                "name": "Mock Chromecast",
-                "model": "Test Device v1.0",
-                "manufacturer": "Call Assist Testing"
+        return web.json_response(
+            {
+                "state": self.state,
+                "media_url": self.current_media,
+                "volume": self.volume,
+                "supported_formats": self.supported_formats,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "device_info": {
+                    "name": "Mock Chromecast",
+                    "model": "Test Device v1.0",
+                    "manufacturer": "Call Assist Testing",
+                },
             }
-        })
+        )
 
     async def handle_websocket(self, request: web.Request) -> web.WebSocketResponse:
         """Handle websocket connections for real-time updates"""
@@ -180,11 +176,9 @@ class MockChromecastServer:
                         data = json.loads(msg.data)
                         await self._handle_websocket_command(ws, data)
                     except json.JSONDecodeError:
-                        await ws.send_str(json.dumps({
-                            "error": "Invalid JSON"
-                        }))
+                        await ws.send_str(json.dumps({"error": "Invalid JSON"}))
                 elif msg.type == WSMsgType.ERROR:
-                    logger.error(f'WebSocket error: {ws.exception()}')
+                    logger.error(f"WebSocket error: {ws.exception()}")
         except Exception as e:
             logger.error(f"WebSocket connection error: {e}")
         finally:
@@ -193,32 +187,35 @@ class MockChromecastServer:
 
         return ws
 
-    async def _handle_websocket_command(self, ws: web.WebSocketResponse, data: dict[str, Any]) -> None:
+    async def _handle_websocket_command(
+        self, ws: web.WebSocketResponse, data: dict[str, Any]
+    ) -> None:
         """Handle commands received via websocket"""
-        command = data.get('command')
+        command = data.get("command")
 
-        if command == 'get_status':
+        if command == "get_status":
             await self._send_state_to_client(ws)
-        elif command == 'ping':
-            await ws.send_str(json.dumps({
-                "type": "pong",
-                "timestamp": datetime.now(UTC).isoformat()
-            }))
+        elif command == "ping":
+            await ws.send_str(
+                json.dumps({"type": "pong", "timestamp": datetime.now(UTC).isoformat()})
+            )
         else:
-            await ws.send_str(json.dumps({
-                "error": f"Unknown command: {command}"
-            }))
+            await ws.send_str(json.dumps({"error": f"Unknown command: {command}"}))
 
     async def _send_state_to_client(self, ws: web.WebSocketResponse) -> None:
         """Send current state to a specific websocket client"""
         try:
-            await ws.send_str(json.dumps({
-                "type": "state_update",
-                "state": self.state,
-                "media_url": self.current_media,
-                "volume": self.volume,
-                "timestamp": datetime.now(UTC).isoformat()
-            }))
+            await ws.send_str(
+                json.dumps(
+                    {
+                        "type": "state_update",
+                        "state": self.state,
+                        "media_url": self.current_media,
+                        "volume": self.volume,
+                        "timestamp": datetime.now(UTC).isoformat(),
+                    }
+                )
+            )
         except Exception as e:
             logger.error(f"Failed to send state to client: {e}")
 
@@ -227,13 +224,15 @@ class MockChromecastServer:
         if not self.websockets:
             return
 
-        message = json.dumps({
-            "type": "state_change",
-            "state": self.state,
-            "media_url": self.current_media,
-            "volume": self.volume,
-            "timestamp": datetime.now(UTC).isoformat()
-        })
+        message = json.dumps(
+            {
+                "type": "state_change",
+                "state": self.state,
+                "media_url": self.current_media,
+                "volume": self.volume,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         # Remove closed websockets and send to active ones
         dead_ws = set()
@@ -262,7 +261,7 @@ def main() -> None:
     """Main entry point for running the mock server"""
     logging.basicConfig(
         level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
 
     logger.info("Starting Mock Chromecast Server...")

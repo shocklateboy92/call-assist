@@ -13,6 +13,7 @@ from typing import Any, TypedDict
 @dataclass(frozen=True)
 class CredentialsData:
     """Strongly typed credentials for different protocols"""
+
     homeserver: str | None = None
     username: str | None = None
     password: str | None = None
@@ -29,6 +30,7 @@ class CredentialsData:
 @dataclass(frozen=True)
 class AccountStatusData:
     """Account data with status information"""
+
     id: int | None
     protocol: str
     account_id: str
@@ -41,6 +43,7 @@ class AccountStatusData:
 @dataclass(frozen=True)
 class EntityInfo:
     """Home Assistant entity information"""
+
     entity_id: str
     name: str
     domain: str
@@ -50,6 +53,7 @@ class EntityInfo:
 @dataclass(frozen=True)
 class CallStationStatusData:
     """Call station data with availability status"""
+
     id: int | None
     station_id: str
     display_name: str
@@ -68,6 +72,7 @@ class CallStationStatusData:
 @dataclass(frozen=True)
 class EntityOption:
     """Entity option for form dropdowns"""
+
     entity_id: str
     name: str
 
@@ -75,6 +80,7 @@ class EntityOption:
 @dataclass(frozen=True)
 class AvailableEntitiesData:
     """Available entities grouped by type"""
+
     cameras: list[EntityOption]
     media_players: list[EntityOption]
 
@@ -82,13 +88,16 @@ class AvailableEntitiesData:
 @dataclass(frozen=True)
 class ValidationErrors:
     """Validation error results"""
+
     camera_entity_id: str | None = None
     media_player_entity_id: str | None = None
 
     @property
     def has_errors(self) -> bool:
         """Check if there are any validation errors"""
-        return self.camera_entity_id is not None or self.media_player_entity_id is not None
+        return (
+            self.camera_entity_id is not None or self.media_player_entity_id is not None
+        )
 
     def to_dict(self) -> dict[str, str]:
         """Convert to dictionary for backward compatibility"""
@@ -103,6 +112,7 @@ class ValidationErrors:
 @dataclass(frozen=True)
 class CallMetadata:
     """Metadata for call logs"""
+
     webrtc_connection_type: str | None = None
     ice_connection_state: str | None = None
     media_negotiation_duration_ms: int | None = None
@@ -114,6 +124,7 @@ class CallMetadata:
 @dataclass(frozen=True)
 class SettingsValue:
     """Typed settings value container"""
+
     key: str
     value: str  # JSON string
     description: str | None = None
@@ -122,6 +133,7 @@ class SettingsValue:
 @dataclass(frozen=True)
 class FieldDefinition:
     """Field definition for protocol forms"""
+
     name: str
     label: str
     field_type: str  # "text", "password", "url", etc.
@@ -133,6 +145,7 @@ class FieldDefinition:
 @dataclass(frozen=True)
 class ProtocolSchema:
     """Protocol configuration schema"""
+
     name: str
     display_name: str
     fields: list[FieldDefinition]
@@ -140,6 +153,7 @@ class ProtocolSchema:
 
 class CredentialFieldDict(TypedDict):
     """TypedDict for credential field data from plugin manager"""
+
     key: str
     display_name: str
     description: str
@@ -154,6 +168,7 @@ class CredentialFieldDict(TypedDict):
 
 class ProtocolSchemaDict(TypedDict):
     """TypedDict for protocol schema data from plugin manager"""
+
     protocol: str
     display_name: str
     description: str
@@ -166,6 +181,7 @@ class ProtocolSchemaDict(TypedDict):
 @dataclass(frozen=True)
 class BrokerEntityData:
     """Broker entity data with full type safety"""
+
     entity_id: str
     name: str
     entity_type: str  # BrokerEntityType from protobuf
@@ -180,6 +196,7 @@ class BrokerEntityData:
 @dataclass(frozen=True)
 class HAEntityUpdate:
     """HA entity update data for streaming to broker"""
+
     entity_id: str
     domain: str
     name: str

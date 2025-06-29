@@ -27,7 +27,9 @@ _LOGGER = logging.getLogger(__name__)
 class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Coordinator for managing Call Assist data and communications."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int, config_entry: ConfigEntry) -> None:
+    def __init__(
+        self, hass: HomeAssistant, host: str, port: int, config_entry: ConfigEntry
+    ) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -113,7 +115,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         _LOGGER.info(
             "Monitoring %d cameras and %d media players",
             len(self._tracked_cameras),
-            len(self._tracked_media_players)
+            len(self._tracked_media_players),
         )
 
         # Set up state change listener

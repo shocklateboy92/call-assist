@@ -20,12 +20,15 @@ from .plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
+
 class AppState:
     """Container for application-wide state and dependencies"""
 
     def __init__(self) -> None:
         self.database_manager: DatabaseManager | None = None
-        self.broker_instance: CallAssistBroker | None = None  # Will be set to CallAssistBroker instance
+        self.broker_instance: CallAssistBroker | None = (
+            None  # Will be set to CallAssistBroker instance
+        )
         self.plugin_manager: PluginManager | None = None
         self.db_path: str = "broker_data.db"
         self._initialized = False
@@ -92,16 +95,18 @@ def get_app_state() -> AppState:
 
 
 async def get_database_manager(
-    state: Annotated[AppState, Depends(get_app_state)]
+    state: Annotated[AppState, Depends(get_app_state)],
 ) -> DatabaseManager:
     """Get the database manager dependency"""
     if state.database_manager is None:
-        raise RuntimeError("Database manager not initialized. Call app_state.initialize() first.")
+        raise RuntimeError(
+            "Database manager not initialized. Call app_state.initialize() first."
+        )
     return state.database_manager
 
 
 async def get_database_session(
-    db_manager: Annotated[DatabaseManager, Depends(get_database_manager)]
+    db_manager: Annotated[DatabaseManager, Depends(get_database_manager)],
 ) -> AsyncGenerator[Session]:
     """Get a database session (automatically managed)"""
     session = db_manager.get_session()
@@ -112,20 +117,24 @@ async def get_database_session(
 
 
 async def get_plugin_manager(
-    state: Annotated[AppState, Depends(get_app_state)]
+    state: Annotated[AppState, Depends(get_app_state)],
 ) -> PluginManager:
     """Get the plugin manager dependency"""
     if state.plugin_manager is None:
-        raise RuntimeError("Plugin manager not initialized. Call app_state.initialize() first.")
+        raise RuntimeError(
+            "Plugin manager not initialized. Call app_state.initialize() first."
+        )
     return state.plugin_manager
 
 
 async def get_broker_instance(
-    state: Annotated[AppState, Depends(get_app_state)]
+    state: Annotated[AppState, Depends(get_app_state)],
 ) -> CallAssistBroker:
     """Get the broker instance dependency"""
     if state.broker_instance is None:
-        raise RuntimeError("Broker instance not set. Call app_state.set_broker_instance() first.")
+        raise RuntimeError(
+            "Broker instance not set. Call app_state.set_broker_instance() first."
+        )
     return state.broker_instance
 
 
