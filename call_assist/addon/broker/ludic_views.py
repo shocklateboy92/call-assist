@@ -75,13 +75,12 @@ def create_routes(app: FastAPI) -> None:
         else:
             error_title = "Internal Server Error"
             error_message = (
-                "An unexpected error occurred. Please try again or contact support."
+                "An unexpected error occurred. Please try again or file an issue."
             )
             error_code = 500
 
         # Show technical details only in debug mode
-        show_details = logger.isEnabledFor(logging.DEBUG)
-        error_details = str(exc) if show_details else None
+        show_details = logger.isEnabledFor(logging.INFO)
 
         error_page = PageLayout(
             f"{error_title} - Call Assist Broker",
@@ -90,7 +89,7 @@ def create_routes(app: FastAPI) -> None:
                 error_message=error_message,
                 error_code=error_code,
                 show_details=show_details,
-                error_details=error_details,
+                exception=exc
             )
         )
 
@@ -352,6 +351,8 @@ def create_routes(app: FastAPI) -> None:
         if "setting_fields" in schema:
             for field_config in schema["setting_fields"]:
                 field_name = field_config.get("key")
+                if not field_name:
+                    continue
                 field_type = field_config.get("type", "STRING")
                 field_label = field_config.get(
                     "display_name", field_name.replace("_", " ").title()
@@ -415,7 +416,7 @@ def create_routes(app: FastAPI) -> None:
         broker = Depends(get_broker_instance),
         plugin_manager: PluginManager = Depends(get_plugin_manager),
         db_manager: DatabaseManager = Depends(get_database_manager)
-    ):
+    ) -> PageLayout:
         """Status monitoring page"""
         # Database stats
         db_stats = await db_manager.get_database_stats()
@@ -472,7 +473,7 @@ def create_routes(app: FastAPI) -> None:
     @app.get("/ui/settings", response_class=HTMLResponse)
     async def settings_page(
         settings_service = Depends(get_settings_service)
-    ):
+    ) -> PageLayout:
         """Settings page"""
         # Load current settings
         current_settings = await settings_service.get_all_settings()
@@ -490,7 +491,7 @@ def create_routes(app: FastAPI) -> None:
         max_call_history_days: int = Form(...),
         auto_cleanup_logs: bool = Form(False),
         settings_service = Depends(get_settings_service)
-    ):
+    ) -> Response:
         """Submit settings changes"""
         # Save all settings
         settings_data = {
@@ -515,7 +516,7 @@ def create_routes(app: FastAPI) -> None:
     async def call_stations_page(
         call_station_service = Depends(get_call_station_service),
         broker = Depends(get_broker_instance)
-    ):
+    ) -> PageLayout:
         """Call stations management page"""
         # Get available HA entities for status checking
         ha_entities = broker.ha_entities if broker else {}
@@ -532,7 +533,7 @@ def create_routes(app: FastAPI) -> None:
     async def add_call_station_page(
         call_station_service = Depends(get_call_station_service),
         broker = Depends(get_broker_instance)
-    ):
+    ) -> PageLayout:
         """Add new call station page"""
         # Get available entities for dropdowns
         ha_entities = broker.ha_entities if broker else {}
@@ -553,7 +554,7 @@ def create_routes(app: FastAPI) -> None:
         session: Session = Depends(get_database_session),
         call_station_service = Depends(get_call_station_service),
         broker = Depends(get_broker_instance)
-    ):
+    ) -> Response:
         """Submit new call station"""
         # Check if station already exists
         existing = get_call_station_by_id_with_session(session, station_id)
@@ -591,7 +592,7 @@ def create_routes(app: FastAPI) -> None:
         session: Session = Depends(get_database_session),
         call_station_service = Depends(get_call_station_service),
         broker = Depends(get_broker_instance)
-    ):
+    ) -> PageLayout:
         """Edit existing call station page"""
         # Load existing call station
         existing_station = get_call_station_by_id_with_session(session, station_id)
@@ -630,7 +631,7 @@ def create_routes(app: FastAPI) -> None:
         session: Session = Depends(get_database_session),
         call_station_service = Depends(get_call_station_service),
         broker = Depends(get_broker_instance)
-    ):
+    ) -> Response:
         """Submit call station changes"""
         # Load existing call station
         existing_station = get_call_station_by_id_with_session(session, station_id)
@@ -663,7 +664,7 @@ def create_routes(app: FastAPI) -> None:
     async def delete_call_station_endpoint(
         station_id: str = Path(...),
         session: Session = Depends(get_database_session),
-    ):
+    ) -> Response:
         """Delete call station endpoint for HTMX"""
         success = delete_call_station_with_session(session, station_id)
         if success:

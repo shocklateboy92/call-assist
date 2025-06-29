@@ -3,11 +3,12 @@
 Ludic-based web UI components for Call Assist Broker
 """
 
+import traceback
 from typing import Any, Unpack, override
 
 from ludic.base import BaseElement
 
-from ludic import Component
+from ludic import Blank, Component
 from ludic.elements import Element
 from ludic.attrs import GlobalAttrs
 from ludic.html import (
@@ -34,13 +35,14 @@ from ludic.html import (
     link,
     main,
     meta,
-    nav,
     option,
     p,
+    pre,
     script,
     section,
     select,
     strong,
+    style,
     summary,
     table,
     tbody,
@@ -51,7 +53,6 @@ from ludic.html import (
     tr,
     ul,
 )
-from ludic.styles import CSSProperties
 from ludic.types import AnyChildren, NoChildren
 
 from addon.broker.data_types import (
@@ -64,6 +65,7 @@ from addon.broker.data_types import (
 class NavAttrs(GlobalAttrs, total=False):
     data_variant: str
 
+
 class Nav(Element[AnyChildren, NavAttrs]):
     html_name = "nav"
 
@@ -75,35 +77,15 @@ class ErrorPage(Component[NoChildren, GlobalAttrs]):
     """Error page component for displaying exceptions"""
 
     classes = ["error-page"]
-    styles = {
-        ".error-page": {
-            "max-width": "32rem",
-            "margin": "2rem auto",
-            "padding": "1rem",
-            "text-align": "center",
-        },
-        ".error-page h1": {"margin-bottom": "1rem"},
-        ".error-page p": {"margin-bottom": "0.5rem"},
-        ".error-page .error-message": {"font-size": "1.1rem", "margin-bottom": "1rem"},
-        ".error-page .error-code": {"color": "#6b7280", "font-size": "0.9rem"},
-        ".error-page .error-details": {
-            "font-family": "monospace",
-            "background": "#f3f4f6",
-            "padding": "1rem",
-            "border-radius": "0.375rem",
-            "font-size": "0.875rem",
-        },
-        ".error-page .error-navigation": {"margin-top": "2rem"},
-        ".error-page .error-navigation a": {"text-decoration": "none"},
-    }
 
     def __init__(
         self,
         error_title: str = "An Error Occurred",
         error_message: str = "Something went wrong",
         error_code: int = 500,
-        show_details: bool = False,
+        show_details: bool = True,
         error_details: str | None = None,
+        exception: Exception | None = None,
         **attrs: Any,
     ):
         self.error_title = error_title
@@ -111,6 +93,7 @@ class ErrorPage(Component[NoChildren, GlobalAttrs]):
         self.error_code = error_code
         self.show_details = show_details
         self.error_details = error_details
+        self.exception = exception
         super().__init__(**attrs)
 
     def render(self) -> div:
@@ -120,12 +103,17 @@ class ErrorPage(Component[NoChildren, GlobalAttrs]):
             p(f"Error Code: {self.error_code}", class_="error-code"),
         ]
 
-        if self.show_details and self.error_details:
+        if self.show_details:
             content.extend(
                 [
                     details(
                         summary("Technical Details"),
-                        p(self.error_details, class_="error-details"),
+                        p(self.error_details) if self.error_details else Blank(),
+                        (
+                            pre("\n".join(traceback.format_exception(self.exception)))
+                            if self.exception
+                            else Blank()
+                        ),
                     )
                 ]
             )
@@ -147,17 +135,50 @@ class ErrorPage(Component[NoChildren, GlobalAttrs]):
 class PageLayout(Component[AnyChildren, GlobalAttrs]):
     """Base page layout with andreasphil design system CSS"""
 
+    styles = {
+        ".card": {
+            "background": "var(--c-surface-bg)",
+            "border-radius": "var(--border-radius)",
+            "border": "var(--border-width) solid var(--c-border-variant)",
+            "margin": "var(--block-spacing-y) 0",
+            "padding": "1rem",
+            "padding-top": "calc(2rem + var(--font-size-small) * var(--line-height))",
+            "position": "relative",
+        },
+        ".card::before": {
+            "color": "var(--c-fg-variant)",
+            "content": "attr(data-title)",
+            "display": "block",
+            "font-size": "var(--font-size-small)",
+            # "font-weight": "var(--font-weight-medium)",
+            "left": "1rem",
+            "letter-spacing": "1.1",
+            "position": "absolute",
+            "text-transform": "uppercase",
+            "top": "1rem",
+        },
+        ".card > :first-child": {
+            "margin-top": "0",
+        },
+        ".card > :last-child": {
+            "margin-bottom": "0",
+        },
+    }
+
     def __init__(
         self,
         page_title: str = "Call Assist Broker",
         *children: AnyChildren,
-        **attrs: Any,
+        single_section: bool = True,
+        **attrs: GlobalAttrs,
     ):
         self.page_title = page_title
+        self.single_section = single_section
         super().__init__(*children, **attrs)
 
     @override
     def render(self) -> html:
+        content_wrapper = section if self.single_section else Blank
         return html(
             head(
                 meta(charset="utf-8"),
@@ -168,6 +189,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                     rel="stylesheet",
                     href="https://cdn.jsdelivr.net/gh/andreasphil/design-system@v0.47.0/dist/design-system.min.css",
                 ),
+                style.from_components(PageLayout),
                 # HTMX for interactivity
                 script(src="https://unpkg.com/htmx.org@1.9.10"),
             ),
@@ -185,7 +207,7 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                         data_variant="fixed",
                     ),
                 ),
-                main(*self.children, style=CSSProperties(padding="1rem")),
+                main(section(*self.children, class_="card")),
                 **self.attrs,
             ),
         )
@@ -193,22 +215,6 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
 
 class AccountsTable(Component[NoChildren, GlobalAttrs]):
     """Accounts table component"""
-
-    classes = ["accounts-table"]
-    styles = {
-        ".accounts-table .accounts-header": {
-            "display": "flex",
-            "align-items": "center",
-            "margin-bottom": "1rem",
-        },
-        ".accounts-table .add-account-btn": {"margin-left": "auto"},
-        ".accounts-table .account-actions": {"display": "flex", "gap": "0.5rem"},
-        ".accounts-table .edit-btn": {"font-size": "0.875rem"},
-        ".accounts-table .delete-btn": {
-            "font-size": "0.875rem",
-            "background": "var(--color-danger)",
-        },
-    }
 
     def __init__(self, accounts: list[AccountStatusData], **attrs: Any):
         self.accounts = accounts
@@ -607,25 +613,6 @@ class SettingsForm(Component[NoChildren, GlobalAttrs]):
 
 class CallStationsTable(Component[NoChildren, GlobalAttrs]):
     """Call stations table component"""
-
-    classes = ["call-stations-table"]
-    styles = {
-        ".call-stations-table .stations-header": {
-            "display": "flex",
-            "align-items": "center",
-            "margin-bottom": "1rem",
-        },
-        ".call-stations-table .add-station-btn": {"margin-left": "auto"},
-        ".call-stations-table .station-actions": {"display": "flex", "gap": "0.5rem"},
-        ".call-stations-table .edit-btn": {"font-size": "0.875rem"},
-        ".call-stations-table .delete-btn": {
-            "font-size": "0.875rem",
-            "background": "var(--color-danger)",
-        },
-        ".call-stations-table .status-available": {"color": "green"},
-        ".call-stations-table .status-unavailable": {"color": "red"},
-        ".call-stations-table .status-disabled": {"color": "gray"},
-    }
 
     def __init__(self, call_stations: list[CallStationStatusData], **attrs: Any):
         self.call_stations = call_stations
