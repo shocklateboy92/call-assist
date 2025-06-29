@@ -6,7 +6,7 @@ Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_protocol_schemas(
-    plugin_manager: PluginManager = Depends(get_plugin_manager)
+    plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]
 ) -> dict[str, ProtocolSchemaDict]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
     schemas_dict = plugin_manager.get_protocol_schemas()
@@ -100,7 +100,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui", response_class=HTMLResponse)
     async def main_page(
-        account_service = Depends(get_account_service)
+        account_service: Annotated[object, Depends(get_account_service)]
     ) -> PageLayout:
         """Main dashboard page with accounts table"""
         # Get accounts with real-time status checking
@@ -120,7 +120,7 @@ def create_routes(app: FastAPI) -> None:
         )
 
     @app.get("/ui/add-account", response_class=HTMLResponse)
-    async def add_account_page(protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas)) -> PageLayout:
+    async def add_account_page(protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)]) -> PageLayout:
         """Add new account page"""
         return PageLayout(
             "Add Account - Call Assist Broker",
@@ -130,10 +130,10 @@ def create_routes(app: FastAPI) -> None:
     @app.post("/ui/add-account")
     async def add_account_submit(
         request: Request,
+        session: Annotated[Session, Depends(get_database_session)],
         protocol: str = Form(...),
         account_id: str = Form(...),
         display_name: str = Form(...),
-        session: Session = Depends(get_database_session),
     ) -> Response:
         """Submit new account"""
         # Get all form data for credentials
@@ -168,10 +168,10 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/edit-account/{protocol}/{account_id}", response_class=HTMLResponse)
     async def edit_account_page(
+        session: Annotated[Session, Depends(get_database_session)],
+        protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)],
         protocol: str = Path(...),
         account_id: str = Path(...),
-        session: Session = Depends(get_database_session),
-        protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ) -> PageLayout:
         """Edit existing account page"""
         # Load existing account
@@ -204,11 +204,11 @@ def create_routes(app: FastAPI) -> None:
     @app.post("/ui/edit-account/{protocol}/{account_id}")
     async def edit_account_submit(
         request: Request,
+        session: Annotated[Session, Depends(get_database_session)],
         protocol: str = Path(...),
         account_id: str = Path(...),
         new_account_id: str = Form(..., alias="account_id"),
         display_name: str = Form(...),
-        session: Session = Depends(get_database_session),
     ) -> Response:
         """Submit account changes"""
         # Load existing account
@@ -249,9 +249,9 @@ def create_routes(app: FastAPI) -> None:
 
     @app.delete("/ui/delete-account/{protocol}/{account_id}")
     async def delete_account_endpoint(
+        session: Annotated[Session, Depends(get_database_session)],
         protocol: str = Path(...),
         account_id: str = Path(...),
-        session: Session = Depends(get_database_session),
     ) -> Response:
         """Delete account endpoint for HTMX"""
         success = delete_account_with_session(session, protocol, account_id)
@@ -262,8 +262,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/api/protocol-fields", response_class=HTMLResponse)
     async def get_protocol_fields(
+        protocols: Annotated[dict[str, ProtocolSchemaDict], Depends(get_protocol_schemas)],
         protocol: str | None = None,
-        protocols: dict[str, ProtocolSchemaDict] = Depends(get_protocol_schemas),
     ) -> HTMLResponse:
         """Get protocol-specific form fields for HTMX dynamic loading"""
         if not protocol:
@@ -413,9 +413,9 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/status", response_class=HTMLResponse)
     async def status_page(
-        broker = Depends(get_broker_instance),
-        plugin_manager: PluginManager = Depends(get_plugin_manager),
-        db_manager: DatabaseManager = Depends(get_database_manager)
+        broker: Annotated[object, Depends(get_broker_instance)],
+        plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
+        db_manager: Annotated[DatabaseManager, Depends(get_database_manager)]
     ) -> PageLayout:
         """Status monitoring page"""
         # Database stats
@@ -443,7 +443,7 @@ def create_routes(app: FastAPI) -> None:
         )
 
     @app.get("/ui/history", response_class=HTMLResponse)
-    async def history_page(session: Session = Depends(get_database_session)) -> PageLayout:
+    async def history_page(session: Annotated[Session, Depends(get_database_session)]) -> PageLayout:
         """Call history page"""
         call_logs = get_call_logs_with_session(session)
         logs_data = []
@@ -472,7 +472,7 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/settings", response_class=HTMLResponse)
     async def settings_page(
-        settings_service = Depends(get_settings_service)
+        settings_service: Annotated[object, Depends(get_settings_service)]
     ) -> PageLayout:
         """Settings page"""
         # Load current settings
@@ -485,12 +485,12 @@ def create_routes(app: FastAPI) -> None:
 
     @app.post("/ui/settings")
     async def settings_submit(
+        settings_service: Annotated[object, Depends(get_settings_service)],
         web_ui_host: str = Form(...),
         web_ui_port: int = Form(...),
         enable_call_history: bool = Form(False),
         max_call_history_days: int = Form(...),
         auto_cleanup_logs: bool = Form(False),
-        settings_service = Depends(get_settings_service)
     ) -> Response:
         """Submit settings changes"""
         # Save all settings
@@ -514,8 +514,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/call-stations", response_class=HTMLResponse)
     async def call_stations_page(
-        call_station_service = Depends(get_call_station_service),
-        broker = Depends(get_broker_instance)
+        call_station_service: Annotated[object, Depends(get_call_station_service)],
+        broker: Annotated[object, Depends(get_broker_instance)]
     ) -> PageLayout:
         """Call stations management page"""
         # Get available HA entities for status checking
@@ -531,8 +531,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/add-call-station", response_class=HTMLResponse)
     async def add_call_station_page(
-        call_station_service = Depends(get_call_station_service),
-        broker = Depends(get_broker_instance)
+        call_station_service: Annotated[object, Depends(get_call_station_service)],
+        broker: Annotated[object, Depends(get_broker_instance)]
     ) -> PageLayout:
         """Add new call station page"""
         # Get available entities for dropdowns
@@ -546,14 +546,14 @@ def create_routes(app: FastAPI) -> None:
 
     @app.post("/ui/add-call-station")
     async def add_call_station_submit(
+        session: Annotated[Session, Depends(get_database_session)],
+        call_station_service: Annotated[object, Depends(get_call_station_service)],
+        broker: Annotated[object, Depends(get_broker_instance)],
         station_id: str = Form(...),
         display_name: str = Form(...),
         camera_entity_id: str = Form(...),
         media_player_entity_id: str = Form(...),
         enabled: bool = Form(False),
-        session: Session = Depends(get_database_session),
-        call_station_service = Depends(get_call_station_service),
-        broker = Depends(get_broker_instance)
     ) -> Response:
         """Submit new call station"""
         # Check if station already exists
@@ -588,10 +588,10 @@ def create_routes(app: FastAPI) -> None:
 
     @app.get("/ui/edit-call-station/{station_id}", response_class=HTMLResponse)
     async def edit_call_station_page(
+        session: Annotated[Session, Depends(get_database_session)],
+        call_station_service: Annotated[object, Depends(get_call_station_service)],
+        broker: Annotated[object, Depends(get_broker_instance)],
         station_id: str = Path(...),
-        session: Session = Depends(get_database_session),
-        call_station_service = Depends(get_call_station_service),
-        broker = Depends(get_broker_instance)
     ) -> PageLayout:
         """Edit existing call station page"""
         # Load existing call station
@@ -623,14 +623,14 @@ def create_routes(app: FastAPI) -> None:
 
     @app.post("/ui/edit-call-station/{station_id}")
     async def edit_call_station_submit(
+        session: Annotated[Session, Depends(get_database_session)],
+        call_station_service: Annotated[object, Depends(get_call_station_service)],
+        broker: Annotated[object, Depends(get_broker_instance)],
         station_id: str = Path(...),
         display_name: str = Form(...),
         camera_entity_id: str = Form(...),
         media_player_entity_id: str = Form(...),
         enabled: bool = Form(False),
-        session: Session = Depends(get_database_session),
-        call_station_service = Depends(get_call_station_service),
-        broker = Depends(get_broker_instance)
     ) -> Response:
         """Submit call station changes"""
         # Load existing call station
@@ -662,8 +662,8 @@ def create_routes(app: FastAPI) -> None:
 
     @app.delete("/ui/delete-call-station/{station_id}")
     async def delete_call_station_endpoint(
+        session: Annotated[Session, Depends(get_database_session)],
         station_id: str = Path(...),
-        session: Session = Depends(get_database_session),
     ) -> Response:
         """Delete call station endpoint for HTMX"""
         success = delete_call_station_with_session(session, station_id)

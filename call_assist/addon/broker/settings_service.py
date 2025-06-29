@@ -4,7 +4,7 @@ Settings service module for managing broker settings with dependency injection.
 """
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import Depends
 from sqlmodel import Session
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class SettingsService:
     """Settings service with dependency injection"""
 
-    def __init__(self, session: Session = Depends(get_database_session)):
+    def __init__(self, session: Annotated[Session, Depends(get_database_session)]):
         self.session = session
 
     async def get_all_settings(self) -> dict[str, Any]:
@@ -61,7 +61,7 @@ class SettingsService:
 
 # Dependency injection helper function for FastAPI routes
 async def get_settings_service(
-    session: Session = Depends(get_database_session)
+    session: Annotated[Session, Depends(get_database_session)]
 ) -> SettingsService:
     """Get SettingsService with injected dependencies"""
     return SettingsService(session)

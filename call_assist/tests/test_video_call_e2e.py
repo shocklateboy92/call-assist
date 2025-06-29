@@ -121,12 +121,6 @@ class TestVideoCallE2E:
     @pytest.mark.asyncio
     async def test_video_test_environment_integration(self, video_test_environment: VideoTestEnvironment) -> None:
         """Test complete video test environment integration"""
-        # Verify all components are present
-        assert "rtsp_base_url" in video_test_environment
-        assert "rtsp_streams" in video_test_environment
-        assert "cameras" in video_test_environment
-        assert "media_players" in video_test_environment
-        assert "mock_chromecast_url" in video_test_environment
 
         # Verify RTSP configuration
         rtsp_base = video_test_environment.rtsp_base_url

@@ -7,6 +7,7 @@ using dependency injection for clean separation of concerns.
 """
 
 import logging
+from typing import Annotated
 
 from fastapi import Depends
 from sqlmodel import Session
@@ -27,8 +28,8 @@ class AccountService:
 
     def __init__(
         self,
-        plugin_manager: PluginManager = Depends(get_plugin_manager),
-        session: Session = Depends(get_database_session)
+        plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
+        session: Annotated[Session, Depends(get_database_session)]
     ):
         self.plugin_manager = plugin_manager
         self.session = session
@@ -93,8 +94,8 @@ class AccountService:
 
 # Dependency injection helper functions for FastAPI routes
 async def get_account_service(
-    plugin_manager: PluginManager = Depends(get_plugin_manager),
-    session: Session = Depends(get_database_session)
+    plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)],
+    session: Annotated[Session, Depends(get_database_session)]
 ) -> AccountService:
     """Get AccountService with injected dependencies"""
     return AccountService(plugin_manager, session)

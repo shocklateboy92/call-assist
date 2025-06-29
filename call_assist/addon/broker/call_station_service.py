@@ -7,6 +7,7 @@ using dependency injection for clean separation of concerns.
 """
 
 import logging
+from typing import Annotated
 
 from fastapi import Depends
 from sqlmodel import Session
@@ -29,7 +30,7 @@ class CallStationService:
 
     def __init__(
         self,
-        session: Session = Depends(get_database_session)
+        session: Annotated[Session, Depends(get_database_session)]
     ):
         self.session = session
 
@@ -126,7 +127,7 @@ class CallStationService:
 
 # Dependency injection helper functions for FastAPI routes
 async def get_call_station_service(
-    session: Session = Depends(get_database_session)
+    session: Annotated[Session, Depends(get_database_session)]
 ) -> CallStationService:
     """Get CallStationService with injected dependencies"""
     return CallStationService(session)

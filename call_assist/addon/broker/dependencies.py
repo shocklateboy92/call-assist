@@ -9,6 +9,7 @@ using FastAPI's dependency injection system for clean separation of concerns.
 import logging
 from collections.abc import AsyncGenerator
 from functools import lru_cache
+from typing import Annotated
 
 from fastapi import Depends
 from sqlmodel import Session
@@ -99,7 +100,7 @@ def get_app_state() -> AppState:
 
 
 async def get_database_manager(
-    state: AppState = Depends(get_app_state)
+    state: Annotated[AppState, Depends(get_app_state)]
 ) -> DatabaseManager:
     """Get the database manager dependency"""
     if state.database_manager is None:
@@ -108,7 +109,7 @@ async def get_database_manager(
 
 
 async def get_database_session(
-    db_manager: DatabaseManager = Depends(get_database_manager)
+    db_manager: Annotated[DatabaseManager, Depends(get_database_manager)]
 ) -> AsyncGenerator[Session]:
     """Get a database session (automatically managed)"""
     session = db_manager.get_session()
@@ -119,7 +120,7 @@ async def get_database_session(
 
 
 async def get_plugin_manager(
-    state: AppState = Depends(get_app_state)
+    state: Annotated[AppState, Depends(get_app_state)]
 ) -> PluginManager:
     """Get the plugin manager dependency"""
     if state.plugin_manager is None:
@@ -128,7 +129,7 @@ async def get_plugin_manager(
 
 
 async def get_broker_instance(
-    state: AppState = Depends(get_app_state)
+    state: Annotated[AppState, Depends(get_app_state)]
 ):
     """Get the broker instance dependency"""
     if state.broker_instance is None:
