@@ -136,10 +136,9 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
                     accounts.append(account)
 
         # Filter out header row and empty rows
-        accounts = [
+        return [
             acc for acc in accounts if acc["protocol"] and acc["protocol"] != "protocol"
         ]
-        return accounts
 
     def extract_protocol_options(self, soup: BeautifulSoup) -> list[str]:
         """Extract available protocols from a protocol selection dropdown"""
@@ -239,9 +238,8 @@ class WebUITestClient(contextlib.AbstractAsyncContextManager["WebUITestClient", 
         # Normalize whitespace
         lines = (line.strip() for line in text.splitlines())
         chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        text = " ".join(chunk for chunk in chunks if chunk)
+        return " ".join(chunk for chunk in chunks if chunk)
 
-        return text
 
 
 def is_port_available(port: int) -> bool:
@@ -337,10 +335,8 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
         logger.warning("Broker thread did not shut down gracefully")
 
     # Clean up temporary database
-    try:
+    with contextlib.suppress(OSError):
         os.unlink(db_path)
-    except OSError:
-        pass
 
     logger.info("Broker thread shutdown complete")
 

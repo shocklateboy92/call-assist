@@ -75,7 +75,7 @@ class TestBrokerIntegration:
         response = await broker.health_check(betterproto_lib_google.Empty())
 
         assert isinstance(response, HealthCheckResponse)
-        assert response.healthy == True
+        assert response.healthy
         assert "Broker running for" in response.message
         assert response.timestamp is not None
 
@@ -154,7 +154,7 @@ class TestBrokerIntegration:
                 assert (
                     station.media_player_entity_id == "media_player.test_living_room_tv"
                 )
-                assert station.available == True
+                assert station.available
             else:
                 logger.warning(f"Call station creation returned status {status}")
 
@@ -248,8 +248,8 @@ class TestBrokerIntegration:
         # Verify availability is tracked correctly
         camera = broker.ha_entities["camera.test"]
         player = broker.ha_entities["media_player.test"]
-        assert camera.available == False
-        assert player.available == True
+        assert not camera.available
+        assert player.available
 
         # No call stations should be auto-created
         assert len(broker.call_stations) == 0
@@ -375,7 +375,7 @@ class TestBrokerIntegration:
         response = await broker.start_call(request)
 
         assert isinstance(response, StartCallResponse)
-        assert response.success == False
+        assert not response.success
         assert "not found" in response.message
         assert response.call_id == ""
 
@@ -393,7 +393,7 @@ class TestBrokerIntegration:
         response = await broker.start_call(request)
 
         assert isinstance(response, StartCallResponse)
-        assert response.success == False
+        assert not response.success
         assert "not found" in response.message
         assert response.call_id == ""
 
@@ -441,7 +441,7 @@ class TestBrokerIntegration:
         response = await broker.start_call(request)
 
         assert isinstance(response, StartCallResponse)
-        assert response.success == False
+        assert not response.success
         assert "not found" in response.message
         assert response.call_id == ""
 

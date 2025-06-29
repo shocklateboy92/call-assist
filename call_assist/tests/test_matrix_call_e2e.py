@@ -501,7 +501,6 @@ async def test_video_infrastructure_integration_with_matrix(
     # Verify video test infrastructure is available
     # Check RTSP streams
     rtsp_stream_1 = "rtsp://rtsp-server:8554/test_camera_1"
-    rtsp_stream_2 = "rtsp://rtsp-server:8554/test_camera_2"
 
     # Check mock Chromecast
     chromecast_url = "http://mock-chromecast:8008"

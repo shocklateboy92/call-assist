@@ -4,7 +4,6 @@ import asyncio
 import logging
 import signal
 import tempfile
-from typing import Any
 from unittest.mock import Mock, patch
 
 from addon.broker.plugin_manager import (

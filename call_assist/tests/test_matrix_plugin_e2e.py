@@ -416,7 +416,7 @@ class TestMatrixPluginWebUIE2E:
 
         # Should have at least a protocol selector
         has_protocol_field = any(
-            "protocol" in key.lower() for key in form_inputs.keys()
+            "protocol" in key.lower() for key in form_inputs
         )
         assert (
             has_protocol_field or "protocol" in html.lower()

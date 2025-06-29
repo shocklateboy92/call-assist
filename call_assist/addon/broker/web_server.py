@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import contextlib
 import logging
 
 import uvicorn
@@ -71,10 +72,8 @@ class WebUIServer:
         """Stop the web UI server"""
         if self.server_task:
             self.server_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self.server_task
-            except asyncio.CancelledError:
-                pass
         logger.info("Web UI server stopped")
 
 

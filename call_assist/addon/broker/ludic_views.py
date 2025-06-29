@@ -75,8 +75,7 @@ def get_protocol_schemas(
     plugin_manager: Annotated[PluginManager, Depends(get_plugin_manager)]
 ) -> dict[str, ProtocolSchemaDict]:
     """Get protocol schemas from plugin manager (via dependency injection)"""
-    schemas_dict = plugin_manager.get_protocol_schemas()
-    return schemas_dict
+    return plugin_manager.get_protocol_schemas()
 
 
 def create_routes(app: FastAPI) -> None:

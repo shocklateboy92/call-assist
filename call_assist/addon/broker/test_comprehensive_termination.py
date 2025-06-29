@@ -25,23 +25,22 @@ logger = logging.getLogger(__name__)
 async def test_app_state_cleanup():
     """Test that AppState properly cleans up plugin manager"""
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        # Create app state
-        app_state = AppState()
+    # Create app state
+    app_state = AppState()
 
-        # Create mock plugin manager
-        mock_plugin_manager = Mock()
-        mock_plugin_manager.shutdown_all = AsyncMock()
+    # Create mock plugin manager
+    mock_plugin_manager = Mock()
+    mock_plugin_manager.shutdown_all = AsyncMock()
 
-        app_state.plugin_manager = mock_plugin_manager
+    app_state.plugin_manager = mock_plugin_manager
 
-        # Test cleanup
-        await app_state.cleanup()
+    # Test cleanup
+    await app_state.cleanup()
 
-        # Verify shutdown_all was called
-        mock_plugin_manager.shutdown_all.assert_called_once()
+    # Verify shutdown_all was called
+    mock_plugin_manager.shutdown_all.assert_called_once()
 
-        logger.info("✅ AppState cleanup test passed")
+    logger.info("✅ AppState cleanup test passed")
 
 
 async def test_integration_cleanup_flow():

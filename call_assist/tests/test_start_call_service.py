@@ -36,7 +36,7 @@ async def test_start_call_via_grpc(broker_process: BrokerProcessInfo) -> None:
         response = await stub.start_call(request)
 
         assert isinstance(response, StartCallResponse)
-        assert response.success == False
+        assert not response.success
         assert "not found" in response.message
         assert response.call_id == ""
 
@@ -64,7 +64,7 @@ async def test_start_call_invalid_station_via_grpc(broker_process: BrokerProcess
         response = await stub.start_call(request)
 
         assert isinstance(response, StartCallResponse)
-        assert response.success == False
+        assert not response.success
         assert "not found" in response.message
         assert response.call_id == ""
 

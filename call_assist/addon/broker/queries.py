@@ -167,7 +167,7 @@ def get_all_call_stations_with_session(session: Session) -> list[CallStation]:
 
 def get_enabled_call_stations_with_session(session: Session) -> list[CallStation]:
     """Get all enabled call stations using provided session"""
-    return list(session.exec(select(CallStation).where(CallStation.enabled == True)).all())
+    return list(session.exec(select(CallStation).where(CallStation.enabled)).all())
 
 
 def save_call_station_with_session(session: Session, call_station: CallStation) -> CallStation:

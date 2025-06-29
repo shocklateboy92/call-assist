@@ -156,24 +156,24 @@ try {
   // Read the compiled JavaScript
   const indexPath = path.join(__dirname, 'dist', 'index.js');
   let indexContent = fs.readFileSync(indexPath, 'utf8');
-  
+
   // Extract and test the createPeerConnection function
   // Look for the factory function in the compiled output
   if (indexContent.includes('createPeerConnection')) {
     console.log('✅ createPeerConnection function found in compiled output');
-    
+
     if (indexContent.includes('@roamhq/wrtc')) {
       console.log('✅ Real WebRTC dependency (@roamhq/wrtc) found');
     } else {
       console.log('⚠️ Real WebRTC dependency not found in compiled output');
     }
-    
+
     if (indexContent.includes('MockRTCPeerConnection')) {
       console.log('✅ Mock WebRTC fallback found');
     } else {
       console.log('⚠️ Mock WebRTC fallback not found');
     }
-    
+
     console.log('✅ WebRTC factory function properly compiled');
   } else {
     console.log('❌ createPeerConnection function not found');

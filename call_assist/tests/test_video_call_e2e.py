@@ -4,7 +4,7 @@ End-to-End Video Call Testing
 
 Tests the complete video call pipeline:
 1. Camera stream ingestion (RTSP)
-2. Capability negotiation  
+2. Capability negotiation
 3. WebRTC peer connection setup
 4. Media streaming to Chromecast
 5. Call lifecycle management
@@ -161,7 +161,7 @@ class TestVideoCallE2E:
         available_player = next(player for player in media_players if player.available)
 
         # Create call station via web UI
-        form_data = {
+        _form_data = {
             "station_id": "test_video_station",
             "display_name": "Test Video Call Station",
             "camera_entity_id": available_camera.entity_id,

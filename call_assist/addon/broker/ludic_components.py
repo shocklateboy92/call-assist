@@ -178,7 +178,6 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
 
     @override
     def render(self) -> html:
-        content_wrapper = section if self.single_section else Blank
         return html(
             head(
                 meta(charset="utf-8"),
@@ -207,7 +206,11 @@ class PageLayout(Component[AnyChildren, GlobalAttrs]):
                         data_variant="fixed",
                     ),
                 ),
-                main(section(*self.children, class_="card")),
+                main(
+                    section(*self.children, class_="card")
+                    if self.single_section
+                    else Blank(*self.children)
+                ),
                 **self.attrs,
             ),
         )

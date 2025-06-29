@@ -1,6 +1,7 @@
 """Data coordinator for Call Assist integration."""
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -79,17 +80,13 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # Cancel streaming tasks
         if self._ha_stream_task:
             self._ha_stream_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._ha_stream_task
-            except asyncio.CancelledError:
-                pass
 
         if self._broker_stream_task:
             self._broker_stream_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._broker_stream_task
-            except asyncio.CancelledError:
-                pass
 
         # Remove state change listener
         if self._state_change_listener:

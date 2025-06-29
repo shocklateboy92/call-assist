@@ -37,7 +37,7 @@ async def async_setup_services(hass: HomeAssistant) -> None:
 
         # Find the coordinator for this call station
         coordinator = None
-        for entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
+        for _entry_id, entry_data in hass.data.get(DOMAIN, {}).items():
             coord = entry_data.get("coordinator")
             if coord and isinstance(coord, CallAssistCoordinator):
                 # Check if this coordinator has the call station

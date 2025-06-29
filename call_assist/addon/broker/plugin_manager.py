@@ -550,8 +550,7 @@ class PluginManager:
             return None
 
         try:
-            response = await plugin.stub.start_call(call_request)
-            return response
+            return await plugin.stub.start_call(call_request)
         except Exception as e:
             logger.error(f"Failed to start call on {protocol}: {e}")
             return None
@@ -568,8 +567,7 @@ class PluginManager:
             return None
 
         try:
-            response = await plugin.stub.end_call(call_request)
-            return response
+            return await plugin.stub.end_call(call_request)
         except Exception as e:
             logger.error(f"Failed to end call on {protocol}: {e}")
             return None

@@ -103,8 +103,7 @@ class CallAssistGrpcClient:
 
         try:
             request = betterproto_lib_pydantic_google_protobuf.Empty()
-            response = await self.stub.health_check(request)
-            return response
+            return await self.stub.health_check(request)
 
         except Exception as ex:
             _LOGGER.error("Health check failed: %s", ex)
@@ -174,8 +173,7 @@ class CallAssistGrpcClient:
                 call_station_id=call_station_id,
                 contact=contact
             )
-            response = await self.stub.start_call(request)
-            return response
+            return await self.stub.start_call(request)
 
         except Exception as ex:
             _LOGGER.error("Start call failed: %s", ex)

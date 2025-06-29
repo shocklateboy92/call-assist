@@ -67,8 +67,7 @@ async def test_broker_startup():
 
 async def main():
     """Run broker startup test"""
-    success = await test_broker_startup()
-    return success
+    return await test_broker_startup()
 
 
 if __name__ == "__main__":
