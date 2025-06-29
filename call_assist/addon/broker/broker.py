@@ -5,7 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 
@@ -268,7 +268,7 @@ class CallAssistBroker(BrokerIntegrationBase):
             entity_update = BrokerEntityUpdate(
                 entity_id=station.station_id,
                 name=station.name,
-                entity_type=BrokerEntityType.CALL_STATION,
+                entity_type=cast(BrokerEntityType, BrokerEntityType.CALL_STATION),
                 state=station.state,
                 attributes=station.attributes,
                 icon="mdi:video-account",
@@ -282,7 +282,7 @@ class CallAssistBroker(BrokerIntegrationBase):
         broker_status = BrokerEntityUpdate(
             entity_id="broker_status",
             name="Call Assist Broker",
-            entity_type=BrokerEntityType.BROKER_STATUS,
+            entity_type=cast(BrokerEntityType, BrokerEntityType.BROKER_STATUS),
             state="online",
             attributes={
                 "monitored_cameras": str(
@@ -318,7 +318,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                     entity_update = BrokerEntityUpdate(
                         entity_id=station.station_id,
                         name=station.name,
-                        entity_type=BrokerEntityType.CALL_STATION,
+                        entity_type=cast(BrokerEntityType, BrokerEntityType.CALL_STATION),
                         state=station.state,
                         attributes=station.attributes,
                         icon="mdi:video-account",

@@ -21,8 +21,6 @@ from dacite import from_dict
 from dataclasses_jsonschema import JsonSchemaMixin
 from grpclib.client import Channel
 
-from addon.broker.data_types import ProtocolSchemaDict
-
 from proto_gen.callassist.plugin import (
     CallEndRequest,
     CallEndResponse,
@@ -31,6 +29,8 @@ from proto_gen.callassist.plugin import (
     CallStartResponse,
     PluginConfig,
 )
+
+from .data_types import ProtocolSchemaDict
 
 logger = logging.getLogger(__name__)
 
@@ -338,7 +338,7 @@ class PluginManager:
                 return True
             if plugin.state == PluginState.ERROR:
                 return False
-        
+
         logger.error(f"Plugin {plugin.metadata.protocol} timed out during startup")
         return False
 

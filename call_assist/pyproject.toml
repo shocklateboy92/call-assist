@@ -22,7 +22,6 @@ dependencies = [
     "ludic[fastapi] @ git+https://github.com/shocklateboy92/ludic@fixes/role-attr",
     "httpx>=0.24.0",
     "aiofiles>=23.0.0",
-    "jinja2>=3.1.0",
 ]
 requires-python = ">=3.13"
 

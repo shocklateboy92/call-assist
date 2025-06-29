@@ -61,7 +61,7 @@ async def test_broker_startup():
         # Clean up test database
         if os.path.exists(db_path):
             os.remove(db_path)
-        
+
         return False
 
 

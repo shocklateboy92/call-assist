@@ -6,13 +6,10 @@ Ludic-based web UI components for Call Assist Broker
 import traceback
 from typing import Any, Unpack, override
 
-from addon.broker.data_types import AvailableEntitiesData
-
-from ludic.base import BaseElement
-
 from ludic import Blank, Component
-from ludic.elements import Element
 from ludic.attrs import GlobalAttrs
+from ludic.base import BaseElement
+from ludic.elements import Element
 from ludic.html import (
     a,
     body,
@@ -57,8 +54,9 @@ from ludic.html import (
 )
 from ludic.types import AnyChildren, NoChildren
 
-from addon.broker.data_types import (
+from .data_types import (
     AccountStatusData,
+    AvailableEntitiesData,
     CallStationStatusData,
     ProtocolSchemaDict,
 )

@@ -2,11 +2,13 @@
 
 from venv import logger
 
-from integration.const import CONF_HOST, CONF_PORT, DOMAIN
-from .types import BrokerProcessInfo
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+
+from integration.const import CONF_HOST, CONF_PORT, DOMAIN
+
+from .types import BrokerProcessInfo
 
 
 async def test_form(broker_process: BrokerProcessInfo, hass: HomeAssistant) -> None:

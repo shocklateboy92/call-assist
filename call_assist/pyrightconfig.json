@@ -2,8 +2,7 @@
   "include": [
     "addon",
     "integration", 
-    "tests",
-    "proto_gen"
+    "tests"
   ],
   "exclude": [
     "**/__pycache__",

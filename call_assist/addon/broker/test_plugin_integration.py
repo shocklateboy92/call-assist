@@ -18,7 +18,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def test_plugin_schema_integration():
+async def test_plugin_schema_integration() -> bool:
     """Test that plugin manager loads schemas correctly"""
     logger.info("Testing plugin manager schema integration...")
 
@@ -57,7 +57,7 @@ async def test_plugin_schema_integration():
     return True
 
 
-async def test_broker_plugin_integration():
+async def test_broker_plugin_integration() -> bool:
     """Test that broker integrates correctly with plugin manager"""
     logger.info("Testing broker plugin integration...")
 
@@ -86,7 +86,7 @@ async def test_broker_plugin_integration():
         return False
 
 
-async def main():
+async def main() -> bool:
     """Run all tests"""
     logger.info("Starting plugin integration tests...\n")
 

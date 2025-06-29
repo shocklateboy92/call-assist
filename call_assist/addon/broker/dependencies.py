@@ -14,9 +14,9 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel import Session
 
-from addon.broker.database import DatabaseManager
-from addon.broker.plugin_manager import PluginManager
-from addon.broker.broker import CallAssistBroker
+from .broker import CallAssistBroker
+from .database import DatabaseManager
+from .plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 

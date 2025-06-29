@@ -6,6 +6,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -34,7 +35,7 @@ async def async_setup_entry(
 
     # Set up listener for new entities
     @callback
-    def handle_coordinator_update():
+    def handle_coordinator_update() -> None:
         """Handle coordinator data updates."""
         new_entities = []
         existing_entity_ids = {entity.unique_id for entity in entities}
@@ -51,7 +52,7 @@ async def async_setup_entry(
     coordinator.async_add_listener(handle_coordinator_update)
 
 
-class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
+class CallAssistBrokerEntity(CoordinatorEntity[CallAssistCoordinator], SensorEntity):
     """Representation of a Call Assist broker entity."""
 
     def __init__(
@@ -98,12 +99,12 @@ class CallAssistBrokerEntity(CoordinatorEntity, SensorEntity):
         return entity_data.get("available", False) if entity_data else False
 
     @property
-    def device_info(self) -> dict[str, Any]:
+    def device_info(self) -> DeviceInfo:
         """Return device info for this entity."""
-        return {
-            "identifiers": {(DOMAIN, f"broker_{self.coordinator.host}:{self.coordinator.port}")},
-            "name": "Call Assist Broker",
-            "manufacturer": "Call Assist",
-            "model": "Broker",
-            "sw_version": self.coordinator.broker_version,
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"broker_{self.coordinator.host}:{self.coordinator.port}")},
+            name="Call Assist Broker",
+            manufacturer="Call Assist",
+            model="Broker",
+            sw_version=self.coordinator.broker_version,
+        )

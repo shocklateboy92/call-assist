@@ -6,24 +6,31 @@ Now using FastAPI dependency injection for clean dependency management.
 """
 
 import logging
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Path, Request
 from fastapi.responses import HTMLResponse, Response
 from ludic.html import div, fieldset, input, label, legend
 from sqlmodel import Session
 
-from addon.broker.account_service import AccountService, get_account_service
-from addon.broker.call_station_service import CallStationService, get_call_station_service
-from addon.broker.data_types import AvailableEntitiesData, EntityInfo, ProtocolSchemaDict
-from addon.broker.database import DatabaseManager
-from addon.broker.dependencies import (
+from .account_service import AccountService, get_account_service
+from .broker import CallAssistBroker, HAEntity
+from .call_station_service import (
+    CallStationService,
+    get_call_station_service,
+)
+from .data_types import (
+    EntityInfo,
+    ProtocolSchemaDict,
+)
+from .database import DatabaseManager
+from .dependencies import (
     get_broker_instance,
     get_database_manager,
     get_database_session,
     get_plugin_manager,
 )
-from addon.broker.ludic_components import (
+from .ludic_components import (
     AccountForm,
     AccountsTable,
     CallHistoryTable,
@@ -34,9 +41,9 @@ from addon.broker.ludic_components import (
     SettingsForm,
     StatusCard,
 )
-from addon.broker.models import Account, CallStation
-from addon.broker.plugin_manager import PluginManager
-from addon.broker.queries import (
+from .models import Account, CallStation
+from .plugin_manager import PluginManager
+from .queries import (
     delete_account_with_session,
     delete_call_station_with_session,
     get_account_by_protocol_and_id_with_session,
@@ -45,8 +52,7 @@ from addon.broker.queries import (
     save_account_with_session,
     save_call_station_with_session,
 )
-from addon.broker.settings_service import SettingsService, get_settings_service
-from addon.broker.broker import CallAssistBroker, HAEntity
+from .settings_service import SettingsService, get_settings_service
 
 logger = logging.getLogger(__name__)
 

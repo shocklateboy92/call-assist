@@ -4,13 +4,15 @@
 import logging
 
 import pytest
+from grpclib.client import Channel
+
 from proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     StartCallRequest,
     StartCallResponse,
 )
+
 from .types import BrokerProcessInfo
-from grpclib.client import Channel
 
 logger = logging.getLogger(__name__)
 

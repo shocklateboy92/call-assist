@@ -15,6 +15,7 @@ from typing import Any, cast
 
 import aiohttp
 import pytest
+
 from .conftest import WebUITestClient
 
 # Set up logging for tests

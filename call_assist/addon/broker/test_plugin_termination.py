@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 import tempfile
+from typing import Any
 from unittest.mock import Mock, patch
 
 from addon.broker.plugin_manager import (
@@ -22,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def test_emergency_cleanup():
+def test_emergency_cleanup() -> None:
     """Test emergency cleanup functionality"""
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -70,7 +71,7 @@ def test_emergency_cleanup():
         logger.info("✅ Emergency cleanup test passed")
 
 
-def test_signal_handler():
+def test_signal_handler() -> None:
     """Test signal handler registration and basic functionality"""
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -87,7 +88,7 @@ def test_signal_handler():
         logger.info("✅ Signal handler registration test passed")
 
 
-async def test_graceful_shutdown():
+async def test_graceful_shutdown() -> None:
     """Test graceful shutdown with timeout"""
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -119,7 +120,7 @@ async def test_graceful_shutdown():
         pm.plugins["test"] = plugin
 
         # Mock the _stop_plugin method to simulate timeout
-        async def mock_stop_plugin(plugin):
+        async def mock_stop_plugin(_) -> None:
             await asyncio.sleep(15)  # Longer than timeout
 
         with patch.object(pm, '_stop_plugin', side_effect=mock_stop_plugin):

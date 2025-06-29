@@ -16,16 +16,17 @@ from collections.abc import AsyncIterator
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
 import pytest_asyncio
-from .conftest import (
-    WebUITestClient,
-)
-from .types import VideoTestEnvironment
 
 from proto_gen.callassist.broker import (
     BrokerEntityType,
     BrokerIntegrationStub,
     HaEntityUpdate,
 )
+
+from .conftest import (
+    WebUITestClient,
+)
+from .types import VideoTestEnvironment
 
 logger = logging.getLogger(__name__)
 

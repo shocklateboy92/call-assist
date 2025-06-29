@@ -39,7 +39,9 @@
 			"extensions": [
 				"ms-python.python",
 				"ms-vscode.vscode-typescript-next",
-				"ms-python.black-formatter"
+				"ms-python.black-formatter",
+				"ms-python.mypy-type-checker",
+				"charliermarsh.ruff"
 			]
 		}
 	}

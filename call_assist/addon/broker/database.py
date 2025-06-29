@@ -5,8 +5,8 @@ from pathlib import Path
 
 from sqlmodel import Session, SQLModel, create_engine, select
 
-from addon.broker.models import Account, BrokerSettings, CallLog
-from addon.broker.queries import (
+from .models import Account, BrokerSettings, CallLog
+from .queries import (
     get_setting_with_session,
     save_setting_with_session,
 )
@@ -81,7 +81,7 @@ class DatabaseManager:
             if old_logs:
                 logger.info(f"Cleaned up {len(old_logs)} old call logs")
 
-    async def get_database_stats(self) -> dict:
+    async def get_database_stats(self) -> dict[str, int | float | str]:
         """Get database statistics"""
         with self.get_session() as session:
             account_count = len(session.exec(select(Account)).all())

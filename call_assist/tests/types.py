@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from bs4 import BeautifulSoup
+
 from proto_gen.callassist.broker import HaEntityUpdate
 
 

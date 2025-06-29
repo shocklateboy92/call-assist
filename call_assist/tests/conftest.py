@@ -22,17 +22,19 @@ import aiohttp
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
 import pytest
 from bs4 import BeautifulSoup, Tag
+from grpclib.client import Channel
+
 from addon.broker.main import serve
 from proto_gen.callassist.broker import (
     BrokerIntegrationStub,
     HaEntityUpdate,
 )
+
 from .types import (
     BrokerProcessInfo,
     CustomIntegrationsFixture,
     VideoTestEnvironment,
 )
-from grpclib.client import Channel
 
 logger = logging.getLogger(__name__)
 

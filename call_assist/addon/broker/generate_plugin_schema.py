@@ -5,11 +5,12 @@ Generate JSON Schema for plugin.yaml files using dataclasses-jsonschema.
 """
 
 import json
+from typing import Any
 
-from addon.broker.plugin_manager import PluginMetadata
+from .plugin_manager import PluginMetadata
 
 
-def generate_plugin_schema():
+def generate_plugin_schema() -> dict[str, Any]:
     """Generate JSON Schema for plugin.yaml files"""
 
     # Generate schema from the PluginMetadata dataclass

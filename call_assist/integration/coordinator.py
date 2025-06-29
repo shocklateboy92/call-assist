@@ -2,9 +2,11 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     EVENT_STATE_CHANGED,
@@ -24,7 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     """Coordinator for managing Call Assist data and communications."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int, config_entry):
+    def __init__(self, hass: HomeAssistant, host: str, port: int, config_entry: ConfigEntry) -> None:
         """Initialize the coordinator."""
         super().__init__(
             hass,
@@ -46,11 +48,11 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.broker_entities: dict[str, dict[str, Any]] = {}
 
         # Tasks for streaming
-        self._ha_stream_task: asyncio.Task | None = None
-        self._broker_stream_task: asyncio.Task | None = None
+        self._ha_stream_task: asyncio.Task[None] | None = None
+        self._broker_stream_task: asyncio.Task[None] | None = None
 
         # State change listener
-        self._state_change_listener = None
+        self._state_change_listener: Callable[[], None] | None = None
 
     async def async_setup(self) -> None:
         """Set up the coordinator."""
@@ -151,7 +153,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             # Schedule entity update
             asyncio.create_task(self._send_entity_update(entity_id, new_state))
 
-    async def _send_entity_update(self, entity_id: str, state) -> None:
+    async def _send_entity_update(self, entity_id: str, state: Any) -> None:
         """Send entity update to broker."""
         try:
             domain = entity_id.split(".")[0]

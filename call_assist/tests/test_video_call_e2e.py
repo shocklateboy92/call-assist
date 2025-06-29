@@ -17,10 +17,11 @@ from typing import Any
 
 import aiohttp
 import pytest
-from .conftest import WebUITestClient
-from .types import VideoTestEnvironment
 
 from proto_gen.callassist.broker import HaEntityUpdate
+
+from .conftest import WebUITestClient
+from .types import VideoTestEnvironment
 
 logger = logging.getLogger(__name__)
 

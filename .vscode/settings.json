@@ -13,5 +13,6 @@
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter"
     },
-    "chat.agent.maxRequests": 2500
+    "chat.agent.maxRequests": 2500,
+    "mypy-type-checker.cwd": "${workspaceFolder}/call_assist"
 }
