@@ -20,26 +20,17 @@ from .plugin_manager import PluginManager
 
 logger = logging.getLogger(__name__)
 
-# Application state - these will be set during startup
-_app_state = {
-    "database_manager": None,
-    "broker_instance": None,
-    "plugin_manager": None,
-    "db_path": "broker_data.db",
-}
-
-
 class AppState:
     """Container for application-wide state and dependencies"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.database_manager: DatabaseManager | None = None
         self.broker_instance: CallAssistBroker | None = None  # Will be set to CallAssistBroker instance
         self.plugin_manager: PluginManager | None = None
         self.db_path: str = "broker_data.db"
         self._initialized = False
 
-    async def initialize(self, db_path: str = "broker_data.db"):
+    async def initialize(self, db_path: str = "broker_data.db") -> None:
         """Initialize all dependencies in the correct order"""
         if self._initialized:
             return
@@ -61,12 +52,12 @@ class AppState:
         self._initialized = True
         logger.info("🎉 All dependencies initialized successfully")
 
-    def set_broker_instance(self, broker: CallAssistBroker):
+    def set_broker_instance(self, broker: CallAssistBroker) -> None:
         """Set the broker instance after it's created"""
         self.broker_instance = broker
         logger.info("✅ Broker instance registered")
 
-    async def cleanup(self):
+    async def cleanup(self) -> None:
         """Clean up resources"""
         logger.info("Starting application cleanup...")
 
