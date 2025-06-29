@@ -16,7 +16,7 @@ from sqlmodel import Session
 
 from addon.broker.database import DatabaseManager
 from addon.broker.plugin_manager import PluginManager
-from call_assist.addon.broker.broker import CallAssistBroker
+from addon.broker.broker import CallAssistBroker
 
 logger = logging.getLogger(__name__)
 

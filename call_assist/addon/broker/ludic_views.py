@@ -46,7 +46,7 @@ from addon.broker.queries import (
     save_call_station_with_session,
 )
 from addon.broker.settings_service import SettingsService, get_settings_service
-from call_assist.addon.broker.broker import CallAssistBroker
+from addon.broker.broker import CallAssistBroker
 
 logger = logging.getLogger(__name__)
 

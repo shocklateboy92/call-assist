@@ -9,9 +9,7 @@
             "name": "Broker",
             "type": "debugpy",
             "request": "launch",
-            // "module": "call_assist.addon.broker",
             "program": "${workspaceFolder}/call_assist/addon/broker/main.py",
-            // "cwd": "${workspaceFolder}/call_assist/addon/broker",
             "console": "integratedTerminal"
         }
     ]

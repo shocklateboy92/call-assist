@@ -22,10 +22,10 @@ When dealing with python code, follow the guidelines written in @.github/instruc
 ```
 
 This enables clean imports without `sys.path` manipulations:
-- `call_assist.proto_gen.*` for protobuf generated code  
-- `call_assist.addon.broker.*` for broker functionality
-- `call_assist.integration.*` for Home Assistant integration
-- `call_assist.tests.*` for test utilities
+- `proto_gen.*` for protobuf generated code  
+- `addon.broker.*` for broker functionality
+- `integration.*` for Home Assistant integration
+- `tests.*` for test utilities
 
 ### Protobuf Generation
 
