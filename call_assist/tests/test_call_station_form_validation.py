@@ -7,10 +7,13 @@ specifically testing that validation errors are properly displayed
 inline without causing JSON redirects, and that user input is preserved.
 """
 import logging
-from typing import Any, cast
+from collections.abc import AsyncIterator
+from typing import cast
 
 import pytest
 from bs4 import Tag
+
+from proto_gen.callassist.broker import BrokerIntegrationStub, HaEntityUpdate
 
 from .conftest import WebUITestClient
 
@@ -400,3 +403,130 @@ class TestCallStationFormValidation:
                     enabled_input.get("checked") is not None
                 ), "Enabled checkbox should be preserved as checked"
                 logger.info("Successfully verified checkbox state preservation")
+
+    @pytest.mark.asyncio
+    async def test_entities_appear_in_dropdowns(
+        self,
+        web_ui_client: WebUITestClient,
+        broker_server: BrokerIntegrationStub,
+        mock_cameras: list[HaEntityUpdate],
+        mock_media_players: list[HaEntityUpdate],
+    ) -> None:
+        """Test that camera and media player entities sent to broker appear in UI dropdowns"""
+        await web_ui_client.wait_for_server()
+
+        # First, send entities to the broker (required for dropdowns to be populated)
+        async def entity_generator() -> AsyncIterator[HaEntityUpdate]:
+            """Stream all HA entities to broker"""
+            for camera in mock_cameras:
+                logger.info(f"Sending camera entity: {camera.entity_id}")
+                yield camera
+            for player in mock_media_players:
+                logger.info(f"Sending media player entity: {player.entity_id}")
+                yield player
+
+        # Stream entities to broker so they appear in web UI dropdowns
+        await broker_server.stream_ha_entities(entity_generator())
+
+        # Give broker time to process entities
+        import asyncio
+
+        await asyncio.sleep(0.5)
+
+        # Navigate to the add call station page
+        html, soup = await web_ui_client.get_page("/ui/add-call-station")
+
+        # Validate HTML structure first
+        web_ui_client.validate_html_structure(soup, "add call station page")
+
+        # Find camera dropdown
+        camera_select = soup.find("select", {"name": "camera_entity_id"})
+        assert camera_select is not None, "Camera dropdown not found"
+        camera_select = cast(Tag, camera_select)
+
+        # Find media player dropdown
+        media_player_select = soup.find("select", {"name": "media_player_entity_id"})
+        assert media_player_select is not None, "Media player dropdown not found"
+        media_player_select = cast(Tag, media_player_select)
+
+        # Extract camera options
+        camera_options = camera_select.find_all("option")
+        camera_entity_ids = [
+            cast(Tag, opt).get("value")
+            for opt in camera_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+        camera_names = [
+            cast(Tag, opt).get_text().strip()
+            for opt in camera_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+
+        # Extract media player options
+        media_player_options = media_player_select.find_all("option")
+        media_player_entity_ids = [
+            cast(Tag, opt).get("value")
+            for opt in media_player_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+        media_player_names = [
+            cast(Tag, opt).get_text().strip()
+            for opt in media_player_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+
+        logger.info(f"Found camera entities: {camera_entity_ids}")
+        logger.info(f"Found media player entities: {media_player_entity_ids}")
+
+        # Verify test camera entities appear in dropdown (from mock_cameras fixture)
+        expected_camera_entities = [
+            "camera.test_front_door",
+            "camera.test_back_yard",
+            "camera.test_kitchen",
+        ]
+
+        for camera_entity in expected_camera_entities:
+            assert (
+                camera_entity in camera_entity_ids
+            ), f"Expected camera entity '{camera_entity}' not found in dropdown options: {camera_entity_ids}"
+
+        # Verify test media player entities appear in dropdown (from mock_media_players fixture)
+        expected_media_player_entities = [
+            "media_player.test_living_room_tv",
+            "media_player.test_kitchen_display",
+            "media_player.test_bedroom_speaker",
+        ]
+
+        for media_player_entity in expected_media_player_entities:
+            assert (
+                media_player_entity in media_player_entity_ids
+            ), f"Expected media player entity '{media_player_entity}' not found in dropdown options: {media_player_entity_ids}"
+
+        # Verify entities have friendly names in dropdowns (not just entity IDs)
+        for camera_name in camera_names:
+            assert len(camera_name) > 0, "Camera options should have display names"
+            # Names should contain both friendly name and entity ID
+            assert (
+                "(" in camera_name and ")" in camera_name
+            ), f"Camera option should contain entity ID in parentheses: {camera_name}"
+
+        for media_player_name in media_player_names:
+            assert (
+                len(media_player_name) > 0
+            ), "Media player options should have display names"
+            # Names should contain both friendly name and entity ID
+            assert (
+                "(" in media_player_name and ")" in media_player_name
+            ), f"Media player option should contain entity ID in parentheses: {media_player_name}"
+
+        # Verify dropdowns are not empty (should have at least the test entities)
+        assert len(camera_entity_ids) >= len(
+            expected_camera_entities
+        ), f"Camera dropdown should have at least {len(expected_camera_entities)} options, found {len(camera_entity_ids)}"
+        assert len(media_player_entity_ids) >= len(
+            expected_media_player_entities
+        ), f"Media player dropdown should have at least {len(expected_media_player_entities)} options, found {len(media_player_entity_ids)}"
+
+        logger.info(
+            "Successfully verified entities appear in dropdowns with proper formatting"
+        )
