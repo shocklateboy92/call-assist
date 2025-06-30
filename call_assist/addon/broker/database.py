@@ -118,7 +118,7 @@ class DatabaseManager:
             logger.info(f"Database backed up to {backup_file}")
             return True
 
-        except Exception as e:
+        except (OSError, FileNotFoundError, PermissionError) as e:
             logger.error(f"Database backup failed: {e}")
             return False
 
@@ -144,6 +144,6 @@ class DatabaseManager:
             logger.info(f"Database restored from {backup_file}")
             return True
 
-        except Exception as e:
+        except (OSError, FileNotFoundError, PermissionError) as e:
             logger.error(f"Database restore failed: {e}")
             return False

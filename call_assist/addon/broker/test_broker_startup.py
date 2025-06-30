@@ -16,7 +16,7 @@ from addon.broker.dependencies import get_app_state
 logger = logging.getLogger(__name__)
 
 
-async def test_broker_startup():
+async def test_broker_startup() -> bool:
     """Test that broker starts up correctly with plugin manager integration"""
     logger.info("Testing broker startup with integrated components...")
 
@@ -68,7 +68,7 @@ async def test_broker_startup():
         return False
 
 
-async def main():
+async def main() -> bool:
     """Run broker startup test"""
     return await test_broker_startup()
 

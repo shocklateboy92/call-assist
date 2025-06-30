@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-async def test_app_state_cleanup():
+async def test_app_state_cleanup() -> None:
     """Test that AppState properly cleans up plugin manager"""
 
     # Create app state
@@ -43,7 +43,7 @@ async def test_app_state_cleanup():
     logger.info("✅ AppState cleanup test passed")
 
 
-async def test_integration_cleanup_flow():
+async def test_integration_cleanup_flow() -> None:
     """Test the full cleanup flow from broker to plugins"""
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -92,7 +92,7 @@ async def test_integration_cleanup_flow():
         logger.info("✅ Integration cleanup flow test passed")
 
 
-def test_signal_handling_integration():
+def test_signal_handling_integration() -> None:
     """Test that signal handlers work correctly"""
 
     with tempfile.TemporaryDirectory() as temp_dir:

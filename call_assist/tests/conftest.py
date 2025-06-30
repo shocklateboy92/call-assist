@@ -381,7 +381,7 @@ def setup_integration_path() -> Iterator[None]:
         sys.path.insert(0, config_path)
 
     # Patch the common module at session level
-    import pytest_homeassistant_custom_component.common as common
+    import pytest_homeassistant_custom_component.common as common  # type: ignore[import-untyped]
 
     original_get_test_config_dir = common.get_test_config_dir
 

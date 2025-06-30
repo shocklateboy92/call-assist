@@ -12,6 +12,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from types import FrameType
 from typing import Literal, Optional
 
@@ -20,6 +21,7 @@ import yaml
 from dacite import from_dict
 from dataclasses_jsonschema import JsonSchemaMixin
 from grpclib.client import Channel
+from grpclib.exceptions import GRPCError
 
 from proto_gen.callassist.plugin import (
     CallEndRequest,
@@ -194,8 +196,8 @@ class PluginManager:
     def __init__(self, plugins_root: str | None = None):
         if plugins_root is None:
             # Default to relative path in dev environment, absolute in production
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            plugins_root = os.path.join(os.path.dirname(current_dir), "plugins")
+            current_dir = Path(__file__).resolve().parent
+            plugins_root = str(current_dir.parent / "plugins")
         self.plugins_root = plugins_root
         self.plugins: dict[str, PluginInstance] = {}
         self._shutdown_requested = False
@@ -290,24 +292,24 @@ class PluginManager:
 
     def _discover_plugins(self) -> None:
         """Discover and load plugin metadata from plugin directories"""
-        if not os.path.exists(self.plugins_root):
+        if not Path(self.plugins_root).exists():
             logger.warning(f"Plugins directory not found: {self.plugins_root}")
             return
 
         for item in os.listdir(self.plugins_root):
-            plugin_dir = os.path.join(self.plugins_root, item)
-            if not os.path.isdir(plugin_dir):
+            plugin_dir = Path(self.plugins_root) / item
+            if not plugin_dir.is_dir():
                 continue
 
-            metadata_file = os.path.join(plugin_dir, "plugin.yaml")
-            if not os.path.exists(metadata_file):
+            metadata_file = plugin_dir / "plugin.yaml"
+            if not metadata_file.exists():
                 logger.debug(f"No plugin.yaml found in {plugin_dir}")
                 continue
 
             try:
-                metadata = self._load_plugin_metadata(metadata_file)
+                metadata = self._load_plugin_metadata(str(metadata_file))
                 self.plugins[metadata.protocol] = PluginInstance(
-                    metadata=metadata, plugin_dir=plugin_dir
+                    metadata=metadata, plugin_dir=str(plugin_dir)
                 )
                 logger.info(f"Discovered plugin: {metadata.name} ({metadata.protocol})")
             except Exception as e:
@@ -388,7 +390,7 @@ class PluginManager:
             # Build command from metadata
             exec_config = plugin.metadata.executable
             command = exec_config.command
-            working_dir = os.path.join(plugin.plugin_dir, exec_config.working_directory)
+            working_dir = str(Path(plugin.plugin_dir) / exec_config.working_directory)
 
             # Set up environment variables
             env = os.environ.copy()
@@ -562,7 +564,7 @@ class PluginManager:
             logger.error(f"Plugin {protocol} initialization failed: {response.message}")
             return False
 
-        except Exception as e:
+        except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
             logger.error(f"Failed to initialize plugin {protocol}: {e}")
             return False
 
@@ -579,7 +581,7 @@ class PluginManager:
 
         try:
             return await plugin.stub.start_call(call_request)
-        except Exception as e:
+        except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
             logger.error(f"Failed to start call on {protocol}: {e}")
             return None
 
@@ -596,7 +598,7 @@ class PluginManager:
 
         try:
             return await plugin.stub.end_call(call_request)
-        except Exception as e:
+        except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
             logger.error(f"Failed to end call on {protocol}: {e}")
             return None
 
@@ -677,7 +679,7 @@ class PluginManager:
             )
             return False
 
-        except Exception as e:
+        except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
             logger.error(
                 f"Failed to initialize plugin {protocol} account {account_id}: {e}"
             )

@@ -123,7 +123,7 @@ async def test_graceful_shutdown() -> None:
         pm.plugins["test"] = plugin
 
         # Mock the _stop_plugin method to simulate timeout
-        async def mock_stop_plugin(_) -> None:
+        async def mock_stop_plugin(_: PluginInstance) -> None:
             await asyncio.sleep(15)  # Longer than timeout
 
         with patch.object(pm, "_stop_plugin", side_effect=mock_stop_plugin):
