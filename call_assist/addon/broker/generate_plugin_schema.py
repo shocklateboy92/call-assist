@@ -5,12 +5,12 @@ Generate JSON Schema for plugin.yaml files using dataclasses-jsonschema.
 """
 
 import json
-from typing import Any
+from pathlib import Path
 
 from .plugin_manager import PluginMetadata
 
 
-def generate_plugin_schema() -> dict[str, Any]:
+def generate_plugin_schema() -> dict[str, object]:
     """Generate JSON Schema for plugin.yaml files"""
 
     # Generate schema from the PluginMetadata dataclass
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     schema = generate_plugin_schema()
 
     # Save to file
-    with open("plugin-schema.json", "w") as f:
+    with Path("plugin-schema.json").open("w") as f:
         json.dump(schema, f, indent=2)
 
     print("Schema generated and saved to plugin-schema.json")

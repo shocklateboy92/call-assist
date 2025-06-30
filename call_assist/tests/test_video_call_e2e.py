@@ -299,39 +299,41 @@ class TestVideoCallE2E:
         chromecast_url = video_test_environment.mock_chromecast_url
         ws_url = chromecast_url.replace("http://", "ws://") + "/ws"
 
-        async with aiohttp.ClientSession() as session:
-            async with session.ws_connect(ws_url) as ws:
-                # Receive initial state update (sent automatically on connection)
-                msg = await ws.receive()
-                assert msg.type == aiohttp.WSMsgType.TEXT
-                data = json.loads(msg.data)
-                assert data["type"] == "state_update"
-                assert "state" in data
-                assert "timestamp" in data
-                logger.info(f"Initial WebSocket state received: {data}")
+        async with (
+            aiohttp.ClientSession() as session,
+            session.ws_connect(ws_url) as ws,
+        ):
+            # Receive initial state update (sent automatically on connection)
+            msg = await ws.receive()
+            assert msg.type == aiohttp.WSMsgType.TEXT
+            data = json.loads(msg.data)
+            assert data["type"] == "state_update"
+            assert "state" in data
+            assert "timestamp" in data
+            logger.info(f"Initial WebSocket state received: {data}")
 
-                # Send ping to test connection
-                await ws.send_str(json.dumps({"command": "ping"}))
+            # Send ping to test connection
+            await ws.send_str(json.dumps({"command": "ping"}))
 
-                # Receive pong response
-                msg = await ws.receive()
-                assert msg.type == aiohttp.WSMsgType.TEXT
-                data = json.loads(msg.data)
-                assert data["type"] == "pong"
-                logger.info("Ping/pong test successful")
+            # Receive pong response
+            msg = await ws.receive()
+            assert msg.type == aiohttp.WSMsgType.TEXT
+            data = json.loads(msg.data)
+            assert data["type"] == "pong"
+            logger.info("Ping/pong test successful")
 
-                # Request status
-                await ws.send_str(json.dumps({"command": "get_status"}))
+            # Request status
+            await ws.send_str(json.dumps({"command": "get_status"}))
 
-                # Receive status update
-                msg = await ws.receive()
-                assert msg.type == aiohttp.WSMsgType.TEXT
-                data = json.loads(msg.data)
-                assert data["type"] == "state_update"
-                assert "state" in data
-                assert "timestamp" in data
+            # Receive status update
+            msg = await ws.receive()
+            assert msg.type == aiohttp.WSMsgType.TEXT
+            data = json.loads(msg.data)
+            assert data["type"] == "state_update"
+            assert "state" in data
+            assert "timestamp" in data
 
-                logger.info(f"WebSocket status received: {data}")
+            logger.info(f"WebSocket status received: {data}")
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_streams(

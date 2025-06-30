@@ -7,7 +7,7 @@ throughout the broker application.
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, TypedDict
+from typing import TypedDict
 
 
 @dataclass(frozen=True)
@@ -175,7 +175,7 @@ class ProtocolSchemaDict(TypedDict):
     credential_fields: list[CredentialFieldDict]
     setting_fields: list[CredentialFieldDict]  # Settings use same field structure
     example_account_ids: list[str]
-    capabilities: dict[str, Any]
+    capabilities: dict[str, str | bool | int | float | list[str]]
 
 
 @dataclass(frozen=True)
@@ -204,3 +204,17 @@ class HAEntityUpdate:
     attributes: dict[str, str]
     available: bool
     last_updated: datetime
+
+
+# Settings value types
+SettingsValueType = str | int | bool | float
+
+
+class BrokerSettingsDict(TypedDict):
+    """TypedDict for broker settings"""
+
+    web_ui_port: int
+    web_ui_host: str
+    enable_call_history: bool
+    max_call_history_days: int
+    auto_cleanup_logs: bool

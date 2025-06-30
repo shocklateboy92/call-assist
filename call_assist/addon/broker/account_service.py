@@ -10,6 +10,7 @@ import logging
 from typing import Annotated
 
 from fastapi import Depends
+from grpclib.exceptions import GRPCError
 from sqlmodel import Session
 
 from addon.broker.data_types import AccountStatusData
@@ -52,7 +53,7 @@ class AccountService:
                 logger.debug(
                     f"Account {account.account_id} status check: {'valid' if is_valid else 'invalid'}"
                 )
-            except Exception as e:
+            except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
                 logger.error(
                     f"Error checking status for account {account.account_id}: {e}"
                 )
@@ -101,7 +102,7 @@ class AccountService:
             )
             return is_valid
 
-        except Exception as e:
+        except (TimeoutError, GRPCError, ConnectionError, OSError) as e:
             logger.error(f"Error checking status for account {account_id}: {e}")
             return False
 

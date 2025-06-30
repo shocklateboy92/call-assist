@@ -189,7 +189,7 @@ try {
 
     # Write test script
     test_script_path = matrix_plugin_dir / "test_factory.js"
-    with open(test_script_path, "w") as f:
+    with test_script_path.open("w") as f:
         f.write(test_script)
 
     try:

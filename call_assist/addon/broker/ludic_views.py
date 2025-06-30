@@ -21,6 +21,7 @@ from .call_station_service import (
 )
 from .data_types import (
     EntityInfo,
+    SettingsValueType,
 )
 from .database import DatabaseManager
 from .dependencies import (
@@ -509,7 +510,7 @@ def create_routes(app: FastAPI) -> None:
         current_settings = await settings_service.get_all_settings()
 
         return PageLayout(
-            "Settings - Call Assist Broker", SettingsForm(settings=current_settings)
+            "Settings - Call Assist Broker", SettingsForm(settings=dict(current_settings))
         )
 
     @app.post("/ui/settings")
@@ -523,7 +524,7 @@ def create_routes(app: FastAPI) -> None:
     ) -> Response:
         """Submit settings changes"""
         # Save all settings
-        settings_data = {
+        settings_data: dict[str, SettingsValueType] = {
             "web_ui_host": web_ui_host,
             "web_ui_port": web_ui_port,
             "enable_call_history": enable_call_history,

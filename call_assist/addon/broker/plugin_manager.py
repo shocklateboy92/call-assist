@@ -261,11 +261,11 @@ class PluginManager:
                         plugin.process.wait()
 
                     logger.info(f"Plugin {protocol} terminated")
-                except (ProcessLookupError, OSError) as e:
+                except ProcessLookupError as e:
                     logger.debug(
                         f"Plugin {protocol} process cleanup error (likely already dead): {e}"
                     )
-                except Exception as e:
+                except (OSError, RuntimeError) as e:
                     logger.error(
                         f"Error during emergency cleanup of plugin {protocol}: {e}"
                     )
@@ -296,8 +296,7 @@ class PluginManager:
             logger.warning(f"Plugins directory not found: {self.plugins_root}")
             return
 
-        for item in os.listdir(self.plugins_root):
-            plugin_dir = Path(self.plugins_root) / item
+        for plugin_dir in Path(self.plugins_root).iterdir():
             if not plugin_dir.is_dir():
                 continue
 
@@ -312,7 +311,7 @@ class PluginManager:
                     metadata=metadata, plugin_dir=str(plugin_dir)
                 )
                 logger.info(f"Discovered plugin: {metadata.name} ({metadata.protocol})")
-            except Exception as e:
+            except (OSError, ValueError, TypeError) as e:
                 logger.error(
                     f"Failed to load plugin metadata from {metadata_file}: {e}"
                 )
@@ -321,7 +320,7 @@ class PluginManager:
 
     def _load_plugin_metadata(self, metadata_file: str) -> PluginMetadata:
         """Load and validate plugin metadata from YAML file"""
-        with open(metadata_file) as f:
+        with Path(metadata_file).open() as f:
             data = yaml.safe_load(f)
 
         # Use dacite to automatically deserialize into strongly typed dataclasses
@@ -438,7 +437,7 @@ class PluginManager:
             logger.info(f"Plugin {plugin.metadata.protocol} started successfully")
             return True
 
-        except Exception as e:
+        except (RuntimeError, TimeoutError) as e:
             logger.error(f"Failed to start plugin {plugin.metadata.protocol}: {e}")
             plugin.state = PluginState.ERROR
             plugin.last_error = str(e)
@@ -479,7 +478,7 @@ class PluginManager:
                 except ProcessLookupError:
                     pass  # Process already gone
 
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.error(f"Error stopping plugin {plugin.metadata.protocol}: {e}")
         finally:
             await self._cleanup_plugin(plugin)
@@ -490,7 +489,7 @@ class PluginManager:
         if plugin.channel:
             try:
                 plugin.channel.close()
-            except Exception as e:
+            except (OSError, RuntimeError) as e:
                 logger.warning(
                     f"Error closing channel for {plugin.metadata.protocol}: {e}"
                 )
@@ -512,7 +511,7 @@ class PluginManager:
                 timeout=2.0,
             )
             return health.healthy
-        except Exception:
+        except (TimeoutError, GRPCError, ConnectionError, OSError):
             return False
 
     async def initialize_plugin(

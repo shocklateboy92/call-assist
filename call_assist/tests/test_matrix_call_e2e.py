@@ -370,7 +370,7 @@ async def test_matrix_call_with_real_webrtc_flow(
                         updated_entities.append(entity)
                         if len(updated_entities) >= 5:
                             break
-                except:
+                except (TimeoutError, ConnectionError):
                     pass
 
                 updated_call_stations = [

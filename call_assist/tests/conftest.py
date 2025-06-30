@@ -15,6 +15,7 @@ import threading
 import time
 from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
+from pathlib import Path
 from types import TracebackType
 from urllib.parse import urljoin
 
@@ -264,9 +265,8 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
     """Session-scoped broker running in separate thread"""
 
     # Create temporary database for testing
-    temp_db = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-    temp_db.close()
-    db_path = temp_db.name
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
+        db_path = temp_db.name
 
     # Find available ports
     grpc_port = find_available_port()
@@ -335,7 +335,7 @@ def broker_process() -> Iterator[BrokerProcessInfo]:
 
     # Clean up temporary database
     with contextlib.suppress(OSError):
-        os.unlink(db_path)
+        Path(db_path).unlink()
 
     logger.info("Broker thread shutdown complete")
 
@@ -367,7 +367,6 @@ async def broker_server(
 @pytest.fixture(autouse=True, scope="session")
 def setup_integration_path() -> Iterator[None]:
     """Set up the integration path for testing."""
-    import os
     import sys
 
     # Set environment variable for custom components path
@@ -386,9 +385,7 @@ def setup_integration_path() -> Iterator[None]:
     original_get_test_config_dir = common.get_test_config_dir
 
     def patched_get_test_config_dir(*add_path: str) -> str:
-        return os.path.join(
-            "/workspaces/universal/call_assist/config/homeassistant", *add_path
-        )
+        return str(Path("/workspaces/universal/call_assist/config/homeassistant").joinpath(*add_path))
 
     common.get_test_config_dir = patched_get_test_config_dir
 

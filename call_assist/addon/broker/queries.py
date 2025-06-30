@@ -2,10 +2,11 @@
 
 import logging
 from datetime import UTC, datetime
-from typing import Any
+from typing import TypeVar, overload
 
 from sqlmodel import Session, select
 
+from addon.broker.data_types import SettingsValueType
 from addon.broker.models import (
     Account,
     BrokerSettings,
@@ -30,15 +31,26 @@ def get_account_by_protocol_and_id_with_session(
     ).first()
 
 
-def get_setting_with_session(session: Session, key: str) -> Any | None:
+T = TypeVar('T', bound=SettingsValueType)
+
+
+@overload
+def get_setting_with_session(session: Session, key: str, default: T) -> T: ...
+
+
+@overload
+def get_setting_with_session(session: Session, key: str, default: None = None) -> SettingsValueType | None: ...
+
+
+def get_setting_with_session(session: Session, key: str, default: T | None = None) -> T | SettingsValueType | None:
     """Get setting value using provided session"""
     setting = session.exec(
         select(BrokerSettings).where(BrokerSettings.key == key)
     ).first()
-    return setting.get_value() if setting else None
+    return setting.get_value() if setting else default
 
 
-def save_setting_with_session(session: Session, key: str, value: Any) -> BrokerSettings:
+def save_setting_with_session(session: Session, key: str, value: SettingsValueType) -> BrokerSettings:
     """Save setting value using provided session"""
     setting = session.exec(
         select(BrokerSettings).where(BrokerSettings.key == key)
