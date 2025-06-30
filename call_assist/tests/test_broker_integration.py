@@ -315,19 +315,30 @@ class TestBrokerIntegration:
         ]
 
         logger.info(f"Camera entities from broker web UI: {camera_entity_ids}")
-        logger.info(f"Media player entities from broker web UI: {media_player_entity_ids}")
+        logger.info(
+            f"Media player entities from broker web UI: {media_player_entity_ids}"
+        )
 
         # Verify test entities appear in dropdowns (proving they were sent to broker)
         test_cameras = ["camera.test_front_door", "camera.test_back_yard"]
-        test_media_players = ["media_player.test_living_room_tv", "media_player.test_kitchen_display"]
+        test_media_players = [
+            "media_player.test_living_room_tv",
+            "media_player.test_kitchen_display",
+        ]
 
         # Check for test camera entities
         found_cameras = [cam for cam in test_cameras if cam in camera_entity_ids]
-        assert len(found_cameras) > 0, f"Should have received camera entities from HA integration. Expected: {test_cameras}, Found: {camera_entity_ids}"
+        assert (
+            len(found_cameras) > 0
+        ), f"Should have received camera entities from HA integration. Expected: {test_cameras}, Found: {camera_entity_ids}"
 
-        # Check for test media player entities  
-        found_players = [player for player in test_media_players if player in media_player_entity_ids]
-        assert len(found_players) > 0, f"Should have received media player entities from HA integration. Expected: {test_media_players}, Found: {media_player_entity_ids}"
+        # Check for test media player entities
+        found_players = [
+            player for player in test_media_players if player in media_player_entity_ids
+        ]
+        assert (
+            len(found_players) > 0
+        ), f"Should have received media player entities from HA integration. Expected: {test_media_players}, Found: {media_player_entity_ids}"
 
         logger.info("✅ Successfully verified HA entities were streamed to broker:")
         logger.info(f"  - Found cameras: {found_cameras}")

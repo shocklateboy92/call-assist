@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
@@ -8,6 +9,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
+import grpclib
 
 from addon.broker.plugin_manager import PluginManager
 from addon.broker.queries import get_enabled_call_stations_with_session
@@ -138,11 +140,11 @@ class CallAssistBroker(BrokerIntegrationBase):
 
             # Stream ongoing updates
             while True:
-                try:
+                with contextlib.suppress(
+                    asyncio.CancelledError, grpclib.exceptions.StreamTerminatedError
+                ):
                     entity_update = await update_queue.get()
                     yield entity_update
-                except asyncio.CancelledError:
-                    break
 
         finally:
             # Clean up subscriber

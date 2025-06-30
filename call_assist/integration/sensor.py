@@ -101,6 +101,10 @@ class CallAssistBrokerEntity(CoordinatorEntity[CallAssistCoordinator], SensorEnt
     @property
     def available(self) -> bool:
         """Return if entity is available."""
+        # Entity is available only if both coordinator and entity are available
+        if not self.coordinator.last_update_success:
+            return False
+
         entity_data = self.coordinator.get_entity_data(self._entity_id)
         return entity_data.get("available", False) if entity_data else False
 

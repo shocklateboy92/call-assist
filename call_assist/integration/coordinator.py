@@ -4,19 +4,18 @@ import asyncio
 import contextlib
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    ATTR_ENTITY_ID,
     EVENT_STATE_CHANGED,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import DOMAIN, MONITORED_DOMAINS
 from .grpc_client import CallAssistGrpcClient
@@ -35,7 +34,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             hass,
             _LOGGER,
             name=DOMAIN,
-            update_interval=None,  # We use event streams, not polling
+            update_interval=timedelta(seconds=30),  # Health check interval
         )
 
         self.host: str = host
@@ -56,6 +55,10 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # State change listener
         self._state_change_listener: Callable[[], None] | None = None
 
+        # Connection tracking
+        self._last_successful_connection: datetime | None = None
+        self._broker_restart_detected = False
+
     async def async_setup(self) -> None:
         """Set up the coordinator."""
         # Connect to broker
@@ -73,6 +76,9 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
         # Start broker entity streaming
         await self._start_broker_streaming()
+
+        # Record successful connection
+        self._last_successful_connection = datetime.now(UTC)
 
         _LOGGER.info("Call Assist coordinator setup complete")
 
@@ -133,15 +139,15 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
                 await self._send_entity_update(entity_id, state)
 
     @callback
-    def _handle_state_change(self, event: Event) -> None:
+    def _handle_state_change(self, event: Event[EventStateChangedData]) -> None:
         """Handle state change events."""
-        entity_id = event.data.get(ATTR_ENTITY_ID)
+        entity_id = event.data["entity_id"]
 
         # Only process entities we're tracking
         if entity_id not in (self._tracked_cameras | self._tracked_media_players):
             return
 
-        new_state = event.data.get("new_state")
+        new_state = event.data["new_state"]
         if new_state:
             # Schedule entity update and batch send
             asyncio.create_task(self._handle_entity_update(entity_id, new_state))
@@ -175,28 +181,51 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         """Send queued entity updates to broker as a batch."""
         await self.grpc_client.stream_ha_entities()
 
+    async def _resend_all_entities(self) -> None:
+        """Re-send all tracked entities to broker after reconnection."""
+        _LOGGER.info(
+            "Re-streaming %d entities to broker after reconnection",
+            len(self._tracked_cameras) + len(self._tracked_media_players),
+        )
+
+        # Re-send all tracked entities
+        await self._send_initial_entities()
+
+        # Send the batch to broker
+        await self._send_entity_batch()
+
+        _LOGGER.info("Completed re-streaming entities to broker")
+
     async def _start_broker_streaming(self) -> None:
         """Start streaming broker entities."""
         self._broker_stream_task = asyncio.create_task(self._stream_broker_entities())
 
     async def _stream_broker_entities(self) -> None:
         """Stream broker entity updates."""
-        async for entity_update in self.grpc_client.stream_broker_entities():
-            # Store entity data
-            self.broker_entities[entity_update.entity_id] = {
-                "entity_id": entity_update.entity_id,
-                "name": entity_update.name,
-                "type": entity_update.entity_type,
-                "state": entity_update.state,
-                "attributes": dict(entity_update.attributes),
-                "icon": entity_update.icon,
-                "available": entity_update.available,
-                "capabilities": list(entity_update.capabilities),
-                "last_updated": entity_update.last_updated,
-            }
+        try:
+            async for entity_update in self.grpc_client.stream_broker_entities():
+                # Store entity data
+                self.broker_entities[entity_update.entity_id] = {
+                    "entity_id": entity_update.entity_id,
+                    "name": entity_update.name,
+                    "type": entity_update.entity_type,
+                    "state": entity_update.state,
+                    "attributes": dict(entity_update.attributes),
+                    "icon": entity_update.icon,
+                    "available": entity_update.available,
+                    "capabilities": list(entity_update.capabilities),
+                    "last_updated": entity_update.last_updated,
+                }
 
-            # Notify listeners that data has changed
+                # Notify listeners that data has changed
+                self.async_set_updated_data(self.broker_entities)
+
+        except Exception as ex:
+            _LOGGER.warning("Broker entity streaming failed: %s", ex)
+            # Clear broker entities on connection loss
+            self.broker_entities.clear()
             self.async_set_updated_data(self.broker_entities)
+            raise
 
     @property
     def broker_version(self) -> str:
@@ -206,3 +235,35 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     def get_entity_data(self, entity_id: str) -> dict[str, Any] | None:
         """Get data for a specific broker entity."""
         return self.broker_entities.get(entity_id)
+
+    async def _async_update_data(self) -> dict[str, dict[str, Any]]:
+        """Fetch data from broker - used by DataUpdateCoordinator for health checks."""
+        try:
+            # Perform health check
+            response = await self.grpc_client.health_check()
+            if not response.healthy:
+                raise UpdateFailed(f"Broker health check failed: {response.message}")
+
+            # Check if broker has restarted (lost entity state)
+            if (
+                self._last_successful_connection
+                and not self._broker_restart_detected
+                and (self._tracked_cameras or self._tracked_media_players)
+                and not self.broker_entities
+            ):
+                _LOGGER.info("Broker restart detected - will re-stream all entities")
+                self._broker_restart_detected = True
+                # Re-stream all entities
+                await self._resend_all_entities()
+
+            # Update connection timestamp
+            self._last_successful_connection = datetime.now(UTC)
+            self._broker_restart_detected = False
+
+            return self.broker_entities
+
+        except Exception as ex:
+            _LOGGER.error("Health check failed: %s", ex)
+            # Reset connection flag in grpc_client
+            self.grpc_client._connected = False
+            raise UpdateFailed(f"Failed to connect to broker: {ex}") from ex

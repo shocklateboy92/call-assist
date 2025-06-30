@@ -72,7 +72,8 @@ class CallAssistGrpcClient:
                 # Test connection with health check
                 await asyncio.wait_for(self.health_check(), timeout=5.0)
                 return True
-            except Exception:
+            except ConnectionError as ex:
+                _LOGGER.debug("Connection test failed: %s", ex)
                 self._connected = False
 
         # Reconnect with exponential backoff
@@ -80,8 +81,10 @@ class CallAssistGrpcClient:
         while retry_count < self._max_retries:
             try:
                 await self.async_connect()
+                # Verify connection with health check
+                await self.health_check()
                 return True
-            except Exception as ex:
+            except ConnectionError as ex:
                 retry_count += 1
                 wait_time = min(2**retry_count, 30)
                 _LOGGER.warning(
@@ -96,6 +99,11 @@ class CallAssistGrpcClient:
         _LOGGER.error("Failed to reconnect after %d attempts", self._max_retries)
         return False
 
+    @property
+    def is_connected(self) -> bool:
+        """Check if client is connected to broker."""
+        return self._connected and self.channel is not None and self.stub is not None
+
     async def health_check(self) -> HealthCheckResponse:
         """Perform health check with broker."""
         if not self.stub:
@@ -103,10 +111,20 @@ class CallAssistGrpcClient:
 
         try:
             request = betterproto_lib_pydantic_google_protobuf.Empty()
-            return await self.stub.health_check(request)
+            response = await self.stub.health_check(request)
 
-        except Exception as ex:
+            # Update connection state based on health check result
+            if response.healthy:
+                self._connected = True
+            else:
+                _LOGGER.warning("Broker reports unhealthy: %s", response.message)
+                self._connected = False
+
+            return response
+
+        except ConnectionError as ex:
             _LOGGER.error("Health check failed: %s", ex)
+            self._connected = False
             raise
 
     async def send_ha_entity_update(self, entity_data: dict[str, Any]) -> None:
@@ -138,9 +156,6 @@ class CallAssistGrpcClient:
                     yield entity_update
                 except asyncio.QueueEmpty:
                     # No more entities in queue, end the stream
-                    break
-                except Exception as ex:
-                    _LOGGER.error("Error in entity generator: %s", ex)
                     break
 
         try:
