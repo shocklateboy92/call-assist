@@ -1,7 +1,7 @@
 server_name: "localhost"
 pid_file: /data/homeserver.pid
 web_client_location: https://app.element.io/
-public_baseurl: http://synapse:8008/
+public_baseurl: http://localhost:8008/
 
 listeners:
   - port: 8008
