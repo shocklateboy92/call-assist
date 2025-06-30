@@ -39,6 +39,8 @@ class MockChromecastServer:
         self.app.router.add_post("/volume", self.handle_volume)
         self.app.router.add_get("/status", self.handle_status)
         self.app.router.add_get("/ws", self.handle_websocket)
+        self.app.router.add_get("/setup/eureka_info", self.handle_eureka_info)
+        self.app.router.add_post("/reset", self.handle_reset)
 
     async def handle_play(self, request: web.Request) -> web.Response:
         """Handle media play requests"""
@@ -152,9 +154,133 @@ class MockChromecastServer:
                 "timestamp": datetime.now(UTC).isoformat(),
                 "device_info": {
                     "name": "Mock Chromecast",
-                    "model": "Test Device v1.0",
-                    "manufacturer": "Call Assist Testing",
+                    "model_name": "Chromecast",
+                    "manufacturer": "Google Inc.",
+                    "product_name": "eureka_dongle",
+                    "cloud_device_id": "mock-chromecast-12345",
+                    "ssdp_udn": "uuid:12345678-1234-1234-1234-123456789abc",
                 },
+            }
+        )
+
+    async def handle_eureka_info(self, request: web.Request) -> web.Response:
+        """Handle Google Cast device discovery requests"""
+        params = request.query.get("params", "")
+        requested_params = set(params.split(",")) if params else set()
+
+        # Base device info structure matching real Chromecast format
+        eureka_info = {
+            "bssid": "12:34:56:78:9a:bc",
+            "build_version": "1.42.183786",
+            "cast_build_revision": "1.42.183786",
+            "closed_caption": {},
+            "connected": True,
+            "ethernet_connected": False,
+            "has_update": False,
+            "hotspot_bssid": "FA:8F:CA:00:00:00",
+            "ip_address": "192.168.1.100",
+            "locale": "en",
+            "location": {
+                "country_code": "US",
+                "latitude": 37.4419,
+                "longitude": -122.1419,
+            },
+            "mac_address": "12:34:56:78:9a:bc",
+            "multizone": {"status": 0},
+            "name": "Mock Chromecast",
+            "noise_level": -80,
+            "opencast_pin_code": "0000",
+            "opt_in": {
+                "opencast": True,
+                "preview_channel": False,
+                "remote_ducking": True,
+                "stats": True,
+            },
+            "public_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...",
+            "release_track": "stable-channel",
+            "setup_state": 60,
+            "setup_stats": {
+                "historically_succeeded": True,
+                "num_check_connectivity": 0,
+                "num_connect_wifi": 0,
+                "num_connected_wifi_not_saved": 0,
+                "num_initial_eureka_info": 0,
+                "num_obtain_ip": 0,
+            },
+            "signal_level": -40,
+            "ssdp_udn": "uuid:12345678-1234-1234-1234-123456789abc",
+            "ssid": "TestNetwork",
+            "time_format": 1,
+            "timezone": "America/Los_Angeles",
+            "tos_accepted": True,
+            "uptime": 123456.78,
+            "version": 12,
+            "wpa_configured": True,
+            "wpa_id": 1,
+            "wpa_state": 10,
+        }
+
+        # Add device info if requested
+        if not requested_params or "device_info" in requested_params:
+            eureka_info["device_info"] = {
+                "capabilities": {
+                    "aogh_supported": True,
+                    "audio_supported": True,
+                    "ble_supported": False,
+                    "bluetooth_supported": False,
+                    "display_supported": False,
+                    "fdr_supported": True,
+                    "hi_res_audio_supported": False,
+                    "multizone_supported": True,
+                    "opencast_supported": True,
+                    "remote_ducking_supported": True,
+                    "setup_supported": True,
+                    "stats_supported": True,
+                    "system_sound_effects_supported": True,
+                    "ui_supported": True,
+                    "user_eq_supported": False,
+                },
+                "cloud_device_id": "mock-chromecast-12345",
+                "factory_country_code": "US",
+                "hotspot_bssid": "FA:8F:CA:00:00:00",
+                "mac_address": "12:34:56:78:9a:bc",
+                "manufacturer": "Google Inc.",
+                "model_name": "Chromecast",
+                "product_name": "eureka_dongle",
+                "public_key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...",
+                "ssdp_udn": "uuid:12345678-1234-1234-1234-123456789abc",
+                "weave_device_id": "12345678901234567890",
+            }
+
+        # Filter response based on requested params if specified
+        if requested_params:
+            filtered_info = {}
+            for param in requested_params:
+                if param == "name" and "name" in eureka_info:
+                    filtered_info["name"] = eureka_info["name"]
+                elif param == "device_info" and "device_info" in eureka_info:
+                    filtered_info["device_info"] = eureka_info["device_info"]
+                elif param in eureka_info:
+                    filtered_info[param] = eureka_info[param]
+            return web.json_response(filtered_info)
+
+        return web.json_response(eureka_info)
+
+    async def handle_reset(self, request: web.Request) -> web.Response:
+        """Reset mock Chromecast to initial state"""
+        self.current_media = None
+        self.state = "idle"
+        self.volume = 0.5
+
+        logger.info("Mock Chromecast reset to initial state")
+
+        await self._broadcast_state_change()
+
+        return web.json_response(
+            {
+                "status": "success",
+                "state": self.state,
+                "timestamp": datetime.now(UTC).isoformat(),
             }
         )
 

@@ -51,6 +51,10 @@ class TestVideoCallE2E:
         chromecast_url = video_test_environment.mock_chromecast_url
 
         async with aiohttp.ClientSession() as session:
+            # Reset the mock Chromecast to ensure clean test state
+            async with session.post(f"{chromecast_url}/reset") as resp:
+                assert resp.status == 200
+
             # Test status endpoint
             async with session.get(f"{chromecast_url}/status") as resp:
                 assert resp.status == 200
