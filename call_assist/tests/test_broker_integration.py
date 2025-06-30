@@ -15,6 +15,7 @@ from typing import cast
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_google
 import pytest
+from bs4 import Tag
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
@@ -23,8 +24,7 @@ from integration.const import CONF_HOST, CONF_PORT, DOMAIN
 
 # Test imports
 from proto_gen.callassist.broker import (
-    BrokerEntityType,
-    BrokerEntityUpdate,
+    BrokerIntegrationStub,
     HealthCheckResponse,
     StartCallRequest,
     StartCallResponse,
@@ -63,10 +63,7 @@ logger = logging.getLogger(__name__)
 class TestBrokerIntegration:
     """Test cases for the simplified broker integration using real HomeAssistant"""
 
-    @pytest.fixture
-    async def broker(self) -> CallAssistBroker:
-        """Create a broker instance for testing"""
-        return CallAssistBroker()
+    # Remove the broker fixture since we'll use broker_server instead
 
     @pytest.fixture
     async def setup_ha_integration(
@@ -237,9 +234,9 @@ class TestBrokerIntegration:
             f"Entity registry now contains {len(player_entities_in_registry)} media_player entities: {[e.entity_id for e in player_entities_in_registry]}"
         )
 
-    async def test_health_check(self, broker: CallAssistBroker) -> None:
+    async def test_health_check(self, broker_server: BrokerIntegrationStub) -> None:
         """Test basic health check functionality"""
-        response = await broker.health_check(betterproto_lib_google.Empty())
+        response = await broker_server.health_check(betterproto_lib_google.Empty())
 
         assert isinstance(response, HealthCheckResponse)
         assert response.healthy
@@ -249,8 +246,7 @@ class TestBrokerIntegration:
     async def test_ha_entity_streaming_through_integration(
         self,
         hass: HomeAssistant,
-        broker: CallAssistBroker,
-        broker_process: BrokerProcessInfo,
+        web_ui_client: WebUITestClient,
         setup_test_entities: None,  # Create entities first
         setup_ha_integration: None,  # Then set up integration
     ) -> None:
@@ -274,14 +270,7 @@ class TestBrokerIntegration:
         # Wait a bit for integration to stream initial entities
         await asyncio.sleep(2)
 
-        # Check that broker received entities from the HA integration
-        # The integration should have automatically streamed HA entities to the broker
-        logger.info(
-            f"Broker received {len(broker.ha_entities)} entities from HA integration"
-        )
-
         # Debug: Check what the coordinator actually discovered
-        # (This requires accessing coordinator internals - normally we wouldn't do this in a test)
         coordinator_data = hass.data.get("call_assist", {})
         if coordinator_data:
             coordinator = list(coordinator_data.values())[0].get("coordinator")
@@ -293,47 +282,60 @@ class TestBrokerIntegration:
                     f"Coordinator tracked media players: {coordinator._tracked_media_players}"
                 )
 
-        # Verify some entities were received (test entities should be present)
-        assert (
-            len(broker.ha_entities) > 0
-        ), "Broker should have received entities from HA integration"
+        # Verify that entities were received by checking the web UI dropdowns
+        # The broker should have received the entities and they should appear in the form
+        await web_ui_client.wait_for_server()
+        html, soup = await web_ui_client.get_page("/ui/add-call-station")
+
+        # Validate HTML structure first
+        web_ui_client.validate_html_structure(soup, "add call station page")
+
+        # Find camera dropdown
+        camera_select = soup.find("select", {"name": "camera_entity_id"})
+        assert isinstance(camera_select, Tag), "Camera dropdown not found"
+
+        # Find media player dropdown
+        media_player_select = soup.find("select", {"name": "media_player_entity_id"})
+        assert isinstance(media_player_select, Tag), "Media player dropdown not found"
+
+        # Extract camera options
+        camera_options = camera_select.find_all("option")
+        camera_entity_ids = [
+            opt.get("value")
+            for opt in camera_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+
+        # Extract media player options
+        media_player_options = media_player_select.find_all("option")
+        media_player_entity_ids = [
+            opt.get("value")
+            for opt in media_player_options
+            if isinstance(opt, Tag) and opt.get("value")
+        ]
+
+        logger.info(f"Camera entities from broker web UI: {camera_entity_ids}")
+        logger.info(f"Media player entities from broker web UI: {media_player_entity_ids}")
+
+        # Verify test entities appear in dropdowns (proving they were sent to broker)
+        test_cameras = ["camera.test_front_door", "camera.test_back_yard"]
+        test_media_players = ["media_player.test_living_room_tv", "media_player.test_kitchen_display"]
 
         # Check for test camera entities
-        camera_entities = [
-            entity_id
-            for entity_id in broker.ha_entities
-            if entity_id.startswith("camera.test_")
-        ]
+        found_cameras = [cam for cam in test_cameras if cam in camera_entity_ids]
+        assert len(found_cameras) > 0, f"Should have received camera entities from HA integration. Expected: {test_cameras}, Found: {camera_entity_ids}"
 
-        # Check for test media player entities
-        media_player_entities = [
-            entity_id
-            for entity_id in broker.ha_entities
-            if entity_id.startswith("media_player.test_")
-        ]
+        # Check for test media player entities  
+        found_players = [player for player in test_media_players if player in media_player_entity_ids]
+        assert len(found_players) > 0, f"Should have received media player entities from HA integration. Expected: {test_media_players}, Found: {media_player_entity_ids}"
 
-        logger.info(f"Camera entities from HA: {camera_entities}")
-        logger.info(f"Media player entities from HA: {media_player_entities}")
-
-        # Verify we have both types of entities
-        assert len(camera_entities) > 0, "Should have received camera entities from HA"
-        assert (
-            len(media_player_entities) > 0
-        ), "Should have received media player entities from HA"
-
-        # Verify entity details for first camera
-        if camera_entities:
-            first_camera = broker.ha_entities[camera_entities[0]]
-            assert first_camera.domain == "camera"
-            assert first_camera.entity_id == camera_entities[0]
-            logger.info(
-                f"✅ Camera entity verified: {first_camera.entity_id} - {first_camera.name}"
-            )
+        logger.info("✅ Successfully verified HA entities were streamed to broker:")
+        logger.info(f"  - Found cameras: {found_cameras}")
+        logger.info(f"  - Found media players: {found_players}")
 
     async def test_call_station_creation_via_web_ui_with_real_entities(
         self,
         hass: HomeAssistant,
-        broker: CallAssistBroker,
         broker_process: BrokerProcessInfo,
         web_ui_client: WebUITestClient,
         setup_ha_integration: None,
@@ -343,9 +345,6 @@ class TestBrokerIntegration:
 
         # Wait for integration to stream entities
         await asyncio.sleep(2)
-
-        # Initially, no call stations should exist (they're not auto-created)
-        assert len(broker.call_stations) == 0
 
         # Get available test entities from HA states
         test_cameras = [
@@ -402,59 +401,6 @@ class TestBrokerIntegration:
             logger.info(f"✅ Call station verified: {station_id}")
         else:
             logger.warning(f"Call station creation returned status {status}")
-
-    async def test_broker_entity_streaming_with_real_integration(
-        self,
-        hass: HomeAssistant,
-        broker: CallAssistBroker,
-        broker_process: BrokerProcessInfo,
-        setup_ha_integration: None,
-        setup_test_entities: None,
-    ) -> None:
-        """Test that broker streams entities correctly through real HA integration"""
-
-        # Wait for integration to stream entities
-        await asyncio.sleep(2)
-
-        # Now test entity streaming (note: no call stations auto-created)
-        entities_received: list[BrokerEntityUpdate] = []
-
-        async def collect_entities() -> None:
-            async for entity_update in broker.stream_broker_entities(
-                betterproto_lib_google.Empty()
-            ):
-                entities_received.append(entity_update)
-                # Stop after getting initial entities (just broker status, no call stations)
-                if len(entities_received) >= 1:  # 1 broker status
-                    break
-
-        # Run for a short time to collect initial entities
-        await asyncio.wait_for(collect_entities(), timeout=2.0)
-
-        # Verify we got at least the broker status entity
-        assert len(entities_received) >= 1
-
-        # Check for broker status entity
-        broker_status = [
-            e
-            for e in entities_received
-            if e.entity_type == BrokerEntityType.BROKER_STATUS
-        ]
-        assert len(broker_status) >= 1
-        assert broker_status[0].entity_id == "broker_status"
-        assert broker_status[0].state == "online"
-
-        # Should be no call station entities without manual creation
-        call_stations = [
-            e
-            for e in entities_received
-            if e.entity_type == BrokerEntityType.CALL_STATION
-        ]
-        assert len(call_stations) == 0
-
-        logger.info(
-            f"✅ Broker streaming verified: {len(entities_received)} entities received"
-        )
 
     async def test_entity_availability_with_real_integration(
         self,

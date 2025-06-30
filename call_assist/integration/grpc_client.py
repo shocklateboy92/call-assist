@@ -125,17 +125,19 @@ class CallAssistGrpcClient:
         await self._ha_stream_queue.put(entity_update)
 
     async def stream_ha_entities(self) -> None:
-        """Stream HA entity updates to broker."""
+        """Stream HA entity updates to broker using batch processing."""
         if not self.stub:
             raise RuntimeError("Not connected to broker")
 
         async def entity_generator() -> AsyncIterator[HaEntityUpdate]:
-            """Generate entity updates from queue."""
+            """Generate entity updates from queue (batch processing)."""
+            # Send all currently queued entities
             while True:
                 try:
-                    entity_update = await self._ha_stream_queue.get()
+                    entity_update = self._ha_stream_queue.get_nowait()
                     yield entity_update
-                except asyncio.CancelledError:
+                except asyncio.QueueEmpty:
+                    # No more entities in queue, end the stream
                     break
                 except Exception as ex:
                     _LOGGER.error("Error in entity generator: %s", ex)
@@ -143,6 +145,7 @@ class CallAssistGrpcClient:
 
         try:
             await self.stub.stream_ha_entities(entity_generator())
+            _LOGGER.debug("Successfully streamed batch of HA entities to broker")
         except Exception as ex:
             _LOGGER.error("Failed to stream HA entities: %s", ex)
             self._connected = False

@@ -51,7 +51,6 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         self.broker_entities: dict[str, dict[str, Any]] = {}
 
         # Tasks for streaming
-        self._ha_stream_task: asyncio.Task[None] | None = None
         self._broker_stream_task: asyncio.Task[None] | None = None
 
         # State change listener
@@ -80,11 +79,6 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
     async def async_shutdown(self) -> None:
         """Shutdown the coordinator."""
         # Cancel streaming tasks
-        if self._ha_stream_task:
-            self._ha_stream_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._ha_stream_task
-
         if self._broker_stream_task:
             self._broker_stream_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -126,8 +120,8 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         # Send initial state of all entities
         await self._send_initial_entities()
 
-        # Start streaming task
-        self._ha_stream_task = asyncio.create_task(self._stream_ha_entities())
+        # Send the initial batch to broker
+        await self._send_entity_batch()
 
     async def _send_initial_entities(self) -> None:
         """Send initial state of all monitored entities to broker."""
@@ -149,42 +143,37 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
         new_state = event.data.get("new_state")
         if new_state:
-            # Schedule entity update
-            asyncio.create_task(self._send_entity_update(entity_id, new_state))
+            # Schedule entity update and batch send
+            asyncio.create_task(self._handle_entity_update(entity_id, new_state))
 
     async def _send_entity_update(self, entity_id: str, state: Any) -> None:
         """Send entity update to broker."""
-        try:
-            domain = entity_id.split(".")[0]
+        domain = entity_id.split(".")[0]
 
-            # Create entity update message
-            entity_update = {
-                "entity_id": entity_id,
-                "domain": domain,
-                "name": state.attributes.get("friendly_name", entity_id),
-                "state": state.state,
-                "attributes": dict(state.attributes),
-                "available": state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN),
-                "last_updated": datetime.now(UTC),
-            }
+        # Create entity update message
+        entity_update = {
+            "entity_id": entity_id,
+            "domain": domain,
+            "name": state.attributes.get("friendly_name", entity_id),
+            "state": state.state,
+            "attributes": dict(state.attributes),
+            "available": state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN),
+            "last_updated": datetime.now(UTC),
+        }
 
-            # Send to broker via stream (handled by streaming task)
-            await self.grpc_client.send_ha_entity_update(entity_update)
+        # Send to broker via stream (handled by streaming task)
+        await self.grpc_client.send_ha_entity_update(entity_update)
 
-        except Exception as ex:
-            _LOGGER.warning("Failed to send entity update for %s: %s", entity_id, ex)
+    async def _handle_entity_update(self, entity_id: str, state: Any) -> None:
+        """Handle entity update by queuing it and sending batch."""
+        # Queue the entity update
+        await self._send_entity_update(entity_id, state)
+        # Send the batch (single entity in this case)
+        await self._send_entity_batch()
 
-    async def _stream_ha_entities(self) -> None:
-        """Stream HA entity updates to broker."""
-        try:
-            await self.grpc_client.stream_ha_entities()
-        except Exception as ex:
-            _LOGGER.error("HA entity streaming failed: %s", ex)
-            # Try to reconnect
-            if await self.grpc_client.ensure_connection():
-                # Restart streaming
-                await asyncio.sleep(1)
-                await self._stream_ha_entities()
+    async def _send_entity_batch(self) -> None:
+        """Send queued entity updates to broker as a batch."""
+        await self.grpc_client.stream_ha_entities()
 
     async def _start_broker_streaming(self) -> None:
         """Start streaming broker entities."""
@@ -192,31 +181,22 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
 
     async def _stream_broker_entities(self) -> None:
         """Stream broker entity updates."""
-        try:
-            async for entity_update in self.grpc_client.stream_broker_entities():
-                # Store entity data
-                self.broker_entities[entity_update.entity_id] = {
-                    "entity_id": entity_update.entity_id,
-                    "name": entity_update.name,
-                    "type": entity_update.entity_type,
-                    "state": entity_update.state,
-                    "attributes": dict(entity_update.attributes),
-                    "icon": entity_update.icon,
-                    "available": entity_update.available,
-                    "capabilities": list(entity_update.capabilities),
-                    "last_updated": entity_update.last_updated,
-                }
+        async for entity_update in self.grpc_client.stream_broker_entities():
+            # Store entity data
+            self.broker_entities[entity_update.entity_id] = {
+                "entity_id": entity_update.entity_id,
+                "name": entity_update.name,
+                "type": entity_update.entity_type,
+                "state": entity_update.state,
+                "attributes": dict(entity_update.attributes),
+                "icon": entity_update.icon,
+                "available": entity_update.available,
+                "capabilities": list(entity_update.capabilities),
+                "last_updated": entity_update.last_updated,
+            }
 
-                # Notify listeners that data has changed
-                self.async_set_updated_data(self.broker_entities)
-
-        except Exception as ex:
-            _LOGGER.error("Broker entity streaming failed: %s", ex)
-            # Try to reconnect
-            if await self.grpc_client.ensure_connection():
-                # Restart streaming
-                await asyncio.sleep(1)
-                await self._stream_broker_entities()
+            # Notify listeners that data has changed
+            self.async_set_updated_data(self.broker_entities)
 
     @property
     def broker_version(self) -> str:
