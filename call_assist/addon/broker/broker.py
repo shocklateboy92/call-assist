@@ -225,6 +225,7 @@ class CallAssistBroker(BrokerIntegrationBase):
 
         except Exception as ex:
             logger.error(f"Failed to start call: {ex}")
+            station.state = "idle"  # Reset state on error
             return StartCallResponse(
                 success=False,
                 message=f"Failed to start call: {str(ex)}",
@@ -369,8 +370,13 @@ class CallAssistBroker(BrokerIntegrationBase):
                 logger.error(f"Camera entity {station.camera_entity_id} not found")
                 return False
 
-            # Fix: ha_entities contains HAEntity objects, not dicts
             camera_stream_url = camera_entity.attributes.get("stream_source", "")
+            if not camera_stream_url and "entity_picture" in camera_entity.attributes:
+                # Try to construct stream URL from entity picture URL
+                camera_stream_url = camera_entity.attributes["entity_picture"].replace(
+                    "/camera_proxy/", "/camera_proxy_stream/"
+                )
+
             if not camera_stream_url:
                 logger.error(
                     f"No stream source found for camera {station.camera_entity_id}"
@@ -431,7 +437,7 @@ class CallAssistBroker(BrokerIntegrationBase):
 
     def _detect_protocol_from_contact(self, contact: str) -> str:
         """Detect protocol from contact format"""
-        if contact.startswith("@") and ":" in contact:
+        if contact.startswith(("@", "!")) and ":" in contact:
             return "matrix"  # Matrix user ID format: @user:server
         if "@" in contact and "." in contact:
             return "xmpp"  # XMPP JID format: user@domain

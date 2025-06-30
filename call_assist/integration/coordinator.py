@@ -162,7 +162,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             "domain": domain,
             "name": state.attributes.get("friendly_name", entity_id),
             "state": state.state,
-            "attributes": dict(state.attributes),
+            "attributes": {k: str(v) for k, v in state.attributes.items()},
             "available": state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN),
             "last_updated": datetime.now(UTC),
         }

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import betterproto.lib.pydantic.google.protobuf as betterproto_lib_pydantic_google_protobuf
+import grpclib
 from grpclib.client import Channel
 
 # Import betterproto generated files
@@ -176,6 +177,12 @@ class CallAssistGrpcClient:
             async for entity_update in self.stub.stream_broker_entities(request):
                 yield entity_update
 
+        # We should be able to ignore cancellation errors
+        # The integration will start this stream again when it reconnects
+        except asyncio.CancelledError:
+            pass
+        except grpclib.exceptions.StreamTerminatedError:
+            pass
         except Exception:
             _LOGGER.warning("Broker entity streaming connection lost")
             self._connected = False
