@@ -287,6 +287,17 @@ class MatrixCallPlugin {
           const roomId = request.targetAddress;
           const callId = request.callId;
           
+          // Validate room before starting call
+          const validation = await this.validateCallTarget(roomId);
+          if (!validation.valid) {
+            return {
+              success: false,
+              message: `Cannot start call: ${validation.reason}`,
+              state: CallState.CALL_STATE_FAILED,
+              remoteStreamUrl: ''
+            };
+          }
+          
           // Create WebRTC peer connection
           const peerConnection = createPeerConnection();
           
@@ -308,12 +319,12 @@ class MatrixCallPlugin {
           // Send Matrix call invite event (m.call.invite)
           const callInviteContent = {
             call_id: callId,
-            version: 1,
-            type: 'offer',
-            sdp: offer.sdp,
-            offer,
-            lifetime: 30000, // 30 seconds timeout
-            party_id: this.config.userId
+            version: 0,  // Use version 0 for Element Web compatibility
+            offer: {
+              type: 'offer',
+              sdp: offer.sdp
+            },
+            lifetime: 30000 // 30 seconds timeout
           };
           
           await this.matrixClient.sendEvent(roomId, 'm.call.invite' as any, callInviteContent);
@@ -403,11 +414,11 @@ class MatrixCallPlugin {
           // Send Matrix call answer event (m.call.answer)
           const callAnswerContent = {
             call_id: callId,
-            version: 1,
-            type: 'answer',
-            sdp: answer.sdp,
-            answer,
-            party_id: this.config?.userId
+            version: 0,  // Use version 0 for Element Web compatibility
+            answer: {
+              type: 'answer',
+              sdp: answer.sdp
+            }
           };
           
           await this.matrixClient.sendEvent(callInfo.roomId, 'm.call.answer' as any, callAnswerContent);
@@ -467,9 +478,8 @@ class MatrixCallPlugin {
           if (this.matrixClient) {
             const callHangupContent = {
               call_id: callId,
-              version: 1,
-              reason: request.reason || 'user_hangup',
-              party_id: this.config?.userId
+              version: 0,  // Use version 0 for Element Web compatibility
+              reason: request.reason || 'user_hangup'
             };
             
             await this.matrixClient.sendEvent(callInfo.roomId, 'm.call.hangup' as any, callHangupContent);
@@ -666,6 +676,62 @@ class MatrixCallPlugin {
     }
   }
 
+  private async validateCallTarget(roomId: string): Promise<{valid: boolean, reason?: string}> {
+    if (!this.matrixClient) {
+      return {valid: false, reason: 'Matrix client not initialized'};
+    }
+
+    try {
+      // Check if room exists and we're a member
+      const room = this.matrixClient.getRoom(roomId);
+      if (!room) {
+        return {valid: false, reason: 'Room does not exist'};
+      }
+      
+      // Check if we're a member of the room
+      const myMembership = room.getMyMembership();
+      if (myMembership !== 'join') {
+        return {valid: false, reason: 'Not a member of the target room'};
+      }
+      
+      // Check if room has exactly 2 members for direct calls (legacy VoIP requirement)
+      const joinedMembers = room.getJoinedMembers();
+      if (joinedMembers.length !== 2) {
+        return {valid: false, reason: 'Legacy VoIP only supports rooms with exactly 2 participants'};
+      }
+      
+      return {valid: true};
+    } catch (error) {
+      return {valid: false, reason: `Room validation failed: ${error}`};
+    }
+  }
+
+  private async rejectCall(callId: string, reason: string): Promise<void> {
+    const callInfo = this.activeWebRTCCalls.get(callId);
+    if (!callInfo) {
+      throw new Error(`Call ${callId} not found`);
+    }
+
+    if (!this.matrixClient) {
+      throw new Error('Matrix client not initialized');
+    }
+
+    // Send hangup with specific reason
+    const hangupContent = {
+      call_id: callId,
+      version: 0,
+      reason: reason  // 'user_hangup', 'invite_timeout', 'unknown_error', etc.
+    };
+    
+    await this.matrixClient.sendEvent(callInfo.roomId, 'm.call.hangup' as any, hangupContent);
+    
+    // Clean up local state
+    if (callInfo.peerConnection) {
+      callInfo.peerConnection.close();
+    }
+    this.activeWebRTCCalls.delete(callId);
+  }
+
 
   private async handleIncomingCallInvite(event: any, room: any): Promise<void> {
     const content = event.getContent();
@@ -802,25 +868,35 @@ class MatrixCallPlugin {
   }
 
   private setupPeerConnectionHandlers(peerConnection: RTCPeerConnectionInterface, callId: string): void {
-    // Handle ICE candidates
+    // Handle ICE candidates with proper trickle ICE
     peerConnection.onicecandidate = (event) => {
       const candidate = event.candidate;
       if (candidate && this.matrixClient) {
-        // Send ICE candidate to Matrix
+        // Send ICE candidate immediately (trickle ICE)
         const callInfo = this.activeWebRTCCalls.get(callId);
         if (callInfo) {
           const candidateContent = {
             call_id: callId,
-            version: 1,
-            candidates: [candidate],
-            party_id: this.config?.userId
+            version: 0,  // Use version 0 for Element Web compatibility
+            candidates: [candidate]
           };
           
           this.matrixClient.sendEvent(callInfo.roomId, 'm.call.candidates' as any, candidateContent);
-          console.log(`Sent ICE candidate for call ${callId}`);
+          console.log(`Sent ICE candidate for call ${callId}: ${candidate.candidate}`);
         }
       } else {
-        console.log(`ICE gathering complete for call ${callId}`);
+        // End of candidates - send empty candidate to signal completion
+        const callInfo = this.activeWebRTCCalls.get(callId);
+        if (callInfo && this.matrixClient) {
+          const endCandidatesContent = {
+            call_id: callId,
+            version: 0,
+            candidates: []
+          };
+          
+          this.matrixClient.sendEvent(callInfo.roomId, 'm.call.candidates' as any, endCandidatesContent);
+          console.log(`ICE gathering complete for call ${callId}`);
+        }
       }
     };
 
