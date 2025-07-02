@@ -41,7 +41,8 @@
 				"ms-vscode.vscode-typescript-next",
 				"ms-python.black-formatter",
 				"ms-python.mypy-type-checker",
-				"charliermarsh.ruff"
+				"charliermarsh.ruff",
+				"esbenp.prettier-vscode"
 			]
 		}
 	}
