@@ -7,11 +7,11 @@ import {
   ClientEvent,
   MatrixCall,
 } from "matrix-js-sdk";
-import { CallFeed } from "matrix-js-sdk/src/webrtc/callFeed";
+import { CallFeed } from "matrix-js-sdk/lib/webrtc/callFeed";
+import { SDPStreamMetadataPurpose } from "matrix-js-sdk/lib/webrtc/callEventTypes";
 import { Subject } from "rxjs";
 import * as wrtc from "@roamhq/wrtc";
 import { spawn, ChildProcess } from "child_process";
-import ffmpegStatic from "ffmpeg-static";
 import { Readable } from "stream";
 
 import "./polyfills"; // Import WebRTC polyfills for Node.js environment
@@ -250,9 +250,6 @@ class MatrixCallPlugin {
           );
 
           // Add media stream to the call if available
-          if (mediaPipeline.videoSource || mediaPipeline.audioSource) {
-            await this.addMediaToCall(call, mediaPipeline);
-          }
 
           // Store call information
           this.activeCalls.set(callId, {
@@ -260,9 +257,8 @@ class MatrixCallPlugin {
             mediaPipeline,
             cameraStreamUrl: request.cameraStreamUrl,
           });
-
-          // Place the video call
-          await call.placeVideoCall();
+          const feed = this.createCallFeed(mediaPipeline, call);
+          await call.placeCallWithCallFeeds([feed], true);
           console.log(
             `Started Matrix video call in room ${roomId} with call ID ${callId}`
           );
@@ -509,6 +505,40 @@ class MatrixCallPlugin {
     console.log(`Matrix plugin gRPC server listening on port ${port}`);
   }
 
+  private createCallFeed(mediaPipeline: MediaPipeline, call: MatrixCall) {
+    if (!this.matrixClient) {
+      throw new Error(
+        "Somehow tried to create a call feed without an initialized Matrix client. Bailing out."
+      );
+    }
+
+    const stream = new MediaStream();
+
+    if (mediaPipeline.videoSource) {
+      const videoTrack = mediaPipeline.videoSource.createTrack();
+      stream.addTrack(videoTrack);
+    }
+
+    if (mediaPipeline.audioSource) {
+      const audioTrack = mediaPipeline.audioSource.createTrack();
+      stream.addTrack(audioTrack);
+    }
+
+    // Place the video call
+    const feed = new CallFeed({
+      client: this.matrixClient,
+      roomId: call.roomId,
+      userId: this.matrixClient.getUserId()!,
+      deviceId: this.matrixClient.getDeviceId() || undefined,
+      stream: stream,
+      purpose: SDPStreamMetadataPurpose.Usermedia,
+      audioMuted: false,
+      videoMuted: false,
+      call: call,
+    });
+    return feed;
+  }
+
   private async initializeMatrixClient(): Promise<void> {
     if (!this.config) {
       throw new Error("Matrix configuration not provided");
@@ -743,38 +773,6 @@ class MatrixCallPlugin {
     return mediaPipeline;
   }
 
-  private async addMediaToCall(
-    call: MatrixCall,
-    mediaPipeline: MediaPipeline
-  ): Promise<void> {
-    console.log(`Adding media to call ${call.callId}`);
-
-    try {
-      // Create MediaStream from pipeline sources
-      if (mediaPipeline.videoSource || mediaPipeline.audioSource) {
-        const stream = new MediaStream();
-
-        if (mediaPipeline.videoSource) {
-          const videoTrack = mediaPipeline.videoSource.createTrack();
-          stream.addTrack(videoTrack);
-        }
-
-        if (mediaPipeline.audioSource) {
-          const audioTrack = mediaPipeline.audioSource.createTrack();
-          stream.addTrack(audioTrack);
-        }
-
-        const feed = new CallFeed({});
-        // Add stream to the call
-        // Note: This may need adjustment based on matrix-js-sdk API
-        call.pushLocalFeed(feed, true);
-        console.log(`Added media stream to call ${call.callId}`);
-      }
-    } catch (error) {
-      console.error(`Failed to add media to call ${call.callId}:`, error);
-    }
-  }
-
   private async createVideoSource(mediaPipeline: MediaPipeline): Promise<any> {
     console.log("Creating video source for RTSP stream...");
 
@@ -861,7 +859,6 @@ class MatrixCallPlugin {
 
     const width = 640;
     const height = 480;
-    const frameSize = width * height * 1.5; // YUV420P
 
     let frameCounter = 0;
 
