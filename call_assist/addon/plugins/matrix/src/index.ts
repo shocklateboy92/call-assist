@@ -14,35 +14,7 @@ import { spawn, ChildProcess } from "child_process";
 import ffmpegStatic from "ffmpeg-static";
 import { Readable } from "stream";
 
-// Set up WebRTC polyfills for matrix-js-sdk compatibility
-import {
-  RTCPeerConnection,
-  RTCSessionDescription,
-  RTCIceCandidate,
-  MediaStream,
-  MediaStreamTrack,
-  getUserMedia,
-  mediaDevices,
-} from "@roamhq/wrtc";
-
-// Polyfill globals for matrix-js-sdk WebRTC support
-global.RTCPeerConnection = RTCPeerConnection;
-global.RTCSessionDescription = RTCSessionDescription;
-global.RTCIceCandidate = RTCIceCandidate;
-global.MediaStream = MediaStream;
-global.MediaStreamTrack = MediaStreamTrack;
-// global.navigator = {
-//   userAgent: "Matrix Call Plugin",
-//   mediaDevices: {
-//     getUserMedia: async () => new MediaStream(),
-//     enumerateDevices: async () => mediaDevices,
-//   },
-// } as any; // Mock window for matrix-js-sdk compatibility
-console.log("Navigator", global.navigator.mediaDevices);
-// @ts-ignore
-global.navigator.mediaDevices = mediaDevices; 
-global.window = global as any; // Mock window for matrix-js-sdk compatibility
-global.document = {} as any; // Mock document for matrix-js-sdk compatibility
+import "./polyfills"; // Import WebRTC polyfills for Node.js environment
 
 // Import generated protobuf types
 import {
@@ -71,7 +43,6 @@ import {
 } from "./proto_gen/common";
 import { Empty } from "./proto_gen/google/protobuf/empty";
 import type { CallContext } from "nice-grpc-common";
-import { assert } from "console";
 
 // Matrix plugin configuration interface
 interface MatrixConfig {
@@ -216,6 +187,45 @@ class MatrixCallPlugin {
               remoteStreamUrl: "",
             };
           }
+
+          // Create a mock implementation of enumerateDevices that creates
+          // and returns the devices we were given in this request, so that
+          // matrix-js-sdk finds them
+
+          global.navigator.mediaDevices.enumerateDevices = async () => {
+            const devices: MediaDeviceInfo[] = [];
+
+            // Add mock video input device for camera stream
+            if (request.cameraStreamUrl) {
+              devices.push({
+                deviceId: "camera-0",
+                groupId: "camera-group-0",
+                kind: "videoinput",
+                label: "Call Assist Camera Stream",
+                toJSON: () => {},
+              });
+            }
+
+            // Add mock audio input device
+            devices.push({
+              deviceId: "audio-input-0",
+              groupId: "audio-group-0",
+              kind: "audioinput",
+              label: "Call Assist Audio Input",
+              toJSON: () => {},
+            });
+
+            // Add mock audio output device
+            devices.push({
+              deviceId: "audio-output-0",
+              groupId: "audio-group-0",
+              kind: "audiooutput",
+              label: "Call Assist Audio Output",
+              toJSON: () => {},
+            });
+
+            return devices;
+          };
 
           // Create call using matrix-js-sdk
           const call = this.matrixClient.createCall(roomId);
