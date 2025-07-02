@@ -48,7 +48,8 @@
       "Bash(ruff check:*)",
       "Bash(./run_broker.sh:*)",
       "Bash(./call_assist/run_broker.sh:*)",
-      "Bash(pytest:*)"
+      "Bash(pytest:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ],
     "deny": []
   }

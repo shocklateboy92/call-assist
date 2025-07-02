@@ -32,14 +32,23 @@ async def serve(
     )
     app_state.set_broker_instance(broker)
 
+    # Get services from app state
+    video_service = app_state.video_streaming_service
+    casting_service = app_state.casting_service
+
+    if not video_service:
+        raise RuntimeError("Video streaming service not initialized")
+    if not casting_service:
+        raise RuntimeError("Casting service not initialized")
+
     # Initialize web server
     web_server = WebUIServer()
     web_server.host = web_host
     web_server.port = web_port
 
     try:
-        # Initialize gRPC server
-        grpc_server = Server([broker])  # grpclib server
+        # Initialize gRPC server with broker and video service
+        grpc_server = Server([broker, video_service])  # grpclib server
 
         logger.info("Starting Call Assist Broker:")
         logger.info(f"  - gRPC server: {grpc_host}:{grpc_port}")

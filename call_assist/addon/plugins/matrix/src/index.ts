@@ -3,7 +3,7 @@
 import { createServer } from "nice-grpc";
 import {
   MatrixClient,
-  createClient,
+  createClient as createMatrixClient,
   ClientEvent,
   MatrixCall,
 } from "matrix-js-sdk";
@@ -19,6 +19,7 @@ import { Subject } from "rxjs";
 import * as wrtc from "@roamhq/wrtc";
 import { spawn, ChildProcess } from "child_process";
 import { Readable } from "stream";
+import { createChannel, createClient } from "nice-grpc";
 
 import "./polyfills"; // Import WebRTC polyfills for Node.js environment
 
@@ -36,6 +37,10 @@ import {
   CallEndResponse,
   MediaNegotiationRequest,
   ServerStreamingMethodResult,
+  RemoteVideoFrame,
+  RemoteVideoStreamInfo,
+  TrackInfo,
+  TrackKind,
 } from "./proto_gen/call_plugin";
 import {
   CallState,
@@ -73,6 +78,7 @@ interface MediaPipeline {
 
 // Simplified call info for matrix-js-sdk integration
 interface CallInfo {
+  remoteVideoSink?: wrtc.nonstandard.RTCVideoSink;
   call: MatrixCall;
   mediaPipeline?: MediaPipeline;
   cameraStreamUrl?: string;
@@ -86,6 +92,8 @@ class MatrixCallPlugin {
   private config: MatrixConfig | null = null;
   private activeCalls: Map<string, CallInfo> = new Map();
   private callEventSubject: Subject<CallEvent> = new Subject();
+  private brokerChannel: ReturnType<typeof createChannel> | null = null;
+  private brokerClient: any | null = null; // Will be CallPluginDefinition client
 
   constructor() {
     console.log("Matrix Call Plugin initializing...");
@@ -96,6 +104,9 @@ class MatrixCallPlugin {
 
     // Start gRPC server to communicate with broker
     await this.startGrpcServer();
+
+    // Initialize broker gRPC client for streaming video
+    await this.initializeBrokerClient();
 
     console.log("Matrix Call Plugin started successfully");
   }
@@ -496,6 +507,17 @@ class MatrixCallPlugin {
           timestamp: new Date(),
         };
       },
+
+      // Stream remote video frames (not implemented in plugin - broker calls this)
+      streamRemoteVideo: async (
+        request: AsyncIterable<RemoteVideoFrame>,
+        context: CallContext
+      ): Promise<Empty> => {
+        console.log("streamRemoteVideo called - this should not happen in Matrix plugin");
+        // This method is meant to be called BY the plugin TO the broker
+        // Not the other way around. Return empty response.
+        return {};
+      },
     };
 
     // Register the CallPlugin service using nice-grpc compatible format
@@ -565,7 +587,7 @@ class MatrixCallPlugin {
 
     console.log(`Initializing Matrix client for ${this.config.userId}`);
 
-    this.matrixClient = createClient({
+    this.matrixClient = createMatrixClient({
       baseUrl: this.config.homeserver,
       accessToken: this.config.accessToken,
       userId: this.config.userId,
@@ -744,6 +766,7 @@ class MatrixCallPlugin {
       if (callInfo?.remoteVideoStream) {
         this.cleanupRemoteVideoStream(callInfo.remoteVideoStream);
       }
+      this.cleanupRemoteVideoStreamForwarding(callId);
       this.activeCalls.delete(callId);
     });
 
@@ -767,6 +790,7 @@ class MatrixCallPlugin {
       if (callInfo?.remoteVideoStream) {
         this.cleanupRemoteVideoStream(callInfo.remoteVideoStream);
       }
+      this.cleanupRemoteVideoStreamForwarding(callId);
       this.activeCalls.delete(callId);
     });
 
@@ -825,17 +849,10 @@ class MatrixCallPlugin {
       `Remote video track: ${videoTrack.id}, enabled: ${videoTrack.enabled}, readyState: ${videoTrack.readyState}`
     );
 
-    // Create a video element to render the remote stream (Node.js simulation)
-    // In a real browser environment, you would use HTMLVideoElement
-    // For Node.js, we'll set up stream processing to extract frames
+    // Start video stream forwarding to broker
+    this.startRemoteVideoStreamForwarding(callId, videoStream, videoTrack);
 
-    // TODO: Implement frame extraction from remote video track
-    // This could involve:
-    // 1. Using canvas to capture frames from video track
-    // 2. Converting frames to a format the broker can display
-    // 3. Sending frames via gRPC stream or HTTP endpoint
-
-    // For now, emit a call event indicating remote video is available
+    // Emit call event indicating remote video is available
     this.callEventSubject.next({
       type: CallEventType.CALL_EVENT_ANSWERED, // Using existing event type
       timestamp: new Date(),
@@ -858,6 +875,201 @@ class MatrixCallPlugin {
     }
 
     console.log(`Remote video stream handling set up for call ${callId}`);
+  }
+
+  private startRemoteVideoStreamForwarding(
+    callId: string,
+    videoStream: MediaStream,
+    videoTrack: MediaStreamTrack
+  ): void {
+    console.log(`Starting remote video stream forwarding for call ${callId}`);
+
+    try {
+      // Check if we have access to RTCVideoSink
+      if (typeof wrtc !== "undefined" && wrtc.nonstandard && wrtc.nonstandard.RTCVideoSink) {
+        console.log("✅ Using RTCVideoSink for native video track forwarding");
+
+        // Create video sink from the remote video track
+        const videoSink = new wrtc.nonstandard.RTCVideoSink(videoTrack);
+
+        // Handle frame events
+        videoSink.onframe = (frame: any) => {
+          // Forward the frame data to broker
+          this.forwardFrameToBroker(callId, frame, videoStream);
+        };
+
+        // Store video sink for cleanup
+        const callInfo = this.activeCalls.get(callId);
+        if (callInfo) {
+          callInfo.remoteVideoSink = videoSink;
+          callInfo.remoteVideoStream = videoStream;
+        }
+
+        console.log(`✅ Remote video sink created for call ${callId}`);
+
+      } else {
+        console.warn("RTCVideoSink not available, falling back to MediaStream forwarding");
+        
+        // Fallback: Forward the entire MediaStream to broker
+        this.forwardMediaStreamToBroker(callId, videoStream);
+
+        // Store stream reference for cleanup
+        const callInfo = this.activeCalls.get(callId);
+        if (callInfo) {
+          (callInfo as any).remoteVideoStream = videoStream;
+        }
+      }
+
+    } catch (error) {
+      console.error(`Error setting up remote video stream forwarding for call ${callId}:`, error);
+    }
+  }
+
+  private forwardFrameToBroker(
+    callId: string,
+    frame: any,
+    videoStream: MediaStream
+  ): void {
+    try {
+      // Log frame info occasionally to avoid spam
+      if (Math.random() < 0.001) { // Log ~0.1% of frames
+        console.log(`Received I420 frame for call ${callId}: ${frame.width}x${frame.height}, ${frame.data.length} bytes`);
+      }
+
+      // TODO: Implement gRPC streaming to send frame data to broker
+      // For now, we'll prepare the frame data for future gRPC implementation
+      const frameData = {
+        callId,
+        timestamp: Date.now(),
+        width: frame.width,
+        height: frame.height,
+        format: 'i420',
+        data: frame.data,
+        rotation: frame.rotation || 0,
+        streamId: videoStream.id,
+      };
+
+      // Placeholder for gRPC streaming
+      this.sendFrameDataToBroker(frameData);
+
+    } catch (error) {
+      // Log errors occasionally to avoid spam
+      if (Math.random() < 0.01) { // Log ~1% of errors
+        console.warn(`Error forwarding frame for call ${callId}:`, error);
+      }
+    }
+  }
+
+  private forwardMediaStreamToBroker(callId: string, videoStream: MediaStream): void {
+    try {
+      console.log(`Forwarding MediaStream to broker for call ${callId}`);
+
+      // TODO: Implement gRPC streaming to send MediaStream metadata to broker
+      // For now, we'll prepare the stream metadata
+      const streamData = {
+        callId,
+        streamId: videoStream.id,
+        tracks: videoStream.getTracks().map(track => ({
+          id: track.id,
+          kind: track.kind,
+          label: track.label,
+          enabled: track.enabled,
+          readyState: track.readyState,
+        })),
+        timestamp: Date.now(),
+      };
+
+      // Placeholder for gRPC streaming
+      this.sendStreamDataToBroker(streamData);
+
+    } catch (error) {
+      console.error(`Error forwarding MediaStream for call ${callId}:`, error);
+    }
+  }
+
+  private async initializeBrokerClient(): Promise<void> {
+    try {
+      const brokerHost = process.env.BROKER_HOST || 'localhost';
+      const brokerPort = process.env.BROKER_PORT || '50051';
+      
+      console.log(`Connecting to broker at ${brokerHost}:${brokerPort}`);
+      
+      this.brokerChannel = createChannel(`${brokerHost}:${brokerPort}`);
+      this.brokerClient = createClient(CallPluginDefinition as any, this.brokerChannel);
+      
+      console.log("✅ Broker gRPC client initialized");
+    } catch (error) {
+      console.error("Failed to initialize broker gRPC client:", error);
+      // Continue without broker client - plugin can still function for calls
+    }
+  }
+
+  private async sendFrameDataToBroker(frameData: any): Promise<void> {
+    if (!this.brokerClient) {
+      return; // No broker connection available
+    }
+
+    try {
+      // Create RemoteVideoFrame message
+      const remoteFrame: RemoteVideoFrame = {
+        callId: frameData.callId,
+        streamId: frameData.streamId,
+        timestamp: new Date(),
+        width: frameData.width,
+        height: frameData.height,
+        format: frameData.format,
+        frameData: new Uint8Array(frameData.data),
+        rotation: frameData.rotation,
+      };
+
+      // TODO: Implement streaming to broker
+      // For now, we'll log the frame data
+      if (Math.random() < 0.001) { // Log ~0.1% of frames
+        console.log(`Would stream frame to broker:`, {
+          callId: frameData.callId,
+          dimensions: `${frameData.width}x${frameData.height}`,
+          dataSize: frameData.data.length,
+        });
+      }
+
+    } catch (error) {
+      if (Math.random() < 0.01) { // Log ~1% of errors
+        console.warn(`Error sending frame to broker:`, error);
+      }
+    }
+  }
+
+  private async sendStreamDataToBroker(streamData: any): Promise<void> {
+    if (!this.brokerClient) {
+      return; // No broker connection available
+    }
+
+    try {
+      // Create RemoteVideoStreamInfo message
+      const streamInfo: RemoteVideoStreamInfo = {
+        callId: streamData.callId,
+        streamId: streamData.streamId,
+        timestamp: new Date(),
+        tracks: streamData.tracks.map((track: any) => ({
+          trackId: track.id,
+          kind: track.kind === 'video' ? TrackKind.TRACK_KIND_VIDEO : 
+                track.kind === 'audio' ? TrackKind.TRACK_KIND_AUDIO : 
+                TrackKind.TRACK_KIND_UNKNOWN,
+          label: track.label,
+          enabled: track.enabled,
+          readyState: track.readyState,
+        })),
+      };
+
+      console.log(`Would stream video info to broker:`, {
+        callId: streamData.callId,
+        streamId: streamData.streamId,
+        tracks: streamData.tracks.length,
+      });
+
+    } catch (error) {
+      console.error(`Error sending stream info to broker:`, error);
+    }
   }
 
   private async setupMediaPipeline(
@@ -1232,6 +1444,40 @@ class MatrixCallPlugin {
     }
   }
 
+  private cleanupRemoteVideoStreamForwarding(callId: string): void {
+    console.log(`Cleaning up remote video stream forwarding for call ${callId}...`);
+
+    try {
+      const callInfo = this.activeCalls.get(callId);
+      if (!callInfo) {
+        return;
+      }
+
+      // Stop video sink if using RTCVideoSink
+      const videoSink = callInfo.remoteVideoSink;
+      if (videoSink) {
+        try {
+          videoSink.stop();
+          callInfo.remoteVideoSink = undefined;
+          console.log(`Stopped video sink for call ${callId}`);
+        } catch (error) {
+          console.warn(`Error stopping video sink for call ${callId}:`, error);
+        }
+      }
+
+      // Clean up stream reference
+      const videoStream = callInfo.remoteVideoStream;
+      if (videoStream) {
+        callInfo.remoteVideoStream = undefined;
+        console.log(`Cleaned up video stream reference for call ${callId}`);
+      }
+
+      console.log(`✅ Remote video stream forwarding cleaned up for call ${callId}`);
+    } catch (error) {
+      console.error(`Error cleaning up remote video stream forwarding for call ${callId}:`, error);
+    }
+  }
+
   async shutdown(): Promise<void> {
     console.log("Shutting down Matrix plugin...");
 
@@ -1269,6 +1515,13 @@ class MatrixCallPlugin {
 
     if (this.server) {
       this.server.shutdown();
+    }
+
+    // Close broker gRPC client
+    if (this.brokerChannel) {
+      this.brokerChannel.close();
+      this.brokerChannel = null;
+      this.brokerClient = null;
     }
 
     // Complete the call events stream

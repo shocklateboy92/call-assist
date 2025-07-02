@@ -15,8 +15,10 @@ from fastapi import Depends
 from sqlmodel import Session
 
 from .broker import CallAssistBroker
+from .casting_service import CastingService
 from .database import DatabaseManager
 from .plugin_manager import PluginManager
+from .video_streaming_service import VideoStreamingService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,8 @@ class AppState:
             None  # Will be set to CallAssistBroker instance
         )
         self.plugin_manager: PluginManager | None = None
+        self.video_streaming_service: VideoStreamingService | None = None
+        self.casting_service: CastingService | None = None
         self.db_path: str = "broker_data.db"
         self._initialized = False
 
@@ -52,6 +56,19 @@ class AppState:
         self.plugin_manager = PluginManager()
         logger.info("✅ Plugin manager initialized")
 
+        # Initialize video streaming service
+        self.video_streaming_service = VideoStreamingService()
+        await self.video_streaming_service.start_cleanup_task()
+        logger.info("✅ Video streaming service initialized")
+
+        # Initialize casting service
+        from .providers import ChromecastProvider
+        
+        self.casting_service = CastingService(self.video_streaming_service)
+        self.casting_service.register_provider(ChromecastProvider())
+        await self.casting_service.initialize()
+        logger.info("✅ Casting service initialized")
+
         self._initialized = True
         logger.info("🎉 All dependencies initialized successfully")
 
@@ -64,7 +81,15 @@ class AppState:
         """Clean up resources"""
         logger.info("Starting application cleanup...")
 
-        # Shutdown plugin manager first
+        # Shutdown casting service first
+        if self.casting_service:
+            try:
+                await self.casting_service.cleanup()
+                logger.info("✅ Casting service shutdown complete")
+            except Exception as e:
+                logger.error(f"Error shutting down casting service: {e}")
+
+        # Shutdown plugin manager
         if self.plugin_manager:
             try:
                 await self.plugin_manager.shutdown_all()

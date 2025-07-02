@@ -26,6 +26,9 @@ service CallPlugin {
   
   // Health check
   rpc GetHealth(google.protobuf.Empty) returns (callassist.common.HealthStatus);
+  
+  // Video streaming - plugin sends video frames to broker
+  rpc StreamRemoteVideo(stream RemoteVideoFrame) returns (google.protobuf.Empty);
 }
 
 message PluginConfig {
@@ -84,4 +87,36 @@ message MediaNegotiationRequest {
   string call_id = 1;
   callassist.common.MediaCapabilities local_capabilities = 2;
   callassist.common.MediaCapabilities remote_capabilities = 3;
+}
+
+message RemoteVideoFrame {
+  string call_id = 1;
+  string stream_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  int32 width = 4;
+  int32 height = 5;
+  string format = 6; // "i420", "yuv420p", etc.
+  bytes frame_data = 7;
+  int32 rotation = 8;
+}
+
+message RemoteVideoStreamInfo {
+  string call_id = 1;
+  string stream_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  repeated TrackInfo tracks = 4;
+}
+
+message TrackInfo {
+  string track_id = 1;
+  TrackKind kind = 2;
+  string label = 3;
+  bool enabled = 4;
+  string ready_state = 5; // "live", "ended"
+}
+
+enum TrackKind {
+  TRACK_KIND_UNKNOWN = 0;
+  TRACK_KIND_AUDIO = 1;
+  TRACK_KIND_VIDEO = 2;
 }
