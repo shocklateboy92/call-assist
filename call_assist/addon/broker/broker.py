@@ -42,6 +42,7 @@ class HAEntity:
     attributes: dict[str, str]
     available: bool
     last_updated: datetime
+    ha_base_url: str
 
 
 @dataclass
@@ -95,6 +96,24 @@ class CallAssistBroker(BrokerIntegrationBase):
         # Store database manager reference (injected or None)
         self.database_manager = database_manager
 
+        # Cache HA base URL for URL transformation
+        self._ha_base_url: str | None = None
+
+    def _resolve_camera_stream_url(self, url: str, ha_base_url: str) -> str:
+        """Transform relative camera URL to absolute URL using HA base URL."""
+        if not url or not ha_base_url:
+            return url
+
+        # Already absolute URL
+        if url.startswith(("http://", "https://", "rtsp://", "rtmp://")):
+            return url
+
+        # Relative URL - prepend HA base URL
+        if url.startswith("/"):
+            return f"{ha_base_url.rstrip('/')}{url}"
+
+        return url
+
     async def stream_ha_entities(
         self, ha_entity_update_iterator: AsyncIterator[HaEntityUpdate]
     ) -> betterproto_lib_google.Empty:
@@ -102,7 +121,12 @@ class CallAssistBroker(BrokerIntegrationBase):
         logger.info("Starting to receive HA entity updates")
 
         async for entity_update in ha_entity_update_iterator:
-            # Store the entity
+            # Cache HA base URL from first entity update
+            if not self._ha_base_url and entity_update.ha_base_url:
+                self._ha_base_url = entity_update.ha_base_url
+                logger.info(f"Cached HA base URL: {self._ha_base_url}")
+
+            # Create HA entity
             ha_entity = HAEntity(
                 entity_id=entity_update.entity_id,
                 domain=entity_update.domain,
@@ -111,6 +135,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 attributes=dict(entity_update.attributes),
                 available=entity_update.available,
                 last_updated=entity_update.last_updated,
+                ha_base_url=entity_update.ha_base_url,
             )
 
             self.ha_entities[entity_update.entity_id] = ha_entity
@@ -370,6 +395,7 @@ class CallAssistBroker(BrokerIntegrationBase):
                 logger.error(f"Camera entity {station.camera_entity_id} not found")
                 return False
 
+            # Get camera stream URL and transform to absolute if needed
             camera_stream_url = camera_entity.attributes.get("stream_source", "")
             if not camera_stream_url and "entity_picture" in camera_entity.attributes:
                 # Try to construct stream URL from entity picture URL
@@ -382,6 +408,11 @@ class CallAssistBroker(BrokerIntegrationBase):
                     f"No stream source found for camera {station.camera_entity_id}"
                 )
                 return False
+
+            # Ensure camera_stream_url is absolute
+            camera_stream_url = self._resolve_camera_stream_url(
+                camera_stream_url, camera_entity.ha_base_url
+            )
 
             # Import CallStartRequest here to avoid circular imports
             from proto_gen.callassist.common import MediaCapabilities, Resolution

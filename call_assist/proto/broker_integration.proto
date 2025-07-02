@@ -31,6 +31,7 @@ message HAEntityUpdate {
   map<string, string> attributes = 5; // All entity attributes
   bool available = 6;             // Whether entity is available
   google.protobuf.Timestamp last_updated = 7;
+  string ha_base_url = 8;         // Home Assistant base URL for resolving relative paths
 }
 
 // Messages for Broker Entity streaming (Broker -> HA)

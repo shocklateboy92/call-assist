@@ -138,6 +138,7 @@ class CallAssistGrpcClient:
             attributes=entity_data["attributes"],
             available=entity_data["available"],
             last_updated=entity_data["last_updated"],
+            ha_base_url=entity_data["ha_base_url"],
         )
 
         # Add to queue for streaming

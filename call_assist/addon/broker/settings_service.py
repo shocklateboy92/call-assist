@@ -29,10 +29,18 @@ class SettingsService:
         """Get all current settings"""
         return {
             "web_ui_port": get_setting_with_session(self.session, "web_ui_port", 8080),
-            "web_ui_host": get_setting_with_session(self.session, "web_ui_host", "0.0.0.0"),
-            "enable_call_history": get_setting_with_session(self.session, "enable_call_history", True),
-            "max_call_history_days": get_setting_with_session(self.session, "max_call_history_days", 30),
-            "auto_cleanup_logs": get_setting_with_session(self.session, "auto_cleanup_logs", True),
+            "web_ui_host": get_setting_with_session(
+                self.session, "web_ui_host", "0.0.0.0"
+            ),
+            "enable_call_history": get_setting_with_session(
+                self.session, "enable_call_history", True
+            ),
+            "max_call_history_days": get_setting_with_session(
+                self.session, "max_call_history_days", 30
+            ),
+            "auto_cleanup_logs": get_setting_with_session(
+                self.session, "auto_cleanup_logs", True
+            ),
         }
 
     async def update_settings(self, settings: dict[str, SettingsValueType]) -> bool:

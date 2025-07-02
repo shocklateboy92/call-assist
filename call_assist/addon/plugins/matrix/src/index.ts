@@ -5,9 +5,9 @@ import {
   MatrixClient,
   createClient,
   ClientEvent,
-  RoomEvent,
   MatrixCall,
 } from "matrix-js-sdk";
+import { CallFeed } from "matrix-js-sdk/src/webrtc/callFeed";
 import { Subject } from "rxjs";
 import * as wrtc from "@roamhq/wrtc";
 import { spawn, ChildProcess } from "child_process";
@@ -43,6 +43,7 @@ import {
 } from "./proto_gen/common";
 import { Empty } from "./proto_gen/google/protobuf/empty";
 import type { CallContext } from "nice-grpc-common";
+import { RTCAudioSource, RTCVideoSource } from "@roamhq/wrtc/types/nonstandard";
 
 // Matrix plugin configuration interface
 interface MatrixConfig {
@@ -56,8 +57,8 @@ interface MatrixConfig {
 // Media pipeline management interface
 interface MediaPipeline {
   ffmpegProcess?: ChildProcess;
-  videoSource?: any; // RTCVideoSource for WebRTC
-  audioSource?: any; // RTCAudioSource for WebRTC
+  videoSource?: RTCVideoSource; // RTCVideoSource for WebRTC
+  audioSource?: RTCAudioSource; // RTCAudioSource for WebRTC
   isActive: boolean;
   cameraStreamUrl: string;
   frameBuffer: Buffer[];
@@ -763,9 +764,10 @@ class MatrixCallPlugin {
           stream.addTrack(audioTrack);
         }
 
+        const feed = new CallFeed({});
         // Add stream to the call
         // Note: This may need adjustment based on matrix-js-sdk API
-        // call.pushLocalFeed(stream, 'local', false);
+        call.pushLocalFeed(feed, true);
         console.log(`Added media stream to call ${call.callId}`);
       }
     } catch (error) {
@@ -940,10 +942,7 @@ class MatrixCallPlugin {
 
     try {
       // Get FFmpeg binary path
-      const ffmpegPath = ffmpegStatic;
-      if (!ffmpegPath) {
-        throw new Error("FFmpeg binary not found");
-      }
+      const ffmpegPath = "/usr/bin/ffmpeg";
 
       console.log(`📹 Using FFmpeg at: ${ffmpegPath}`);
 
@@ -1003,6 +1002,9 @@ class MatrixCallPlugin {
       });
 
       console.log("✅ FFmpeg transcoding process started successfully");
+
+      // TODO: Only activate the pipeline when the receiver answers the call
+      mediaPipeline.isActive = true;
     } catch (error) {
       console.error("Error starting FFmpeg transcoding:", error);
       throw error;
@@ -1046,22 +1048,28 @@ class MatrixCallPlugin {
     frameData: Buffer
   ): void {
     try {
-      if (mediaPipeline.videoSource && mediaPipeline.isActive) {
-        // Convert raw YUV420P data to WebRTC frame format
-        const frame = {
-          width: 640,
-          height: 480,
-          data: new Uint8ClampedArray(frameData),
-        };
+      if (!mediaPipeline.videoSource) {
+        console.warn("No video source available to send frame");
+        return;
+      }
+      if (!mediaPipeline.isActive) {
+        console.warn("Media pipeline is not active, skipping frame");
+        return;
+      }
+      // Convert raw YUV420P data to WebRTC frame format
+      const frame = {
+        width: 640,
+        height: 480,
+        data: new Uint8Array(frameData),
+      };
 
-        // Send frame to WebRTC video source
-        mediaPipeline.videoSource.onFrame(frame);
+      // Send frame to WebRTC video source
+      mediaPipeline.videoSource.onFrame(frame);
 
-        // Optional: Log frame processing (but limit to avoid spam)
-        if (Math.random() < 0.01) {
-          // Log ~1% of frames
-          console.log(`📸 Processed RTSP frame: ${frameData.length} bytes`);
-        }
+      // Optional: Log frame processing (but limit to avoid spam)
+      if (Math.random() < 0.01) {
+        // Log ~1% of frames
+        console.log(`📸 Processed RTSP frame: ${frameData.length} bytes`);
       }
     } catch (error) {
       console.error("Error sending frame to WebRTC:", error);

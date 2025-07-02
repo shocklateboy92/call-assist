@@ -385,7 +385,11 @@ def setup_integration_path() -> Iterator[None]:
     original_get_test_config_dir = common.get_test_config_dir
 
     def patched_get_test_config_dir(*add_path: str) -> str:
-        return str(Path("/workspaces/universal/call_assist/config/homeassistant").joinpath(*add_path))
+        return str(
+            Path("/workspaces/universal/call_assist/config/homeassistant").joinpath(
+                *add_path
+            )
+        )
 
     common.get_test_config_dir = patched_get_test_config_dir
 

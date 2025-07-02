@@ -510,7 +510,8 @@ def create_routes(app: FastAPI) -> None:
         current_settings = await settings_service.get_all_settings()
 
         return PageLayout(
-            "Settings - Call Assist Broker", SettingsForm(settings=dict(current_settings))
+            "Settings - Call Assist Broker",
+            SettingsForm(settings=dict(current_settings)),
         )
 
     @app.post("/ui/settings")

@@ -156,6 +156,17 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
         """Send entity update to broker."""
         domain = entity_id.split(".")[0]
 
+        # Get HA base URL - prefer external_url, fallback to internal_url
+        ha_base_url = (
+            self.hass.config.external_url
+            or self.hass.config.internal_url
+            or (
+                f"http://{self.hass.config.api.host}:{self.hass.config.api.port}"
+                if self.hass.config.api
+                else "http://localhost:8123"
+            )
+        )
+
         # Create entity update message
         entity_update = {
             "entity_id": entity_id,
@@ -165,6 +176,7 @@ class CallAssistCoordinator(DataUpdateCoordinator[dict[str, dict[str, Any]]]):
             "attributes": {k: str(v) for k, v in state.attributes.items()},
             "available": state.state not in (STATE_UNAVAILABLE, STATE_UNKNOWN),
             "last_updated": datetime.now(UTC),
+            "ha_base_url": ha_base_url,
         }
 
         # Send to broker via stream (handled by streaming task)

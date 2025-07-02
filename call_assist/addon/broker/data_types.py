@@ -204,6 +204,7 @@ class HAEntityUpdate:
     attributes: dict[str, str]
     available: bool
     last_updated: datetime
+    ha_base_url: str
 
 
 # Settings value types
