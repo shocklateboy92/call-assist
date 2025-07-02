@@ -63,7 +63,7 @@ class AppState:
 
         # Initialize casting service
         from .providers import ChromecastProvider
-        
+
         self.casting_service = CastingService(self.video_streaming_service)
         self.casting_service.register_provider(ChromecastProvider())
         await self.casting_service.initialize()

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class VideoStreamInfo:
     """Information about an active video stream"""
+
     call_id: str
     stream_id: str
     tracks: List[TrackInfo]
@@ -34,6 +35,7 @@ class VideoStreamInfo:
 @dataclass
 class VideoFrame:
     """A video frame with metadata"""
+
     call_id: str
     stream_id: str
     timestamp: datetime
@@ -47,6 +49,7 @@ class VideoFrame:
 @dataclass
 class StreamStats:
     """Statistics for a single video stream"""
+
     frame_count: int
     started_at: str
     last_frame_at: Optional[str]
@@ -55,6 +58,7 @@ class StreamStats:
 @dataclass
 class VideoStreamingStats:
     """Overall video streaming statistics"""
+
     active_streams: int
     total_stored_frames: int
     frame_subscribers: int
@@ -64,16 +68,18 @@ class VideoStreamingStats:
 class VideoStreamingService(CallPluginBase):
     """
     Service to handle incoming video streams from call plugins.
-    
+
     This service implements the CallPlugin interface to receive video
     frames from plugins like the Matrix plugin.
     """
 
     def __init__(self) -> None:
         self.active_streams: Dict[str, VideoStreamInfo] = {}
-        self.recent_frames: Dict[str, List[VideoFrame]] = {}  # Store recent frames for casting
+        self.recent_frames: Dict[str, List[VideoFrame]] = (
+            {}
+        )  # Store recent frames for casting
         self.frame_subscribers: List[asyncio.Queue[VideoFrame]] = []
-        
+
         # Configuration for frame storage
         self.max_frames_per_stream = 10  # Keep last 10 frames for each stream
         self.stream_timeout_seconds = 30  # Clean up streams after 30s of inactivity
@@ -128,7 +134,9 @@ class VideoStreamingService(CallPluginBase):
                     )
 
         except Exception as e:
-            logger.error(f"Error handling video frame for call {frame_msg.call_id}: {e}")
+            logger.error(
+                f"Error handling video frame for call {frame_msg.call_id}: {e}"
+            )
 
     async def _update_stream_info(self, frame: VideoFrame) -> None:
         """Update stream information"""
@@ -168,7 +176,9 @@ class VideoStreamingService(CallPluginBase):
                 # Non-blocking put - if queue is full, skip this subscriber
                 queue.put_nowait(frame)
             except asyncio.QueueFull:
-                logger.warning(f"Frame subscriber queue full, dropping frame for call {frame.call_id}")
+                logger.warning(
+                    f"Frame subscriber queue full, dropping frame for call {frame.call_id}"
+                )
             except Exception as e:
                 logger.error(f"Error notifying frame subscriber: {e}")
 
@@ -193,7 +203,7 @@ class VideoStreamingService(CallPluginBase):
         """Get recent frames for a specific call"""
         if call_id not in self.recent_frames:
             return []
-        
+
         frames = self.recent_frames[call_id]
         return frames[-count:] if len(frames) > count else frames
 
@@ -204,7 +214,9 @@ class VideoStreamingService(CallPluginBase):
 
         for call_id, stream_info in self.active_streams.items():
             if stream_info.last_frame_at:
-                time_since_last_frame = (current_time - stream_info.last_frame_at).total_seconds()
+                time_since_last_frame = (
+                    current_time - stream_info.last_frame_at
+                ).total_seconds()
                 if time_since_last_frame > self.stream_timeout_seconds:
                     inactive_calls.append(call_id)
 
@@ -216,6 +228,7 @@ class VideoStreamingService(CallPluginBase):
 
     async def start_cleanup_task(self) -> None:
         """Start background task to clean up inactive streams"""
+
         async def cleanup_loop() -> None:
             while True:
                 try:
@@ -231,15 +244,17 @@ class VideoStreamingService(CallPluginBase):
     def get_stream_stats(self) -> VideoStreamingStats:
         """Get statistics about video streaming"""
         total_frames = sum(len(frames) for frames in self.recent_frames.values())
-        
+
         streams_stats = {}
         for call_id, info in self.active_streams.items():
             streams_stats[call_id] = StreamStats(
                 frame_count=info.frame_count,
                 started_at=info.started_at.isoformat(),
-                last_frame_at=info.last_frame_at.isoformat() if info.last_frame_at else None,
+                last_frame_at=(
+                    info.last_frame_at.isoformat() if info.last_frame_at else None
+                ),
             )
-        
+
         return VideoStreamingStats(
             active_streams=len(self.active_streams),
             total_stored_frames=total_frames,

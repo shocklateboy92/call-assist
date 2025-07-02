@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class CastTargetType(Enum):
     """Types of casting targets"""
+
     CHROMECAST = "chromecast"
     HOME_ASSISTANT_MEDIA_PLAYER = "home_assistant_media_player"
     F_CAST = "f_cast"
@@ -24,6 +25,7 @@ class CastTargetType(Enum):
 
 class CastState(Enum):
     """States of a casting session"""
+
     IDLE = "idle"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -35,6 +37,7 @@ class CastState(Enum):
 @dataclass
 class CastTarget:
     """Configuration for a casting target"""
+
     target_id: str
     name: str
     target_type: CastTargetType
@@ -45,6 +48,7 @@ class CastTarget:
 @dataclass
 class CastSession:
     """Information about an active casting session"""
+
     session_id: str
     call_id: str
     target: CastTarget
@@ -123,50 +127,64 @@ class CastingService:
     async def initialize(self) -> None:
         """Initialize the casting service"""
         logger.info("Initializing casting service")
-        
+
         # Initialize all registered providers
         for provider_type, provider in self.providers.items():
             try:
                 success = await provider.initialize()
                 if success:
-                    logger.info(f"Provider {provider.provider_name} initialized successfully")
+                    logger.info(
+                        f"Provider {provider.provider_name} initialized successfully"
+                    )
                 else:
-                    logger.error(f"Failed to initialize provider {provider.provider_name}")
+                    logger.error(
+                        f"Failed to initialize provider {provider.provider_name}"
+                    )
             except Exception as e:
-                logger.error(f"Error initializing provider {provider.provider_name}: {e}")
+                logger.error(
+                    f"Error initializing provider {provider.provider_name}: {e}"
+                )
 
         # Subscribe to video frames
         self.frame_queue = self.video_service.subscribe_to_frames()
-        
+
         # Start frame processing task
         self._frame_processor_task = asyncio.create_task(self._process_frames())
-        
+
         # Start target discovery task
-        self._discovery_task = asyncio.create_task(self._discover_targets_periodically())
-        
+        self._discovery_task = asyncio.create_task(
+            self._discover_targets_periodically()
+        )
+
         logger.info("Casting service initialized successfully")
 
     def register_provider(self, provider: CastProvider) -> None:
         """Register a casting provider"""
         self.providers[provider.target_type] = provider
-        logger.info(f"Registered casting provider: {provider.provider_name} ({provider.target_type.value})")
+        logger.info(
+            f"Registered casting provider: {provider.provider_name} ({provider.target_type.value})"
+        )
 
     async def discover_targets(self) -> List[CastTarget]:
         """Discover all available casting targets"""
         all_targets = []
-        
+
         for provider in self.providers.values():
             try:
                 targets = await provider.discover_targets()
                 all_targets.extend(targets)
-                logger.info(f"Discovered {len(targets)} targets from {provider.provider_name}")
+                logger.info(
+                    f"Discovered {len(targets)} targets from {provider.provider_name}"
+                )
             except Exception as e:
-                logger.error(f"Error discovering targets from {provider.provider_name}: {e}")
-        
+                logger.error(
+                    f"Error discovering targets from {provider.provider_name}: {e}"
+                )
+
         # Update target registry
         for target in all_targets:
             self.target_registry[target.target_id] = target
-            
+
         return all_targets
 
     async def start_cast(self, target_id: str, call_id: str) -> Optional[str]:
@@ -176,13 +194,15 @@ class CastingService:
             return None
 
         target = self.target_registry[target_id]
-        
+
         if target.target_type not in self.providers:
-            logger.error(f"No provider available for target type {target.target_type.value}")
+            logger.error(
+                f"No provider available for target type {target.target_type.value}"
+            )
             return None
 
         provider = self.providers[target.target_type]
-        
+
         try:
             session_id = await provider.start_cast(target, call_id)
             if session_id:
@@ -195,13 +215,15 @@ class CastingService:
                     started_at=datetime.now(UTC),
                 )
                 self.active_sessions[session_id] = session
-                
-                logger.info(f"Started casting session {session_id} for call {call_id} to {target.name}")
+
+                logger.info(
+                    f"Started casting session {session_id} for call {call_id} to {target.name}"
+                )
                 return session_id
             else:
                 logger.error(f"Failed to start casting to {target.name}")
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error starting cast to {target.name}: {e}")
             return None
@@ -214,7 +236,7 @@ class CastingService:
 
         session = self.active_sessions[session_id]
         provider = self.providers.get(session.target.target_type)
-        
+
         if not provider:
             logger.error(f"No provider for session {session_id}")
             return False
@@ -226,11 +248,11 @@ class CastingService:
                 logger.info(f"Stopped casting session {session_id}")
             else:
                 logger.error(f"Failed to stop casting session {session_id}")
-            
+
             # Remove from active sessions
             del self.active_sessions[session_id]
             return success
-            
+
         except Exception as e:
             logger.error(f"Error stopping cast session {session_id}: {e}")
             return False
@@ -249,17 +271,20 @@ class CastingService:
             return
 
         logger.info("Started video frame processing for casting")
-        
+
         while True:
             try:
                 # Get frame from queue
                 frame = await self.frame_queue.get()
-                
+
                 # Send frame to all active sessions for this call
                 for session in self.active_sessions.values():
-                    if session.call_id == frame.call_id and session.state == CastState.STREAMING:
+                    if (
+                        session.call_id == frame.call_id
+                        and session.state == CastState.STREAMING
+                    ):
                         await self._send_frame_to_session(session, frame)
-                        
+
             except asyncio.CancelledError:
                 logger.info("Frame processing task cancelled")
                 break
@@ -267,7 +292,9 @@ class CastingService:
                 logger.error(f"Error processing video frame: {e}")
                 await asyncio.sleep(1)  # Brief pause before retrying
 
-    async def _send_frame_to_session(self, session: CastSession, frame: VideoFrame) -> None:
+    async def _send_frame_to_session(
+        self, session: CastSession, frame: VideoFrame
+    ) -> None:
         """Send a frame to a specific casting session"""
         provider = self.providers.get(session.target.target_type)
         if not provider:
@@ -279,15 +306,17 @@ class CastingService:
                 session.last_frame_at = frame.timestamp
                 session.frames_sent += 1
                 session.state = CastState.STREAMING
-                
+
                 # Log occasionally to avoid spam
                 if session.frames_sent % 100 == 0:
-                    logger.info(f"Sent {session.frames_sent} frames to session {session.session_id}")
+                    logger.info(
+                        f"Sent {session.frames_sent} frames to session {session.session_id}"
+                    )
             else:
                 logger.warning(f"Failed to send frame to session {session.session_id}")
                 session.state = CastState.ERROR
                 session.error_message = "Frame transmission failed"
-                
+
         except Exception as e:
             logger.error(f"Error sending frame to session {session.session_id}: {e}")
             session.state = CastState.ERROR
@@ -309,7 +338,7 @@ class CastingService:
     async def cleanup(self) -> None:
         """Clean up the casting service"""
         logger.info("Cleaning up casting service")
-        
+
         # Cancel background tasks
         if self._frame_processor_task:
             self._frame_processor_task.cancel()
@@ -317,7 +346,7 @@ class CastingService:
                 await self._frame_processor_task
             except asyncio.CancelledError:
                 pass
-                
+
         if self._discovery_task:
             self._discovery_task.cancel()
             try:
@@ -334,7 +363,9 @@ class CastingService:
             try:
                 await provider.cleanup()
             except Exception as e:
-                logger.error(f"Error cleaning up provider {provider.provider_name}: {e}")
+                logger.error(
+                    f"Error cleaning up provider {provider.provider_name}: {e}"
+                )
 
         # Unsubscribe from video frames
         if self.frame_queue:
