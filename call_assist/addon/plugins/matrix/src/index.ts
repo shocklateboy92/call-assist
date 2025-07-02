@@ -7,7 +7,7 @@ import {
   ClientEvent,
   MatrixCall,
 } from "matrix-js-sdk";
-import { 
+import {
   CallEvent as MatrixCallEvent,
   CallState as MatrixCallState,
   CallError,
@@ -76,6 +76,8 @@ interface CallInfo {
   call: MatrixCall;
   mediaPipeline?: MediaPipeline;
   cameraStreamUrl?: string;
+  remoteVideoStream?: MediaStream;
+  remoteVideoFeed?: CallFeed;
 }
 
 class MatrixCallPlugin {
@@ -684,38 +686,43 @@ class MatrixCallPlugin {
     console.log(`Setting up event handlers for call ${callId}`);
 
     // Handle call state changes
-    call.on(MatrixCallEvent.State, (state: MatrixCallState, oldState: MatrixCallState, call: MatrixCall) => {
-      console.log(`Call ${callId} state changed from ${oldState} to ${state}`);
+    call.on(
+      MatrixCallEvent.State,
+      (state: MatrixCallState, oldState: MatrixCallState, call: MatrixCall) => {
+        console.log(
+          `Call ${callId} state changed from ${oldState} to ${state}`
+        );
 
-      let callState: CallState;
-      let eventType: CallEventType;
+        let callState: CallState;
+        let eventType: CallEventType;
 
-      switch (state) {
-        case MatrixCallState.Ringing:
-          callState = CallState.CALL_STATE_RINGING;
-          eventType = CallEventType.CALL_EVENT_RINGING;
-          break;
-        case MatrixCallState.Connected:
-          callState = CallState.CALL_STATE_ACTIVE;
-          eventType = CallEventType.CALL_EVENT_ANSWERED;
-          break;
-        case MatrixCallState.Ended:
-          callState = CallState.CALL_STATE_ENDED;
-          eventType = CallEventType.CALL_EVENT_ENDED;
-          break;
-        default:
-          callState = CallState.CALL_STATE_INITIATING;
-          eventType = CallEventType.CALL_EVENT_INITIATED;
+        switch (state) {
+          case MatrixCallState.Ringing:
+            callState = CallState.CALL_STATE_RINGING;
+            eventType = CallEventType.CALL_EVENT_RINGING;
+            break;
+          case MatrixCallState.Connected:
+            callState = CallState.CALL_STATE_ACTIVE;
+            eventType = CallEventType.CALL_EVENT_ANSWERED;
+            break;
+          case MatrixCallState.Ended:
+            callState = CallState.CALL_STATE_ENDED;
+            eventType = CallEventType.CALL_EVENT_ENDED;
+            break;
+          default:
+            callState = CallState.CALL_STATE_INITIATING;
+            eventType = CallEventType.CALL_EVENT_INITIATED;
+        }
+
+        this.callEventSubject.next({
+          type: eventType,
+          timestamp: new Date(),
+          callId,
+          state: callState,
+          metadata: { roomId: call.roomId, callState: state },
+        });
       }
-
-      this.callEventSubject.next({
-        type: eventType,
-        timestamp: new Date(),
-        callId,
-        state: callState,
-        metadata: { roomId: call.roomId, callState: state },
-      });
-    });
+    );
 
     // Handle call hangup
     call.on(MatrixCallEvent.Hangup, (call: MatrixCall) => {
@@ -733,6 +740,9 @@ class MatrixCallPlugin {
       const callInfo = this.activeCalls.get(callId);
       if (callInfo?.mediaPipeline) {
         this.cleanupMediaPipeline(callInfo.mediaPipeline);
+      }
+      if (callInfo?.remoteVideoStream) {
+        this.cleanupRemoteVideoStream(callInfo.remoteVideoStream);
       }
       this.activeCalls.delete(callId);
     });
@@ -754,8 +764,100 @@ class MatrixCallPlugin {
       if (callInfo?.mediaPipeline) {
         this.cleanupMediaPipeline(callInfo.mediaPipeline);
       }
+      if (callInfo?.remoteVideoStream) {
+        this.cleanupRemoteVideoStream(callInfo.remoteVideoStream);
+      }
       this.activeCalls.delete(callId);
     });
+
+    // Handle remote video feeds
+    call.on(
+      MatrixCallEvent.FeedsChanged,
+      (feeds: CallFeed[], call: MatrixCall) => {
+        console.log(
+          `Call ${callId} feeds changed, total feeds: ${feeds.length}`
+        );
+
+        const remoteFeeds = call.getRemoteFeeds();
+        console.log(`Remote feeds available: ${remoteFeeds.length}`);
+
+        remoteFeeds.forEach((feed, index) => {
+          console.log(
+            `Processing remote feed ${index}: purpose=${feed.purpose}, userId=${feed.userId}`
+          );
+
+          if (feed.purpose === SDPStreamMetadataPurpose.Usermedia) {
+            // This is the remote user's camera/microphone feed
+            const videoStream = feed.stream;
+            const videoTracks = videoStream.getVideoTracks();
+
+            if (videoTracks.length > 0) {
+              console.log(`Found remote video track for call ${callId}`);
+              this.handleRemoteVideoStream(callId, videoStream, feed, call);
+            }
+          } else if (feed.purpose === SDPStreamMetadataPurpose.Screenshare) {
+            // This is the remote user's screen sharing feed
+            console.log(`Found remote screen sharing feed for call ${callId}`);
+            this.handleRemoteVideoStream(callId, feed.stream, feed, call);
+          }
+        });
+      }
+    );
+  }
+
+  private handleRemoteVideoStream(
+    callId: string,
+    videoStream: MediaStream,
+    feed: CallFeed,
+    call: MatrixCall
+  ): void {
+    console.log(`Handling remote video stream for call ${callId}`);
+
+    // Get video tracks from the remote stream
+    const videoTracks = videoStream.getVideoTracks();
+    if (videoTracks.length === 0) {
+      console.log(`No video tracks found in remote stream for call ${callId}`);
+      return;
+    }
+
+    const videoTrack = videoTracks[0];
+    console.log(
+      `Remote video track: ${videoTrack.id}, enabled: ${videoTrack.enabled}, readyState: ${videoTrack.readyState}`
+    );
+
+    // Create a video element to render the remote stream (Node.js simulation)
+    // In a real browser environment, you would use HTMLVideoElement
+    // For Node.js, we'll set up stream processing to extract frames
+
+    // TODO: Implement frame extraction from remote video track
+    // This could involve:
+    // 1. Using canvas to capture frames from video track
+    // 2. Converting frames to a format the broker can display
+    // 3. Sending frames via gRPC stream or HTTP endpoint
+
+    // For now, emit a call event indicating remote video is available
+    this.callEventSubject.next({
+      type: CallEventType.CALL_EVENT_ANSWERED, // Using existing event type
+      timestamp: new Date(),
+      callId,
+      state: CallState.CALL_STATE_ACTIVE,
+      metadata: {
+        roomId: call.roomId,
+        remoteVideoAvailable: "true",
+        remoteUserId: feed.userId,
+        streamPurpose: feed.purpose,
+        videoTrackId: videoTrack.id,
+      },
+    });
+
+    // Store reference to remote stream for potential cleanup
+    const callInfo = this.activeCalls.get(callId);
+    if (callInfo) {
+      callInfo.remoteVideoStream = videoStream;
+      callInfo.remoteVideoFeed = feed;
+    }
+
+    console.log(`Remote video stream handling set up for call ${callId}`);
   }
 
   private async setupMediaPipeline(
@@ -1114,6 +1216,22 @@ class MatrixCallPlugin {
     }
   }
 
+  private cleanupRemoteVideoStream(videoStream: MediaStream): void {
+    console.log("Cleaning up remote video stream...");
+
+    try {
+      // Stop all tracks in the remote video stream
+      videoStream.getTracks().forEach((track) => {
+        console.log(`Stopping remote track: ${track.id} (${track.kind})`);
+        track.stop();
+      });
+
+      console.log("✅ Remote video stream cleaned up successfully");
+    } catch (error) {
+      console.error("Error cleaning up remote video stream:", error);
+    }
+  }
+
   async shutdown(): Promise<void> {
     console.log("Shutting down Matrix plugin...");
 
@@ -1132,6 +1250,14 @@ class MatrixCallPlugin {
         await this.cleanupMediaPipeline(callInfo.mediaPipeline);
         console.log(
           `Cleaned up media pipeline for call ${callId} during shutdown`
+        );
+      }
+
+      // Clean up remote video stream
+      if (callInfo.remoteVideoStream) {
+        this.cleanupRemoteVideoStream(callInfo.remoteVideoStream);
+        console.log(
+          `Cleaned up remote video stream for call ${callId} during shutdown`
         );
       }
     }
