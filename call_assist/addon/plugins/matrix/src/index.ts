@@ -7,6 +7,12 @@ import {
   ClientEvent,
   MatrixCall,
 } from "matrix-js-sdk";
+import { 
+  CallEvent as MatrixCallEvent,
+  CallState as MatrixCallState,
+  CallError,
+} from "matrix-js-sdk/lib/webrtc/call";
+import { CallEventHandlerEvent } from "matrix-js-sdk/lib/webrtc/callEventHandler";
 import { CallFeed } from "matrix-js-sdk/lib/webrtc/callFeed";
 import { SDPStreamMetadataPurpose } from "matrix-js-sdk/lib/webrtc/callEventTypes";
 import { Subject } from "rxjs";
@@ -579,7 +585,7 @@ class MatrixCallPlugin {
     });
 
     // Handle incoming calls using matrix-js-sdk Call events
-    this.matrixClient.on("Call.incoming" as any, (call: MatrixCall) => {
+    this.matrixClient.on(CallEventHandlerEvent.Incoming, (call: MatrixCall) => {
       console.log("Received incoming Matrix call:", call.callId);
       this.handleIncomingCall(call);
     });
@@ -678,22 +684,22 @@ class MatrixCallPlugin {
     console.log(`Setting up event handlers for call ${callId}`);
 
     // Handle call state changes
-    call.on("state" as any, (state: string) => {
-      console.log(`Call ${callId} state changed to: ${state}`);
+    call.on(MatrixCallEvent.State, (state: MatrixCallState, oldState: MatrixCallState, call: MatrixCall) => {
+      console.log(`Call ${callId} state changed from ${oldState} to ${state}`);
 
       let callState: CallState;
       let eventType: CallEventType;
 
       switch (state) {
-        case "ringing":
+        case MatrixCallState.Ringing:
           callState = CallState.CALL_STATE_RINGING;
           eventType = CallEventType.CALL_EVENT_RINGING;
           break;
-        case "connected":
+        case MatrixCallState.Connected:
           callState = CallState.CALL_STATE_ACTIVE;
           eventType = CallEventType.CALL_EVENT_ANSWERED;
           break;
-        case "ended":
+        case MatrixCallState.Ended:
           callState = CallState.CALL_STATE_ENDED;
           eventType = CallEventType.CALL_EVENT_ENDED;
           break;
@@ -712,15 +718,15 @@ class MatrixCallPlugin {
     });
 
     // Handle call hangup
-    call.on("hangup" as any, (reason: string) => {
-      console.log(`Call ${callId} was hung up: ${reason}`);
+    call.on(MatrixCallEvent.Hangup, (call: MatrixCall) => {
+      console.log(`Call ${callId} was hung up`);
 
       this.callEventSubject.next({
         type: CallEventType.CALL_EVENT_ENDED,
         timestamp: new Date(),
         callId,
         state: CallState.CALL_STATE_ENDED,
-        metadata: { roomId: call.roomId, reason },
+        metadata: { roomId: call.roomId },
       });
 
       // Clean up call info
@@ -732,7 +738,7 @@ class MatrixCallPlugin {
     });
 
     // Handle call errors
-    call.on("error" as any, (error: any) => {
+    call.on(MatrixCallEvent.Error, (error: CallError, call: MatrixCall) => {
       console.error(`Call ${callId} error:`, error);
 
       this.callEventSubject.next({
